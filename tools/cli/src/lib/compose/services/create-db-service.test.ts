@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 
 import { setProjectId } from '../../project/project-context';
 import type { ServiceConfig } from '../types';
-import { createDbService } from './create-db-service';
+import { askedDbProfile, createDbService } from './create-db-service';
 
 // getProjectId() (used for container_name) throws unless the project context
 // has been initialised, so seed it once for these unit tests.
@@ -75,4 +75,37 @@ describe('createDbService shutdown', () => {
   test('keeps the checkpoint window before SIGKILL', () => {
     expect(createDbService(config).stop_grace_period).toBe('60s');
   });
+});
+
+describe('createDbService profile', () => {
+  // The image alone takes the standard profile; the deployment `tale deploy`
+  // starts is the one that must fit a small host.
+  test('asks the image for the small profile unless .env names another', () => {
+    expect(createDbService(config).environment).toEqual({
+      DB_PROFILE: '${DB_PROFILE:-small}',
+    });
+    // The DB_ sizes of .env reach the container with the rest of the file.
+    expect(createDbService(config).env_file).toEqual(['.env']);
+  });
+
+  test('reads the profile a deployment asked for, small where it named none', () => {
+    expect(askedDbProfile(() => undefined)).toBe('small');
+    expect(askedDbProfile(() => '')).toBe('small');
+    expect(askedDbProfile(() => '  ')).toBe('small');
+    expect(askedDbProfile(() => 'small')).toBe('small');
+    expect(askedDbProfile(() => 'standard')).toBe('standard');
+    expect(askedDbProfile(() => ' standard ')).toBe('standard');
+    expect(
+      askedDbProfile((name) => (name === 'DB_PROFILE' ? 'standard' : 'x')),
+    ).toBe('standard');
+  });
+
+  test.each(['tiny', 'Small', 'large', '1'])(
+    'refuses a word that is no profile (%p)',
+    (asked) => {
+      expect(() => askedDbProfile(() => asked)).toThrow(
+        `DB_PROFILE must be small, standard, or unset; got: ${JSON.stringify(asked)}`,
+      );
+    },
+  );
 });

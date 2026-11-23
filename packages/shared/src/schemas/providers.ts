@@ -902,11 +902,11 @@ export type BrokerCredentialData = z.infer<typeof brokerCredentialDataSchema>;
 // Placeholders. Literal strings in argv chunks, env maps, templates, and doc
 // trees (values AND map keys) may reference exactly these spec fields:
 //
-//   ${gateway.baseUrl}  managed gateway root (no trailing slash)
-//   ${gateway.token}    session virtual key (env values only in practice —
+//   ${gateway.baseUrl}  the model relay's root (no trailing slash)
+//   ${gateway.token}    the turn's model key (env values only in practice —
 //                       the hygiene tests enforce where it may land)
 //   ${gateway.streamIdleTimeoutMs}
-//                       the gateway's per-stream idle budget in milliseconds
+//                       the relay's per-stream idle budget in milliseconds
 //                       (what a CLI's own client-side idle watchdog must wait)
 //   ${gateway.requestTimeoutMs}
 //                       the gateway's per-request timeout in milliseconds
@@ -919,6 +919,11 @@ export type BrokerCredentialData = z.infer<typeof brokerCredentialDataSchema>;
 //                       '' when it is unknown or not below the exec's
 //                       `contextWindow.below` gate (never an error: a CLI
 //                       reads the empty value as unset)
+//   ${model.maxOutputTokens}
+//                       the most tokens one answer of the model may take, as
+//                       its catalog entry says (never more than its effective
+//                       context window), or '' when the catalog names none
+//                       (never an error, like the window)
 //   ${workdir}          the session working directory
 //   ${execId}           the platform exec id of the turn
 //   ${prompt}           the turn prompt
@@ -977,11 +982,24 @@ const headerTemplateMapSchema = z.record(
 );
 
 /**
- * Condition atoms gating a conditional doc fragment or envelope doc; a
- * `when` list is an AND over its atoms. `managed`/`byo` follow the spec's
- * credential mode; `model`/`no-model` whether a model was resolved.
+ * Condition atoms gating a conditional doc fragment, envelope doc or value
+ * (`$when`); a `when` list is an AND over its atoms. `managed`/`byo` follow
+ * the spec's credential mode; `model`/`no-model` whether a model was
+ * resolved; `model-images` whether the serving model reads images itself
+ * (no vision polyfill reads them for it); `model-reasoning` whether it can
+ * be told how hard to think on a turn that carries tools (its catalog entry
+ * declares a reasoning knob, and the endpoint does not refuse one with
+ * tools).
  */
-const execConditionSchema = z.enum(['managed', 'byo', 'model', 'no-model']);
+const execConditionSchema = z.enum([
+  'managed',
+  'byo',
+  'model',
+  'no-model',
+  'model-images',
+  'model-reasoning',
+]);
+type ExecCondition = z.infer<typeof execConditionSchema>;
 const whenSchema = z.array(execConditionSchema).min(1);
 
 /** Dotted key path inside a config document (`model.maxSessionTurns`,
@@ -999,31 +1017,51 @@ const docPathSchema = z
  * `{ $number: '${model.contextWindow}' }` is the model's context window. It
  * becomes the whole number its template resolves to, and nothing when that
  * is empty (an unknown window): its key, or its array slot, is left out, so
- * the CLI keeps its own default. Any other text is a config defect. */
-type DocNumberTemplate = { $number: string };
+ * the CLI keeps its own default. With a `default`
+ * (`{ $number: '${model.contextWindow}', default: 200000 }`) an empty
+ * template becomes that number instead, for a CLI whose own default must not
+ * apply. Any other text is a config defect. */
+type DocNumberTemplate = { $number: string; default?: number };
 const docNumberTemplateSchema = z
-  .object({ $number: z.string().min(1).max(4096) })
+  .object({
+    $number: z.string().min(1).max(4096),
+    /** A whole number, as the template's own text must be. */
+    default: z.number().int().nonnegative().optional(),
+  })
   .strict();
 
-/** A key of a `set` tree. `$number` is the number template's alone. */
+/** A key of a `set` tree. `$number` and `$when` are templates' alone. */
 const docKeySchema = z
   .string()
   .min(1)
   .max(200)
-  .refine((key) => key !== '$number', {
-    message: '`$number` is a number template, not a key',
+  .refine((key) => key !== '$number' && key !== '$when', {
+    message: '`$number` and `$when` are templates, not keys',
   });
+
+/** A value a CLI's config takes only when the build meets conditions:
+ * `{ $when: [model-images], value: [text, image], else: [text] }` becomes
+ * `value` when every atom of `$when` holds, and `else` when one does not —
+ * without an `else`, nothing: its key, or its array slot, is left out, so
+ * the CLI keeps its own default. Both are trees like any other. */
+type DocWhenValue = {
+  $when: ExecCondition[];
+  value: DocValue;
+  else?: DocValue;
+};
 
 /** JSON-shaped literal tree for `set` fragments. Strings — keys included —
  * go through placeholder substitution; a number template
- * ({@link DocNumberTemplate}) becomes the number it resolves to; everything
- * else is verbatim. */
+ * ({@link DocNumberTemplate}) becomes the number it resolves to, and a
+ * conditional value ({@link DocWhenValue}) the branch its conditions pick;
+ * everything else is verbatim. */
 type DocValue =
   | string
   | number
   | boolean
   | null
   | DocNumberTemplate
+  | DocWhenValue
   | DocValue[]
   | { [key: string]: DocValue };
 const docValueSchema: z.ZodType<DocValue> = z.lazy(() =>
@@ -1033,6 +1071,13 @@ const docValueSchema: z.ZodType<DocValue> = z.lazy(() =>
     z.boolean(),
     z.null(),
     docNumberTemplateSchema,
+    z
+      .object({
+        $when: whenSchema,
+        value: docValueSchema,
+        else: docValueSchema.optional(),
+      })
+      .strict(),
     z.array(docValueSchema),
     z.record(docKeySchema, docValueSchema),
   ]),
@@ -1046,7 +1091,7 @@ const docValueSchema: z.ZodType<DocValue> = z.lazy(() =>
  * order is first-insertion order, which the byte-exact golden fixtures pin.
  *
  *  - `set`: merge a literal tree (optionally gated by `when`), its number
- *    templates resolved first.
+ *    templates and conditional values resolved first.
  *  - `maxTurns`: set the fixed runaway backstop (`DEFAULT_MAX_TURNS`) as a
  *    number at `path`.
  *  - `mcpServers`: mount the requested MCP servers at `path` — the
@@ -1059,9 +1104,12 @@ const docValueSchema: z.ZodType<DocValue> = z.lazy(() =>
  *    own MCP server (`<bridge URL>/mcp`) with those request headers, and no
  *    relay process starts.
  *    `serverShape`: `command-args` = `{command, args}` objects, and a remote
- *    bridge as `{httpUrl, headers}`; `opencode-local` = `{type: "local",
- *    command: [bin, …args], enabled}`, and a remote bridge as `{type:
- *    "remote", url, headers, oauth: false, enabled}`.
+ *    bridge as `{httpUrl, headers}` (the gemini family: qwen-code reads a
+ *    bare `url` as SSE); `mcp-json` = the same `{command, args}` objects,
+ *    and a remote bridge as `{url, headers}`, the common mcp.json format
+ *    (Pi); `opencode-local` = `{type: "local", command: [bin, …args],
+ *    enabled}`, and a remote bridge as `{type: "remote", url, headers,
+ *    oauth: false, enabled}`.
  *    `bridgeCallTimeout`: the field (and its unit) under which the CLI takes
  *    one MCP call's timeout, for a CLI whose default gives up before the
  *    bridge's longest tool can answer and whose calls are not kept alive by
@@ -1088,7 +1136,7 @@ const docFragmentSchema = z.union([
       mcpServers: z
         .object({
           path: docPathSchema,
-          serverShape: z.enum(['command-args', 'opencode-local']),
+          serverShape: z.enum(['command-args', 'mcp-json', 'opencode-local']),
           bridgeEnvField: z.enum(['env', 'environment']).optional(),
           bridgeEnv: envTemplateMapSchema.optional(),
           bridgeHeaders: headerTemplateMapSchema.optional(),
@@ -1303,7 +1351,12 @@ const stdinEnvelopeEntrySchema = z.union([
  * (the tale-*-run wrappers read it to EOF); `ndjson-user-message` = the
  * prompt as one stream-json user-message line with stdin HELD OPEN — the
  * mid-turn steering channel (claude); `promptTransform` names the in-code
- * prompt rewrite applied first (claude's ultrathink keyword).
+ * prompt rewrite applied first (claude's ultrathink keyword);
+ * `json-envelope-rpc` = the envelope as ONE line, then the prompt as the
+ * `rpc` dialect's prompt command on a second line, with stdin HELD OPEN —
+ * the wrapper reads the first line alone and hands the rest of stdin to the
+ * CLI's RPC mode, where a steer arrives as that dialect's steer command
+ * (pi).
  */
 const execStdinSchema = z.discriminatedUnion('mode', [
   z.object({ mode: z.literal('none') }).strict(),
@@ -1320,7 +1373,27 @@ const execStdinSchema = z.discriminatedUnion('mode', [
       envelope: z.array(stdinEnvelopeEntrySchema).min(1),
     })
     .strict(),
+  z
+    .object({
+      mode: z.literal('json-envelope-rpc'),
+      envelope: z.array(stdinEnvelopeEntrySchema).min(1),
+      rpc: z.literal('pi'),
+    })
+    .strict(),
 ]);
+
+/** The stdin modes that stay open after the prompt: a CLI that keeps
+ * reading them answers turn after turn, takes steering lines while it runs,
+ * and exits on EOF. */
+export const HELD_STDIN_MODES = [
+  'ndjson-user-message',
+  'json-envelope-rpc',
+] as const;
+
+/** Whether a stdin mode is held open (`HELD_STDIN_MODES`). */
+export function stdinModeHolds(mode: string): boolean {
+  return (HELD_STDIN_MODES as readonly string[]).includes(mode);
+}
 
 /**
  * The full exec construction facts. `bin` + the ordered `argv` slots build
@@ -1462,7 +1535,7 @@ export const harnessDefinitionSchema = z
     displayName: displayNameSchema,
     /**
      * Which credential modes the harness accepts: `managed` = routed through
-     * the platform gateway with a session-scoped virtual key; `byo` =
+     * the platform's model relay with the turn's own key; `byo` =
      * user-owned credentials injected into the session environment. At least
      * one must hold, or no credential could ever run the harness.
      */
@@ -1582,11 +1655,11 @@ export const harnessDefinitionSchema = z
       );
     }
 
-    // Steering ⇔ the held-open NDJSON stdin channel.
-    const holdsStdin = provider.exec.stdin.mode === 'ndjson-user-message';
+    // Steering ⇔ a held-open stdin channel.
+    const holdsStdin = stdinModeHolds(provider.exec.stdin.mode);
     if (provider.capabilities.steering !== holdsStdin) {
       issue(
-        'capabilities.steering must match the ndjson-user-message stdin mode (the held-open steering channel)',
+        'capabilities.steering must match a held stdin mode (ndjson-user-message or json-envelope-rpc, the held-open steering channel)',
       );
     }
     if (provider.exec.steering && !provider.capabilities.steering) {
@@ -1597,10 +1670,17 @@ export const harnessDefinitionSchema = z
     const stdinMode = provider.exec.stdin.mode;
     const hasArgvPrompt = (counts.get('prompt') ?? 0) > 0;
     const envelope =
-      provider.exec.stdin.mode === 'json-envelope'
+      provider.exec.stdin.mode === 'json-envelope' ||
+      provider.exec.stdin.mode === 'json-envelope-rpc'
         ? provider.exec.stdin.envelope
         : [];
     const envelopeHasPrompt = envelope.some((e) => 'prompt' in e);
+    // The RPC envelope's prompt rides its own line, as a prompt command.
+    if (provider.exec.stdin.mode === 'json-envelope-rpc' && envelopeHasPrompt) {
+      issue(
+        'a json-envelope-rpc envelope carries no prompt entry: the prompt is its second line',
+      );
+    }
     switch (provider.promptTransport) {
       case 'argv':
         if (stdinMode !== 'none' || !hasArgvPrompt) {
@@ -1618,10 +1698,11 @@ export const harnessDefinitionSchema = z
         if (
           hasArgvPrompt ||
           (stdinMode !== 'ndjson-user-message' &&
+            stdinMode !== 'json-envelope-rpc' &&
             !(stdinMode === 'json-envelope' && envelopeHasPrompt))
         ) {
           issue(
-            'promptTransport stdin-ndjson requires an ndjson-user-message or prompt-carrying json-envelope stdin',
+            'promptTransport stdin-ndjson requires an ndjson-user-message, json-envelope-rpc or prompt-carrying json-envelope stdin',
           );
         }
         break;

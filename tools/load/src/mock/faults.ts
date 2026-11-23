@@ -7,7 +7,8 @@
  * `[[mock:midstream-error]]`, `[[mock:stall=<ms>]]` — next to the shaping
  * directives `[[mock:ttft=<ms>]]`, `[[mock:tokens=<n>]]`, `[[mock:tool]]`,
  * `[[mock:no-tool]]` and `[[mock:empty]]`, and the load directives
- * `[[mock:hog=<MiB>]]` and `[[mock:hog-seconds=<s>]]` (see `hog.ts`). A
+ * `[[mock:hog=<MiB>]]` and `[[mock:hog-seconds=<s>]]` (see `hog.ts`) and
+ * `[[mock:run-code]]` (see `run-code.ts`). A
  * directive is literal text in the prompt, so it survives whatever the
  * platform wraps around the message and reaches the provider exactly as the
  * driver wrote it.
@@ -38,6 +39,8 @@ export interface MockDirectives {
   readonly hogMib?: number;
   /** How long that program keeps a CPU busy, in seconds. */
   readonly hogSeconds?: number;
+  /** Call the offered `run_code` tool with a program that draws a chart. */
+  readonly runCode?: boolean;
 }
 
 const DIRECTIVE_PATTERN = /\[\[mock:([a-z0-9-]+)(?:=(\d{1,9}))?\]\]/gi;
@@ -86,6 +89,9 @@ export function parseDirectives(
         break;
       case 'hog-seconds':
         if (value !== undefined) directives.hogSeconds = value;
+        break;
+      case 'run-code':
+        directives.runCode = true;
         break;
       default:
         console.warn(`[mock] unknown directive [[mock:${name}]] ignored`);

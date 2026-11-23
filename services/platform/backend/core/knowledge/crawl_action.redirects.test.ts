@@ -4,12 +4,13 @@ import type { Sql } from 'postgres';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { EMPTY_ROBOTS_POLICY } from '../../../lib/knowledge/crawl-parse';
-import { safeFetchBinary } from '../../../lib/net/safe-fetch';
+import { safeFetchToFile } from '../../../lib/net/safe-fetch';
 import { fetchAndStorePage } from './crawl_action';
+import { fetchingToFile } from './crawl_action.test-helpers';
 
 vi.mock('../../../lib/net/safe-fetch', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../../lib/net/safe-fetch')>()),
-  safeFetchBinary: vi.fn(),
+  safeFetchToFile: vi.fn(),
 }));
 
 /**
@@ -43,13 +44,15 @@ function corpus(): {
 }
 
 const answers = (finalUrl: string): void => {
-  vi.mocked(safeFetchBinary).mockResolvedValue({
-    status: 200,
-    statusText: 'OK',
-    headers: new Headers({ 'content-type': 'text/html; charset=utf-8' }),
-    body: new Blob(['<html></html>']),
-    finalUrl,
-  });
+  vi.mocked(safeFetchToFile).mockImplementation(
+    fetchingToFile({
+      status: 200,
+      statusText: 'OK',
+      headers: new Headers({ 'content-type': 'text/html; charset=utf-8' }),
+      body: '<html></html>',
+      finalUrl,
+    }),
+  );
 };
 
 const page = (url: string, listed = false) => ({
@@ -77,7 +80,7 @@ const admitted = (statements: { text: string; params: unknown[] }[]) =>
     .flatMap((statement) => statement.params.slice(1));
 
 beforeEach(() => {
-  vi.mocked(safeFetchBinary).mockReset();
+  vi.mocked(safeFetchToFile).mockReset();
   vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 });
 
@@ -218,7 +221,7 @@ describe('fetchAndStorePage — a page the crawler does not request', () => {
       fetchAndStorePage(sql, DOMAIN, page(url), PRIVATE_RULE),
     ).resolves.toBe('unchanged');
 
-    expect(safeFetchBinary).not.toHaveBeenCalled();
+    expect(safeFetchToFile).not.toHaveBeenCalled();
     expect(retired(statements)).toEqual([url]);
     expect(unindexed(statements)).toEqual([[DOMAIN, url]]);
   });
@@ -232,7 +235,7 @@ describe('fetchAndStorePage — a page the crawler does not request', () => {
       fetchAndStorePage(sql, DOMAIN, page(url, true), PRIVATE_RULE),
     ).resolves.toMatchObject({ kind: 'render' });
 
-    expect(safeFetchBinary).toHaveBeenCalledTimes(1);
+    expect(safeFetchToFile).toHaveBeenCalledTimes(1);
     expect(retired(statements)).toEqual([]);
   });
 
@@ -254,7 +257,7 @@ describe('fetchAndStorePage — a page the crawler does not request', () => {
         ),
       ).resolves.toBe('failed');
 
-      expect(safeFetchBinary).not.toHaveBeenCalled();
+      expect(safeFetchToFile).not.toHaveBeenCalled();
       expect(failureKinds(statements)).toEqual(['private_ip']);
     },
   );
@@ -269,8 +272,9 @@ describe('fetchAndStorePage — a page the crawler does not request', () => {
       fetchAndStorePage(sql, 'intranet.corp', page(url), EMPTY_ROBOTS_POLICY),
     ).resolves.toMatchObject({ kind: 'render' });
 
-    expect(safeFetchBinary).toHaveBeenCalledWith(
+    expect(safeFetchToFile).toHaveBeenCalledWith(
       url,
+      expect.any(String),
       expect.objectContaining({ allowPrivateAddresses: true }),
     );
     expect(failureKinds(statements)).toEqual([]);

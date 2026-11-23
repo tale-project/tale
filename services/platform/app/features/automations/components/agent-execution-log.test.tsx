@@ -2,7 +2,11 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { render, screen } from '@/tests/utils/render';
 
-import { AgentActivityLine, AgentExecutionLog } from './agent-execution-log';
+import {
+  AgentActivityLine,
+  AgentExecutionLog,
+  ExecutionLogView,
+} from './agent-execution-log';
 
 // Drives the mocked `useBackendQuery` return: the run's sandbox op, or `null`
 // for a run that never ran an agent node.
@@ -141,6 +145,106 @@ describe('AgentExecutionLog', () => {
         'Images in this run were read by openrouter/qwen/qwen3-vl-32b-instruct.',
       ),
     ).toBeInTheDocument();
+  });
+
+  // A step on the default runs where the kick resolved it: the reader needs
+  // the runtime and the rule that took the turn there, as the host recorded
+  // them — a Claude subscription keeps a step in Claude Code, and says why.
+  it.each([
+    ['pinned', 'This turn ran on Codex, the agent runtime this step names.'],
+    ['default', 'This turn ran on Codex, the default agent runtime.'],
+    [
+      'subscription_bound',
+      'This turn ran on Codex because only a subscription serves its model, and that subscription works only in Codex.',
+    ],
+  ])('says why a %s turn ran on its agent runtime', (reason, sentence) => {
+    state.data = {
+      ...op([{ type: 'text', text: 'working' }], 'completed'),
+      harness: 'codex',
+      harnessLabel: 'Codex',
+      harnessReason: reason,
+    };
+    render(<AgentExecutionLog organizationId="org-1" runId={runId} />);
+    expect(screen.getByText(sentence)).toBeInTheDocument();
+  });
+
+  it('names the runtime by its slug when the deployment no longer ships it', () => {
+    state.data = {
+      ...op([{ type: 'text', text: 'working' }], 'completed'),
+      harness: 'retired-cli',
+      harnessReason: 'default',
+    };
+    render(<AgentExecutionLog organizationId="org-1" runId={runId} />);
+    expect(
+      screen.getByText(
+        'This turn ran on retired-cli, the default agent runtime.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  // On a task run the agent names its runtime, and the standard agent's
+  // runtime can come from the organization's policy.
+  it.each([
+    ['pinned', 'This turn ran on Pi, the agent runtime this agent names.'],
+    [
+      'policy',
+      "This turn ran on Pi, the agent runtime set for the organization's standard agent under Governance.",
+    ],
+  ] as const)(
+    'says why a %s task turn ran on its agent runtime',
+    (reason, sentence) => {
+      render(
+        <ExecutionLogView
+          op={{
+            execId: 'e1',
+            status: 'completed',
+            liveTimeline: [{ type: 'text', text: 'working' }],
+            harness: 'pi',
+            harnessLabel: 'Pi',
+            harnessReason: reason,
+          }}
+          hideHeader
+          runtimeOwner="agent"
+        />,
+      );
+      expect(screen.getByText(sentence)).toBeInTheDocument();
+    },
+  );
+
+  // The standard agent runs a model the default cannot run (its tools need
+  // the Responses API) where it can, and the reader is told it was not the
+  // default that ran it.
+  it('says why a task turn ran off the default when the default cannot run its model', () => {
+    render(
+      <ExecutionLogView
+        op={{
+          execId: 'e1',
+          status: 'completed',
+          liveTimeline: [{ type: 'text', text: 'working' }],
+          harness: 'codex',
+          harnessLabel: 'Codex',
+          harnessReason: 'model_bound',
+        }}
+        hideHeader
+        runtimeOwner="agent"
+      />,
+    );
+    expect(
+      screen.getByText(
+        'This turn ran on Codex because the default agent runtime cannot run its model.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  // A turn recorded before hosts kept the reason has nothing to say.
+  it('stays silent about the runtime when the turn recorded no reason', () => {
+    state.data = {
+      ...op([{ type: 'text', text: 'working' }], 'completed'),
+      harness: 'codex',
+      harnessLabel: 'Codex',
+    };
+    render(<AgentExecutionLog organizationId="org-1" runId={runId} />);
+    expect(screen.queryByText(/agent runtime/)).not.toBeInTheDocument();
   });
 
   // A serving model that reads images itself arms nothing — a footnote

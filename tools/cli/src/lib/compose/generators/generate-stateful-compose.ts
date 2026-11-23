@@ -2,7 +2,10 @@ import { stringify } from 'yaml';
 
 import { getProjectId } from '../../../utils/load-env';
 import type { RunOrigin } from '../../config/dev-origin';
-import { createBgutilProviderService } from '../services/create-bgutil-provider-service';
+import {
+  createBgutilProviderService,
+  potProviderAsked,
+} from '../services/create-bgutil-provider-service';
 import { createDbService } from '../services/create-db-service';
 import { createObjectStorageService } from '../services/create-object-storage-service';
 import {
@@ -10,7 +13,6 @@ import {
   createProxyService,
 } from '../services/create-proxy-service';
 import { createSandboxEgressService } from '../services/create-sandbox-egress-service';
-import { createSandboxLlmGatewayService } from '../services/create-sandbox-llm-gateway-service';
 import { createSandboxService } from '../services/create-sandbox-service';
 import type { ComposeConfig, ServiceConfig } from '../types';
 import { serveOrigin } from './serve-origin';
@@ -47,12 +49,14 @@ export function buildStatefulCompose(
     // (generate-color-compose.ts). What remains is what holds durable state
     // or a fixed identity — the stores, the entry point, and the sandbox
     // singleton that owns docker.sock.
-    'sandbox-llm-gateway': createSandboxLlmGatewayService(config),
     'sandbox-egress': createSandboxEgressService(config),
     sandbox: createSandboxService(config),
-    // Third-party sidecar; deploy.ts brings it up best-effort after core
-    // services (not in the always-roll tier — see the service comment).
-    'bgutil-provider': createBgutilProviderService(config),
+    // Third-party sidecar, where the deployment asked for it; deploy.ts
+    // brings it up best-effort after core services (not in the always-roll
+    // tier — see the service comment).
+    ...(potProviderAsked()
+      ? { 'bgutil-provider': createBgutilProviderService(config) }
+      : {}),
   };
   const compose: ComposeConfig = {
     services,
@@ -64,13 +68,10 @@ export function buildStatefulCompose(
       'caddy-config': { external: true, name: `${prefix}caddy-config` },
       'proxy-data': { external: true, name: `${prefix}proxy-data` },
       'config-data': { external: true, name: `${prefix}config-data` },
+      'blob-data': { external: true, name: `${prefix}blob-data` },
       'object-store-data': {
         external: true,
         name: `${prefix}object-store-data`,
-      },
-      'llm-gateway-data': {
-        external: true,
-        name: `${prefix}llm-gateway-data`,
       },
     },
     networks: {

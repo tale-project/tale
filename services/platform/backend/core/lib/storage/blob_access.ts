@@ -29,11 +29,16 @@ import {
 import {
   buildObjectKey,
   deleteOrgObject,
+  fileBody,
   locateOrgObjectStore,
   resolveOrgObjectStore,
   s3GetObjectBytes,
+  s3GetObjectToFile,
   s3HeadObject,
   s3PutObject,
+  s3PutObjectStream,
+  type S3GetToFileOpts,
+  type S3ObjectFile,
   type S3ObjectStore,
 } from './object_store';
 
@@ -67,15 +72,78 @@ export async function putBlob(
   return encodeS3Ref(key);
 }
 
+/**
+ * Store a body AS IT IS READ for an org and return the stored reference:
+ * what {@link putBlob} is for bytes in hand, for bytes that lie in a file
+ * or are still arriving. Nothing of the body is held here
+ * (tale-project/tale#4942). `contentLength` is how many bytes the body
+ * holds; exactly that many are stored, or nothing, and the body is released
+ * however the transfer ends (`s3PutObjectStream`).
+ */
+export async function putBlobStream(
+  orgSlug: string,
+  body: ReadableStream<Uint8Array>,
+  args: { contentLength: number; contentType: string; signal?: AbortSignal },
+): Promise<BlobRef> {
+  let handedOn = false;
+  try {
+    const store = await resolveOrgObjectStore(orgSlug);
+    const key = buildObjectKey(store, orgSlug);
+    handedOn = true;
+    await s3PutObjectStream(store, key, body, {
+      contentLength: args.contentLength,
+      contentType: args.contentType,
+      ...(args.signal !== undefined && { signal: args.signal }),
+    });
+    return encodeS3Ref(key);
+  } finally {
+    // The transfer releases the body it was handed. One that never reached
+    // it is released here, so that whatever it is read from does not wait
+    // on a reader that is not coming.
+    if (!handedOn) {
+      await body.cancel().catch((error: unknown) => {
+        console.warn(
+          '[blobs] a body that was not stored could not be released:',
+          error,
+        );
+      });
+    }
+  }
+}
+
 /** Read a blob's raw bytes from the org's store. Throws
- * {@link UnsupportedBlobRefError} for a non-`s3:` ref. */
+ * {@link UnsupportedBlobRefError} for a non-`s3:` ref, and
+ * `ObjectTooLargeError` for a blob over the `maxBytes` its caller accepts,
+ * before the blob is in memory. */
 export async function readBlobBytes(
   orgSlug: string,
   ref: BlobRef,
+  opts: { maxBytes?: number } = {},
 ): Promise<Uint8Array> {
   const key = requireS3Key(ref);
   const store = await requireS3ForRead(orgSlug, key);
-  return await s3GetObjectBytes(store, key);
+  return await s3GetObjectBytes(store, key, opts);
+}
+
+/**
+ * Read a blob from the org's store into a file, as its bytes arrive: the
+ * blob is never held whole in memory (`s3GetObjectToFile`). The file must
+ * not exist. Throws for a blob that is not there, as {@link readBlobBytes}
+ * does, and {@link UnsupportedBlobRefError} for a non-`s3:` ref.
+ */
+export async function readBlobToFile(
+  orgSlug: string,
+  ref: BlobRef,
+  filePath: string,
+  opts: S3GetToFileOpts = {},
+): Promise<S3ObjectFile> {
+  const key = requireS3Key(ref);
+  const store = await requireS3ForRead(orgSlug, key);
+  const got = await s3GetObjectToFile(store, key, filePath, opts);
+  if (got === null) {
+    throw new Error(`S3 GET ${key} failed: 404 the object does not exist`);
+  }
+  return got;
 }
 
 /**
@@ -107,15 +175,21 @@ export async function deleteBlob(orgSlug: string, ref: BlobRef): Promise<void> {
 }
 
 /**
- * Write attested bytes to a reserved S3 final reference exactly once.
+ * Write an attested file to a reserved S3 final reference exactly once. The
+ * file is sent as it is read (`s3PutObjectStream`), so a document of the
+ * largest size a replacement may have is never held in memory
+ * (tale-project/tale#4942).
  *
  * The final key is never returned with a write capability. `exists` supports
- * recovery when an action wrote the object and died before recording promotion.
+ * recovery when an action wrote the object and died before recording
+ * promotion: the key is asked first, so that a file the store would refuse
+ * is not sent to it, and the write itself is still create-only, for a writer
+ * that got there in between.
  */
 export async function putImmutableS3Blob(
   orgSlug: string,
   ref: BlobRef,
-  bytes: Uint8Array,
+  file: { path: string; size: number },
   contentType: string,
 ): Promise<'created' | 'exists'> {
   const parsed = parseBlobRef(ref);
@@ -123,7 +197,10 @@ export async function putImmutableS3Blob(
     throw new Error('immutable S3 promotion requires an s3: reference');
   }
   const store = await requireS3(orgSlug, parsed.key);
-  return await s3PutObject(store, parsed.key, bytes, contentType, {
+  if ((await s3HeadObject(store, parsed.key)) !== null) return 'exists';
+  return await s3PutObjectStream(store, parsed.key, fileBody(file.path), {
+    contentLength: file.size,
+    contentType,
     createOnly: true,
   });
 }

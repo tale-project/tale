@@ -242,6 +242,8 @@ function defaultExec(
   const line = argv.join(' ');
   if (line.includes('/api/control/drain-status'))
     return ok('{"draining":true,"inFlight":0}');
+  // No key the retired model gateway minted is open (retire-gateway.ts).
+  if (line.includes('/api/control/gateway-keys')) return ok('{"open":0}');
   if (line.includes('drain-status'))
     return ok('{"draining":true,"sessions":0,"sessionIds":[]}');
   if (stdin?.includes('app_migrations'))
@@ -461,8 +463,18 @@ export class FakeRuntime implements StackRuntime {
         if (path.startsWith(`${removal[1]}/`)) files?.delete(path);
       return ok();
     }
-    if (script.includes('find /data -mindepth 1 -maxdepth 1'))
+    if (script.includes('find /data -mindepth 1 -maxdepth 1')) {
+      // The two blob volumes answer with what they hold: which of them the
+      // blobs are in is read from that (backup/live-blob-volume.ts), and a
+      // volume `ensureVolumes` just made holds nothing. Every other volume
+      // looks lived-in, as the config store of a running deployment is.
+      const probed = job.mounts[0]?.volume ?? '';
+      if (/(?:^|_)(?:blob-data|object-store-data)$/.test(probed)) {
+        const first = this.volumes.get(probed)?.keys().next().value;
+        return ok(first === undefined ? '' : `/data/${first}`);
+      }
       return ok('/data/default');
+    }
     return ok();
   }
 

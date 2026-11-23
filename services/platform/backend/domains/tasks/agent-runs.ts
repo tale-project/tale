@@ -6,6 +6,7 @@ import {
   isAgentRunWaitingReason,
   type AgentRunWaitingReason,
 } from '../../../lib/shared/agent-run-waiting.ts';
+import type { HarnessReason } from '../../../lib/shared/harness-reason.ts';
 import { parseRunStarter } from '../../../lib/shared/run-starter.ts';
 import { sessionCancelExec } from '../../core/node_only/sandbox/helpers/session_client.ts';
 import { BROKER_RATE_LIMIT_COOLDOWN_MS } from '../../core/provider_credentials/broker_pool.ts';
@@ -36,6 +37,7 @@ import {
   type StandardAgentEngine,
 } from '../projects/standard-agent.ts';
 import { revokeSessionGatewayKeys } from '../sandbox/gateway-keys.ts';
+import { type OpRuntimeView, opRuntimeView } from '../sandbox/op-runtime.ts';
 import {
   countedAgentRunWake,
   countFailedAgentRun,
@@ -356,6 +358,7 @@ async function standardAgentServing(
   model: string;
   modelProvider?: string;
   engine: AgentRunEngine;
+  harnessReason: HarnessReason;
 }> {
   try {
     return await standardAgentServingForKick(tx, {
@@ -527,10 +530,12 @@ export async function kickAgentRun(
       'The run does not match its native review envelope',
       403,
     );
+  // The run keeps why its kick chose its harness: every turn of it records
+  // that (`harness_reason`, migration 0241), never the rule read again later.
   const rows = await tx<{ id: string }[]>`
     INSERT INTO app.project_agent_runs (
       org_id, project_id, task_id, agent_id, exec_id, session_id, status,
-      harness, engine, handoff, model, model_provider, trigger, feedback, mention_source,
+      harness, harness_reason, engine, handoff, model, model_provider, trigger, feedback, mention_source,
       auto_retry_attempt, started_by, started_at_ms, deadline_at_ms,
       updated_at_ms, started_via, started_via_run_id, started_via_node_id,
       started_via_automation, started_via_agent_id, in_place,
@@ -539,7 +544,7 @@ export async function kickAgentRun(
     ) VALUES (
       ${args.organizationId}, ${args.projectId}, ${args.taskId},
       ${args.agentId}, ${execId}, ${sessionId},
-      'queued', ${serving.harness}, ${engine},
+      'queued', ${serving.harness}, ${serving.harnessReason}, ${engine},
       ${args.handoff === undefined ? null : tx.json(toJson(args.handoff))},
       ${serving.model},
       ${serving.modelProvider ?? null}, ${args.trigger ?? 'manual'},
@@ -1752,7 +1757,7 @@ export async function listTaskAgentRunSummaries(
 }
 
 /** The 0.4 sandbox-op wire for one run's live transcript. */
-export interface TaskAgentRunSandboxOp {
+export interface TaskAgentRunSandboxOp extends OpRuntimeView {
   execId: string;
   status: string;
   progressText?: string;
@@ -1793,6 +1798,8 @@ export async function getAgentRunSandboxOp(
       liveTimeline: unknown;
       modelRef: string | null;
       visionModelRef: string | null;
+      harness: string | null;
+      harnessReason: string | null;
       startedAt: number;
       finishedAt: number | null;
       lastEventAt: number | null;
@@ -1800,7 +1807,8 @@ export async function getAgentRunSandboxOp(
   >`
     SELECT exec_id AS "execId", status, progress_text AS "progressText",
            live_timeline AS "liveTimeline", model_ref AS "modelRef",
-           vision_model_ref AS "visionModelRef",
+           vision_model_ref AS "visionModelRef", harness,
+           harness_reason AS "harnessReason",
            started_at_ms::float8 AS "startedAt",
            finished_at_ms::float8 AS "finishedAt",
            last_event_at_ms::float8 AS "lastEventAt"
@@ -1826,6 +1834,9 @@ export async function getAgentRunSandboxOp(
       ...(op.visionModelRef !== null
         ? { visionModelRef: op.visionModelRef }
         : {}),
+      // Where the turn ran, and why there (an agent's own runtime, the
+      // standard agent's policy or automatic choice), told on the details.
+      ...opRuntimeView(op),
       startedAt: op.startedAt,
       ...(op.finishedAt !== null ? { finishedAt: op.finishedAt } : {}),
       ...(op.lastEventAt !== null ? { lastEventAt: op.lastEventAt } : {}),

@@ -202,6 +202,13 @@ export async function handlePut(
       // The TS lib doesn't model the option yet, hence the cast.
       // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
       ...({ duplex: 'half' } as unknown as RequestInit),
+      // Load-bearing for memory: unless it is told that a redirect is an
+      // error, `fetch` keeps a second copy of a body stream, to send it
+      // again should the store redirect, and that copy holds every chunk
+      // until the answer has come. A file of several gigabytes was in this
+      // process whole while it was "streamed" (tale-project/tale#4942). A
+      // body that has been read could not be sent again in any case.
+      redirect: 'error',
       signal: req.signal,
     });
   } catch (err) {

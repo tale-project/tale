@@ -23,6 +23,7 @@ import type { ComposeService, ServiceConfig } from '../types';
 import {
   ALL_SERVICES,
   BUILDKITD_MIRROR_IMAGE,
+  MINIO_IMAGE,
   THIRD_PARTY_IMAGES,
   imagePlatform,
   imageRef,
@@ -44,7 +45,6 @@ import {
   EGRESS_HEALTH_PROBE,
   createSandboxEgressService,
 } from './create-sandbox-egress-service';
-import { createSandboxLlmGatewayService } from './create-sandbox-llm-gateway-service';
 import { createSandboxService } from './create-sandbox-service';
 import {
   backendApiLabels,
@@ -99,10 +99,12 @@ const compose = parse(readFileSync(composePath, 'utf8')) as {
       command?: string;
       volumes?: string[];
       security_opt?: string[];
+      env_file?: unknown;
       pull_policy?: string;
     }
   >;
   networks?: Record<string, { internal?: boolean } | null>;
+  volumes?: Record<string, unknown>;
 };
 
 function networkNames(networks: unknown): string[] {
@@ -515,28 +517,25 @@ describe('graceful-shutdown parity — compose.yml meets the floor', () => {
     expect(graceSeconds(fromCompose)).toBeGreaterThanOrEqual(90 + 15);
     expect(graceSeconds(generated)).toBe(graceSeconds(fromCompose));
   });
-
-  // The gateway drains its model calls on SIGTERM and then writes its budget
-  // counters; Docker's 10s default would cut the streams and that write
-  // alike.
-  test('model gateway lets its calls in flight finish in both pipelines', () => {
-    const fromCompose =
-      compose.services['sandbox-llm-gateway']?.stop_grace_period;
-    const generated = createSandboxLlmGatewayService(config).stop_grace_period;
-    expect(graceSeconds(fromCompose)).toBe(90);
-    expect(graceSeconds(generated)).toBe(graceSeconds(fromCompose));
-  });
 });
 
 describe('memory reservation parity', () => {
-  // `tale deploy` and `docker compose up` reserve the same memory for the
-  // database and the application tier, each overridden by the same variable,
-  // and hand the spawner the same sum at the defaults.
-  const VARS = [
+  // `tale deploy` and `docker compose up` reserve the same memory for every
+  // service of the memory budget, each overridden by the same variable, give
+  // the two Go services the same heap limit and backstop, and hand the
+  // spawner the same sum at the defaults.
+  const RESERVATION_VARS = [
     'DB_MEMORY_RESERVATION',
     'PLATFORM_MEMORY_RESERVATION',
     'BACKEND_API_MEMORY_RESERVATION',
     'BACKEND_WORKER_MEMORY_RESERVATION',
+    'OBJECT_STORE_MEMORY_RESERVATION',
+    'PROXY_MEMORY_RESERVATION',
+    'SANDBOX_MEMORY_RESERVATION',
+    'SANDBOX_EGRESS_MEMORY_RESERVATION',
+  ] as const;
+  const VARS = [
+    ...RESERVATION_VARS,
     'TALE_PLATFORM_REPLICAS',
     'TALE_BACKEND_API_REPLICAS',
     'TALE_BACKEND_WORKER_REPLICAS',
@@ -551,12 +550,13 @@ describe('memory reservation parity', () => {
     }
   });
 
-  test('compose.yml reserves what the CLI generates on cgroup v2, under the same variables', () => {
-    for (const name of VARS) delete process.env[name];
-    // compose.yml cannot ask the engine; `tale deploy` emits reservations
-    // where it reports cgroup v2 only (memory-env.ts).
-    const v2 = { ...config, cgroupVersion: 2 } satisfies ServiceConfig;
-    const generated = {
+  // compose.yml cannot ask the engine; `tale deploy` emits reservations where
+  // it reports cgroup v2 only (memory-env.ts). compose.yml runs the
+  // application as three services, the shape a generator gets that is named
+  // none.
+  const v2 = { ...config, cgroupVersion: 2 } satisfies ServiceConfig;
+  const generatedStack = () =>
+    ({
       db: [createDbService(v2), 'DB_MEMORY_RESERVATION'],
       platform: [
         createPlatformService(v2, 'blue'),
@@ -570,17 +570,77 @@ describe('memory reservation parity', () => {
         createBackendWorkerService(v2),
         'BACKEND_WORKER_MEMORY_RESERVATION',
       ],
-    } as const;
+      'object-store': [
+        createObjectStorageService(v2),
+        'OBJECT_STORE_MEMORY_RESERVATION',
+      ],
+      proxy: [
+        createProxyService(v2, 'localhost', ['tale']),
+        'PROXY_MEMORY_RESERVATION',
+      ],
+      sandbox: [createSandboxService(v2), 'SANDBOX_MEMORY_RESERVATION'],
+      'sandbox-egress': [
+        createSandboxEgressService(v2),
+        'SANDBOX_EGRESS_MEMORY_RESERVATION',
+      ],
+    }) as const;
+
+  test('compose.yml reserves what the CLI generates on cgroup v2, under the same variables', () => {
+    for (const name of VARS) delete process.env[name];
+    const generated = generatedStack();
     for (const [service, [generatedService, name]] of Object.entries(
       generated,
     )) {
-      expect(compose.services[service]?.mem_reservation).toBe(
+      expect(generatedService.mem_reservation, service).toBeDefined();
+      expect(compose.services[service]?.mem_reservation, service).toBe(
         `\${${name}:-${generatedService.mem_reservation}}`,
       );
     }
+    // And reserves for no service the CLI does not.
+    expect(
+      Object.entries(compose.services)
+        .filter(([, service]) => service.mem_reservation !== undefined)
+        .map(([name]) => name)
+        .sort(),
+    ).toEqual(Object.keys(generated).sort());
     expect(compose.services.sandbox?.environment?.SANDBOX_RESERVED_MEMORY).toBe(
       createSandboxService(config).environment?.SANDBOX_RESERVED_MEMORY,
     );
+  });
+
+  test("compose.yml hands the spawner the sum of its own reservations' defaults", () => {
+    const defaults = Object.values(compose.services).flatMap((service) => {
+      const reservation = /^\$\{[A-Z_]+:-(\d+)m\}$/.exec(
+        service.mem_reservation ?? '',
+      );
+      return reservation === null ? [] : [Number(reservation[1])];
+    });
+    expect(defaults).toHaveLength(RESERVATION_VARS.length);
+    expect(compose.services.sandbox?.environment?.SANDBOX_RESERVED_MEMORY).toBe(
+      `${defaults.reduce((sum, mib) => sum + mib, 0)}m`,
+    );
+  });
+
+  test('compose.yml gives the edge and versitygw the heap limit and the backstop the CLI derives at the defaults', () => {
+    for (const name of VARS) delete process.env[name];
+    const generated = generatedStack();
+    for (const service of ['object-store', 'proxy'] as const) {
+      const [generatedService] = generated[service];
+      expect(generatedService.environment?.GOMEMLIMIT, service).toBe('28MiB');
+      expect(generatedService.mem_limit, service).toBe('140m');
+      expect(compose.services[service]?.environment?.GOMEMLIMIT, service).toBe(
+        generatedService.environment?.GOMEMLIMIT,
+      );
+      expect(compose.services[service]?.mem_limit, service).toBe(
+        generatedService.mem_limit,
+      );
+    }
+    // The spawner and its egress proxy keep the fixed limits their
+    // reservations are held to.
+    for (const service of ['sandbox', 'sandbox-egress'] as const)
+      expect(compose.services[service]?.mem_limit, service).toBe(
+        generated[service][0].mem_limit,
+      );
   });
 
   test('Incus has no memory.low: its translator drops the reservation and bounds each instance with limits.memory', () => {
@@ -595,33 +655,32 @@ describe('memory reservation parity', () => {
   });
 });
 
-describe('model gateway memory parity', () => {
-  // The gateway's memory grows with the sessions that run at once. `tale
-  // deploy` derives its limit from SANDBOX_MAX_SESSIONS; compose.yml cannot
-  // derive one variable from another, so its default must be the limit the
-  // CLI gives an unset capacity, and both take SANDBOX_LLM_GATEWAY_MEMORY
-  // first.
-  const original = {
-    memory: process.env.SANDBOX_LLM_GATEWAY_MEMORY,
-    sessions: process.env.SANDBOX_MAX_SESSIONS,
-  };
-
-  afterEach(() => {
-    if (original.memory === undefined) {
-      delete process.env.SANDBOX_LLM_GATEWAY_MEMORY;
-    } else process.env.SANDBOX_LLM_GATEWAY_MEMORY = original.memory;
-    if (original.sessions === undefined)
-      delete process.env.SANDBOX_MAX_SESSIONS;
-    else process.env.SANDBOX_MAX_SESSIONS = original.sessions;
+// The model relay in the backend replaced the sandbox LLM gateway
+// (tale-project/tale#4942). A deployment that ran the gateway may keep its
+// container while keys it minted settle, and its backend still signs in to it
+// with the admin password `.env` holds: both pipelines hand the backend the
+// workspace's `.env` whole, so the password reaches it where it is set.
+describe('the retired model gateway', () => {
+  test('neither pipeline runs the gateway or declares its volume', () => {
+    const stateful = parse(generateStatefulCompose(config, 'localhost')) as {
+      services: Record<string, unknown>;
+      volumes: Record<string, unknown>;
+    };
+    expect(Object.keys(compose.services)).not.toContain('sandbox-llm-gateway');
+    expect(Object.keys(compose.volumes ?? {})).not.toContain(
+      'llm-gateway-data',
+    );
+    expect(Object.keys(stateful.services)).not.toContain('sandbox-llm-gateway');
+    expect(Object.keys(stateful.volumes)).not.toContain('llm-gateway-data');
   });
 
-  test('compose.yml defaults to the limit the CLI gives an unset capacity', () => {
-    delete process.env.SANDBOX_LLM_GATEWAY_MEMORY;
-    delete process.env.SANDBOX_MAX_SESSIONS;
-    const generated = createSandboxLlmGatewayService(config).mem_limit;
-    expect(compose.services['sandbox-llm-gateway']?.mem_limit).toBe(
-      `\${SANDBOX_LLM_GATEWAY_MEMORY:-${generated}}`,
-    );
+  test('both pipelines hand the backend the workspace .env, gateway password included', () => {
+    for (const name of ['backend-api', 'backend-worker'])
+      expect(JSON.stringify(compose.services[name]?.env_file), name).toContain(
+        '.env',
+      );
+    expect(createBackendApiService(config).env_file).toEqual(['.env']);
+    expect(createBackendWorkerService(config).env_file).toEqual(['.env']);
   });
 });
 
@@ -704,13 +763,29 @@ describe('read-only Docker API proxy parity', () => {
   });
 });
 
-describe('bgutil PO-token provider parity (zero-config YouTube ingestion)', () => {
+describe('bgutil PO-token provider parity (YouTube ingestion)', () => {
   // The sidecar must exist in BOTH pipelines, on the same image tag, or one
-  // path silently loses PO tokens (YouTube bot wall returns). The tag must also
-  // match BGUTIL_POT_VERSION in services/platform/Dockerfile (checked there
-  // via the pinned SHA256) — asserted here as a constant so a bump touches
-  // both.
+  // path silently loses PO tokens (YouTube bot wall returns): always in
+  // compose.yml, whose backend is told so, and on request from the CLI
+  // generator, whose backend then hears the same word. The tag must also
+  // match the plugin a sandbox session's yt-dlp asks it with: plugin and
+  // provider speak one protocol version. The plugin is pinned in the sandbox
+  // runtime image (BGUTIL_POT_VERSION in services/sandbox-runtime/Dockerfile).
   const EXPECTED_IMAGE = 'brainicism/bgutil-ytdlp-pot-provider:1.3.1';
+  const runtimeDockerfile = readFileSync(
+    resolve(repoRoot, 'services/sandbox-runtime/Dockerfile'),
+    'utf8',
+  );
+
+  test('the provider image is the version of the plugin the session image carries', () => {
+    const plugin = /^ARG BGUTIL_POT_VERSION=(\S+)$/m.exec(
+      runtimeDockerfile,
+    )?.[1];
+    expect(plugin).toBeDefined();
+    expect(EXPECTED_IMAGE).toBe(
+      `brainicism/bgutil-ytdlp-pot-provider:${plugin}`,
+    );
+  });
 
   test('compose.yml defines bgutil-provider on the pinned image', () => {
     expect(compose.services['bgutil-provider']?.image).toBe(EXPECTED_IMAGE);
@@ -722,27 +797,50 @@ describe('bgutil PO-token provider parity (zero-config YouTube ingestion)', () =
     );
   });
 
-  test('CLI generator emits bgutil-provider on the same pinned image', () => {
-    const generated = parse(
-      generateStatefulCompose(config, 'tale.example'),
-    ) as {
+  test('CLI generator emits bgutil-provider on the same pinned image, where the deployment asks for it', () => {
+    const before = process.env.VIDEO_INGEST_POT_PROVIDER;
+    process.env.VIDEO_INGEST_POT_PROVIDER = 'true';
+    let generated: {
       services: Record<string, { image?: string; networks?: unknown }>;
     };
+    try {
+      generated = parse(generateStatefulCompose(config, 'tale.example')) as {
+        services: Record<string, { image?: string; networks?: unknown }>;
+      };
+    } finally {
+      if (before === undefined) delete process.env.VIDEO_INGEST_POT_PROVIDER;
+      else process.env.VIDEO_INGEST_POT_PROVIDER = before;
+    }
     expect(generated.services['bgutil-provider']?.image).toBe(EXPECTED_IMAGE);
     expect(
       networkNames(generated.services['bgutil-provider']?.networks),
     ).toEqual(['internal']);
   });
 
+  // The backend asks the provider only where it hears the word, so each
+  // pipeline must say it to the backend it starts beside the sidecar.
+  test('each pipeline tells its backend whether to ask the provider', () => {
+    for (const name of ['backend-api', 'backend-worker']) {
+      expect(
+        compose.services[name]?.environment?.VIDEO_INGEST_POT_PROVIDER,
+        name,
+      ).toBe('${VIDEO_INGEST_POT_PROVIDER:-true}');
+    }
+    expect(
+      createBackendApiService(config).environment?.VIDEO_INGEST_POT_PROVIDER,
+    ).toBe('${VIDEO_INGEST_POT_PROVIDER:-}');
+    expect(
+      createBackendWorkerService(config).environment?.VIDEO_INGEST_POT_PROVIDER,
+    ).toBe('${VIDEO_INGEST_POT_PROVIDER:-}');
+  });
+
   // yt-dlp --plugin-dirs DIR does DIR.iterdir() then looks for yt_dlp_plugins
   // under each child. Unzipping the bgutil zip (which already contains
   // yt_dlp_plugins/) straight into DIR yields Plugin directories: none. The
-  // Dockerfile must nest under /opt/yt-dlp/plugins/bgutil/.
+  // Dockerfile must nest under /opt/yt-dlp/plugins/bgutil/. The plugin is in
+  // the sandbox runtime image, where a video link's yt-dlp runs.
   test('Dockerfile unzips the bgutil plugin under a named child of plugin-dirs', () => {
-    const dockerfile = readFileSync(
-      resolve(repoRoot, 'services/platform/Dockerfile'),
-      'utf8',
-    );
+    const dockerfile = runtimeDockerfile;
     expect(dockerfile).toContain(
       'unzip -q /tmp/bgutil-pot.zip -d /opt/yt-dlp/plugins/bgutil',
     );
@@ -851,9 +949,109 @@ describe('blob-backend parity (the deployment cannot accept an upload without it
     // `tale deploy` auto-generates OBJECT_STORE_SECRET_KEY into .env; the
     // `:?` form makes a missing one fail the compose up instead of silently
     // standing up a world-writable store on a published default.
-    const password =
-      createObjectStorageService(config).environment?.MINIO_ROOT_PASSWORD;
-    expect(password).toContain('OBJECT_STORE_SECRET_KEY:?');
+    expect(
+      createObjectStorageService(config).environment?.ROOT_SECRET_KEY,
+    ).toContain('OBJECT_STORE_SECRET_KEY:?');
+    // And the same of the MinIO a deployment keeps while its blobs are in
+    // MinIO's volume.
+    expect(
+      createObjectStorageService({ ...config, objectStore: 'minio' })
+        .environment?.MINIO_ROOT_PASSWORD,
+    ).toContain('OBJECT_STORE_SECRET_KEY:?');
+  });
+
+  // versitygw (tale-project/tale#4942). What it is started with decides
+  // whether an upload survives a power cut, whether its healthcheck can
+  // pass, and where its files are: both pipelines say the same.
+  test('both pipelines start versitygw the same way, on its own volume', () => {
+    const generated = createObjectStorageService(config);
+    const shipped = compose.services['object-store'];
+
+    expect(generated.command).toBe(
+      '--port :9000 --health /_health --quiet posix --fsync /data',
+    );
+    expect(shipped?.command).toBe(generated.command);
+    expect(generated.volumes).toEqual(['blob-data:/data']);
+    expect(shipped?.volumes).toEqual(generated.volumes);
+    expect<unknown>(shipped?.healthcheck).toEqual(generated.healthcheck);
+    // GET on a path no bucket can be named: the image's busybox wget.
+    expect(generated.healthcheck).toMatchObject({
+      test: [
+        'CMD',
+        'wget',
+        '-q',
+        '-O',
+        '/dev/null',
+        'http://127.0.0.1:9000/_health',
+      ],
+    });
+    // Its key, its region, and its heap limit (memory-env.ts): no secret of
+    // the deployment besides its own key.
+    expect(Object.keys(generated.environment ?? {}).sort()).toEqual([
+      'GOMEMLIMIT',
+      'ROOT_ACCESS_KEY',
+      'ROOT_SECRET_KEY',
+      'VGW_REGION',
+    ]);
+    expect(Object.keys(shipped?.environment ?? {}).sort()).toEqual(
+      Object.keys(generated.environment ?? {}).sort(),
+    );
+    // The region requests are signed for is the one the backend signs with.
+    expect(generated.environment?.VGW_REGION).toBe(
+      '${OBJECT_STORE_REGION:-us-east-1}',
+    );
+    expect(shipped?.environment?.VGW_REGION).toBe(
+      generated.environment?.VGW_REGION,
+    );
+    expect(
+      compose.services['backend-api']?.environment?.OBJECT_STORE_REGION,
+    ).toBe('${OBJECT_STORE_REGION:-us-east-1}');
+    expect(compose.volumes).toHaveProperty('blob-data');
+  });
+
+  // The edge forwards the internet's requests for presigned URLs to the
+  // store. MinIO was handed the whole of `.env`, the database's password and
+  // every provider key in it.
+  test('versitygw is handed no secret of the deployment but its own key, and no privilege', () => {
+    for (const service of [
+      createObjectStorageService(config),
+      compose.services['object-store'],
+    ]) {
+      expect(service?.env_file).toBeUndefined();
+      expect(service?.cap_drop).toEqual(['ALL']);
+      // Nothing the Incus runtime refuses an instance for.
+      expect(service?.security_opt).toBeUndefined();
+      expect(service?.platform).toBeUndefined();
+    }
+  });
+
+  test('a deployment whose blobs are in MinIO’s volume gets MinIO as it always ran', () => {
+    const minio = createObjectStorageService({
+      ...config,
+      objectStore: 'minio',
+    });
+
+    expect(minio.image).toBe(MINIO_IMAGE);
+    expect(minio.platform).toBe('linux/amd64');
+    expect(minio.command).toBe(
+      "server /data --address ':9000' --console-address ':9001'",
+    );
+    expect(minio.volumes).toEqual(['object-store-data:/data']);
+    expect(minio.healthcheck).toMatchObject({
+      test: ['CMD-SHELL', 'mc ready local || exit 1'],
+    });
+    expect(minio.env_file).toEqual(['.env']);
+    // Either server answers under the one name, on the one port, at the one
+    // route: nothing that reaches the store knows which it is.
+    expect(minio.networks).toEqual(createObjectStorageService(config).networks);
+    expect(minio.labels).toEqual(createObjectStorageService(config).labels);
+    expect(minio.container_name).toBe(
+      createObjectStorageService(config).container_name,
+    );
+    // Neither volume is the other's.
+    expect(createObjectStorageService(config).volumes).not.toContain(
+      'object-store-data:/data',
+    );
   });
 });
 
@@ -948,8 +1146,8 @@ describe('service → image parity', () => {
 
   test('the object-store pin is one value, shared by every lane', () => {
     // compose.yml, the CLI creator, and the deploy pull list must agree on
-    // the minio pin; THIRD_PARTY_IMAGES is the source the CLI lanes share and
-    // this holds compose.yml to it.
+    // the store's pin; THIRD_PARTY_IMAGES is the source the CLI lanes share
+    // and this holds compose.yml to it.
     expect(createObjectStorageService(config).image).toBe(
       THIRD_PARTY_IMAGES['object-store'],
     );
@@ -960,6 +1158,17 @@ describe('service → image parity', () => {
     const platform = imagePlatform(THIRD_PARTY_IMAGES['object-store']);
     expect(createObjectStorageService(config).platform).toBe(platform);
     expect(compose.services['object-store']?.platform).toBe(platform);
+    // versitygw's image is its publisher's, for amd64 and arm64, by digest.
+    expect(platform).toBeUndefined();
+    expect(THIRD_PARTY_IMAGES['object-store']).toMatch(
+      /^ghcr\.io\/versity\/versitygw:v[0-9]+\.[0-9]+\.[0-9]+@sha256:[0-9a-f]{64}$/,
+    );
+    // MinIO's, which a deployment keeps while its blobs are in MinIO's
+    // volume, exists for amd64 alone: the pull and Compose both ask for it.
+    expect(imagePlatform(MINIO_IMAGE)).toBe('linux/amd64');
+    expect(imageRef({ ...config, objectStore: 'minio' }, 'object-store')).toBe(
+      MINIO_IMAGE,
+    );
   });
 });
 
@@ -2183,6 +2392,18 @@ describe('the switch role of the proxy image (Incus)', () => {
     expect(settings(':3005')).toEqual([
       'import /switch/backend-api.upstreams',
       'health_uri /admission',
+      'health_interval 2s',
+      'lb_try_duration 5s',
+      'lb_try_interval 250ms',
+      'flush_interval -1',
+    ]);
+    // The model relay of the same replicas, where a session calls its models
+    // (tale-project/tale#4942), admitted by the API's own probe on the API's
+    // port, so a withdrawn replica leaves both.
+    expect(settings(':8080')).toEqual([
+      'import /switch/model-relay.upstreams',
+      'health_uri /admission',
+      'health_port 3005',
       'health_interval 2s',
       'lb_try_duration 5s',
       'lb_try_interval 250ms',

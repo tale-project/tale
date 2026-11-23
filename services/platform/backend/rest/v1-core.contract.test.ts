@@ -1307,7 +1307,7 @@ describe('the skills door — entity tags and conditional writes', () => {
     // The 200 is a validated read: `private, no-cache`, never the door's
     // `no-store`; the 304 — decided by the same middleware — says the same
     // about the same bytes. The route's own matcher used to answer
-    // `no-store` on the 304 and miss the edge's `-gzip` suffixed tag.
+    // `no-store` on the 304 and miss a proxy's `-gzip` suffixed tag.
     const full = await request(app, 'GET', 'probe');
     expect(full.status).toBe(200);
     expect(full.headers.get('cache-control')).toBe('private, no-cache');

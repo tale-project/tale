@@ -1,18 +1,11 @@
-import { serve } from '@hono/node-server';
+import { setTimeout as sleep } from 'node:timers/promises';
+
+import type { ServerType } from '@hono/node-server';
 import { sessionIdleWindowSeconds } from '@tale/shared/utils/session-idle';
 import { parseAdditionalSiteUrls } from '@tale/shared/utils/site-urls';
 
 import { PatternRegistry } from '../lib/pii';
-import { createApp } from './app.ts';
-import {
-  configuredMcpResources,
-  seedMcpResources,
-} from './auth/agent-oauth.ts';
-import { createAuth, type Auth } from './auth/auth.ts';
-import {
-  startAuthRequestCache,
-  stopAuthRequestCache,
-} from './auth/request-cache.ts';
+import type { Auth } from './auth/auth.ts';
 import { settleLiveTurns } from './core/automations/stepper.ts';
 import {
   closeKnowledgePools,
@@ -32,9 +25,8 @@ import { isBackendDraining } from './domains/control/service.ts';
 import { bootDefaultKnowledge } from './domains/knowledge/boot.ts';
 import { installCorpusHealthHook } from './domains/knowledge/index-health.ts';
 import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts';
-import { seedDevUser } from './domains/provisioning/dev-seed.ts';
 import { installReviewHandoverHook } from './domains/tasks/reviews.ts';
-import { loadEnv } from './env.ts';
+import { loadEnv, ownApiUrl } from './env.ts';
 import {
   flushErrorReporting,
   initErrorReporting,
@@ -42,7 +34,11 @@ import {
   reportKnowledgeDatabaseOutage,
 } from './error-reporting.ts';
 import { closeServerGracefully } from './http-shutdown.ts';
-import { alignQueuePolicies, startBoss } from './jobs/boss.ts';
+import {
+  alignQueuePolicies,
+  bossOptionsForRole,
+  startBoss,
+} from './jobs/boss.ts';
 import { setEnqueueBoss } from './jobs/enqueue.ts';
 import { startWorker } from './jobs/runner.ts';
 import {
@@ -52,23 +48,86 @@ import {
 } from './jobs/schedules.ts';
 import { createTaskList } from './jobs/task-list.ts';
 import { configureCodeRunner } from './lib/code-runner.ts';
-import {
-  BACKEND_SERVER_OPTIONS,
-  installClientErrorEnvelope,
-} from './lib/http-hygiene.ts';
+import { keepJobDirsSwept } from './lib/heavy-slot/job-dir.ts';
+import { configureHeavySlot } from './lib/heavy-slot/slot.ts';
 import { processShutdown } from './lib/shutdown.ts';
 import {
   runShutdownSequence,
   shouldDeferJobs,
   shutdownDrainMs,
 } from './shutdown-sequence.ts';
-import { initBackendTelemetry } from './telemetry.ts';
+import { backendMetricsResponse, initBackendTelemetry } from './telemetry.ts';
+
+/**
+ * What only a process that answers requests needs: the application's routes,
+ * the sign-in stack behind them (Better Auth with its OAuth provider,
+ * passkeys and database adapter), the HTTP server, and the web tier that
+ * serves the built app beside the API (`../server.ts`). A pure worker serves
+ * no request, so it never reads them: they are about a third of the modules
+ * a boot loads (tale-project/tale#4942, finding 2).
+ */
+async function loadHttpSurface() {
+  const [
+    { serve },
+    { createApp },
+    { configuredMcpResources, seedMcpResources },
+    { createAuth },
+    { startAuthRequestCache, stopAuthRequestCache },
+    { seedDevUser },
+    { BACKEND_SERVER_OPTIONS, installClientErrorEnvelope },
+    { installVideoProxyRelay },
+    { startWebServer, webPort, webTierOff },
+    { startModelRelay },
+  ] = await Promise.all([
+    import('@hono/node-server'),
+    import('./app.ts'),
+    import('./auth/agent-oauth.ts'),
+    import('./auth/auth.ts'),
+    import('./auth/request-cache.ts'),
+    import('./domains/provisioning/dev-seed.ts'),
+    import('./lib/http-hygiene.ts'),
+    import('./domains/video_links/proxy-relay.ts'),
+    import('../server.ts'),
+    import('./domains/llm_relay/start.ts'),
+  ]);
+  return {
+    serve,
+    createApp,
+    configuredMcpResources,
+    seedMcpResources,
+    createAuth,
+    startAuthRequestCache,
+    stopAuthRequestCache,
+    seedDevUser,
+    BACKEND_SERVER_OPTIONS,
+    installClientErrorEnvelope,
+    installVideoProxyRelay,
+    startWebServer,
+    webPort,
+    webTierOff,
+    startModelRelay,
+  };
+}
+
+/** Resolves once the listener is bound, and rejects when it cannot be (its
+ * port is taken), so that fails the boot like any other step instead of
+ * surfacing as an unhandled `error` event. */
+function listening(server: ServerType): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (server.listening) {
+      resolve();
+      return;
+    }
+    server.once('listening', () => resolve());
+    server.once('error', reject);
+  });
+}
 
 async function main(): Promise<void> {
   const env = loadEnv();
   // First thing after the env parse, so even a failing boot (migrations, DB
   // connectivity) reports before the process dies. No-op without SENTRY_DSN.
-  initErrorReporting({
+  await initErrorReporting({
     dsn: env.SENTRY_DSN,
     role: env.ROLE,
     tracesSampleRate: env.BACKEND_SENTRY_TRACES_SAMPLE_RATE,
@@ -81,17 +140,44 @@ async function main(): Promise<void> {
     role: env.ROLE,
     processes: env.AUTOMATION_RUNNER_PROCESSES,
   });
+  configureHeavySlot({
+    slots: env.HEAVY_SLOTS,
+    memoryMb: env.HEAVY_SLOT_MEMORY_MB,
+  });
+  // What a process that was killed mid-job left on this container's disk:
+  // looked for now and every few minutes. Not awaited: nothing at boot
+  // depends on it.
+  keepJobDirsSwept((removed) => {
+    console.log(
+      `[backend] removed ${removed} job director${removed === 1 ? 'y' : 'ies'} a process left behind`,
+    );
+  });
   const needsApi = env.ROLE !== 'worker';
   const sql = createSql(env.DATABASE_URL);
 
+  const http = needsApi ? await loadHttpSurface() : null;
+  // The app's own port, read before anything is migrated or started: a value
+  // that is no port, or the API's, fails this boot at once and by name.
+  // `APP_PORT=off` leaves the web tier out and the API serves alone, for a
+  // process whose app something else serves: the dev orchestrator's backend,
+  // beside the Vite server that holds the app's port.
+  const webPort = http === null || http.webTierOff() ? null : http.webPort();
+  if (http !== null && webPort === null) {
+    console.log('[backend] web tier off (APP_PORT=off): the API serves alone');
+  }
+  if (webPort === env.PORT) {
+    throw new Error(
+      `APP_PORT and PORT are both ${env.PORT}: the app and the API each need a port of their own`,
+    );
+  }
   let auth: Auth | null = null;
-  if (needsApi) {
+  if (http !== null) {
     if (!env.BETTER_AUTH_SECRET) {
       throw new Error(
         `BETTER_AUTH_SECRET is required for role '${env.ROLE}' (only a pure worker boots without it)`,
       );
     }
-    auth = createAuth({
+    auth = http.createAuth({
       databaseUrl: env.DATABASE_URL,
       secret: env.BETTER_AUTH_SECRET,
       baseUrl: env.SITE_URL,
@@ -123,11 +209,13 @@ async function main(): Promise<void> {
     ...(auth ? { authOptions: auth.options } : {}),
     wait: databaseWait,
   });
-  if (auth !== null) {
+  if (http !== null) {
     // The MCP endpoint as the sign-in server's resource, on every address
     // the deployment answers on — once the provider's tables exist, and
     // through the boot's wait, like the migrations before it.
-    await databaseWait(() => seedMcpResources(sql, configuredMcpResources()));
+    await databaseWait(() =>
+      http.seedMcpResources(sql, http.configuredMcpResources()),
+    );
   }
   // The additive custody schema exists before this can inventory legacy
   // factors. Refuse an altered/removed active fence before serving requests.
@@ -140,9 +228,10 @@ async function main(): Promise<void> {
 
   // pg-boss migrates its own `pgboss` schema on start (advisory-locked).
   // Every role sends jobs, so every role starts an instance; queue
-  // maintenance (supervise) runs on workers only.
+  // maintenance (supervise) runs on workers only, and so does the LISTEN
+  // connection: a notification wakes workers, and the api role has none.
   const boss = await startBoss(env.DATABASE_URL, {
-    supervise: env.ROLE !== 'api',
+    ...bossOptionsForRole(env.ROLE),
     wait: databaseWait,
   });
   await alignQueuePolicies(sql);
@@ -233,9 +322,9 @@ async function main(): Promise<void> {
   // Loopback-only dev convenience: seed the owner account + workspace so a
   // fresh stack is testable without a manual /setup pass. Gated inside on
   // TALE_DEV_SEED_USER + a loopback SITE_URL; never fails boot.
-  if (auth !== null) {
+  if (http !== null && auth !== null) {
     try {
-      const seeded = await seedDevUser({ sql, auth });
+      const seeded = await http.seedDevUser({ sql, auth });
       if (seeded.status === 'seeded') {
         console.log(`[backend] dev seed: ${seeded.detail}`);
       }
@@ -247,8 +336,8 @@ async function main(): Promise<void> {
   // A process that answers requests keeps the sessions and memberships it
   // resolved for a moment, dropping each the moment the database says it
   // changed (`auth/request-cache.ts`); `AUTH_REQUEST_CACHE=off` turns it off.
-  if (env.ROLE !== 'worker' && auth !== null) {
-    const cache = startAuthRequestCache(sql, {
+  if (http !== null) {
+    const cache = http.startAuthRequestCache(sql, {
       sessionConfig: sessionIdleWindowSeconds(),
     });
     if (cache === null) {
@@ -257,11 +346,11 @@ async function main(): Promise<void> {
   }
 
   const server =
-    env.ROLE === 'worker' || auth === null
+    http === null || auth === null
       ? null
-      : serve(
+      : http.serve(
           {
-            fetch: createApp({ sql, auth }).fetch,
+            fetch: http.createApp({ sql, auth }).fetch,
             port: env.PORT,
             ...(env.BACKEND_LISTEN_HOST === undefined
               ? {}
@@ -269,7 +358,7 @@ async function main(): Promise<void> {
             // The header budget and the response class that keeps a
             // bodiless answer free of content headers — shared with the
             // integration harness (lib/http-hygiene.ts).
-            serverOptions: BACKEND_SERVER_OPTIONS,
+            serverOptions: http.BACKEND_SERVER_OPTIONS,
           },
           (info) => {
             console.log(
@@ -280,7 +369,52 @@ async function main(): Promise<void> {
   // What the listener answers below the app — a body that stops arriving
   // (408), a header block past the budget (431), bytes that are not HTTP
   // (400) — in the JSON envelope the doors speak (lib/http-hygiene.ts).
-  if (server !== null) installClientErrorEnvelope(server);
+  if (http !== null && server !== null) http.installClientErrorEnvelope(server);
+  // The model relay, on a port of its own where only sandbox sessions reach
+  // it: the harnesses' model calls, in place of the sandbox LLM gateway, and
+  // a video job's PO-token relay (domains/llm_relay). A container that
+  // cannot bind where it must fails its start here.
+  const modelRelay =
+    http !== null && server !== null
+      ? http.startModelRelay({
+          sql,
+          serve: http.serve,
+          env,
+          serverOptions: http.BACKEND_SERVER_OPTIONS,
+        })
+      : null;
+  if (modelRelay !== null) await listening(modelRelay);
+  // The tunnels a sandbox session's yt-dlp asks the relay's listener for, to
+  // one of video ingestion's proxies (domains/video_links/proxy-relay.ts).
+  const endVideoProxyRelay =
+    http !== null && modelRelay !== null
+      ? http.installVideoProxyRelay(modelRelay)
+      : null;
+
+  // The web tier, in this process and on a port of its own: the built app,
+  // its shell, the status page and the other doors of `../server.ts`. It
+  // starts last and writes the ready marker itself, so a replica reads as
+  // ready only when it can serve the app and answer what the app then asks.
+  // The verdicts it needs from the API (the session oracle, the status
+  // probes) it asks of this process's own listener, never of whichever
+  // replica a shared network name resolves to; and `/metrics` there answers
+  // the one registry this process has.
+  const web =
+    http === null || server === null || webPort === null
+      ? null
+      : await listening(server).then(() =>
+          http.startWebServer({
+            port: webPort,
+            ...(env.BACKEND_LISTEN_HOST === undefined
+              ? {}
+              : { hostname: env.BACKEND_LISTEN_HOST }),
+            app: {
+              metrics: backendMetricsResponse,
+              backendUrl: ownApiUrl(env),
+            },
+          }),
+        );
+  web?.markReady();
 
   if (env.ROLE === 'worker') {
     console.log(
@@ -295,12 +429,21 @@ async function main(): Promise<void> {
       return;
     }
     shuttingDown = true;
+    // The app's health answers 503 from here on, and everything keeps
+    // working for a moment longer: a balancer that checks each replica
+    // needs a check or two before it stops sending this one requests. A
+    // replica nothing checks does not wait (`WebServer.drainMs`).
+    const webDrainMs = web?.drainMs() ?? 0;
     console.log(
-      `[backend] ${signal} received — shutting down (drain ${drainMs} ms)`,
+      `[backend] ${signal} received — shutting down (drain ${drainMs} ms${webDrainMs > 0 ? `, after ${webDrainMs} ms for the balancer` : ''})`,
     );
+    if (web !== null) {
+      web.markShuttingDown();
+      await sleep(webDrainMs);
+    }
     // The round in flight finishes; what it leaves the next worker seals.
     await auditSealer?.stop();
-    await stopAuthRequestCache();
+    await http?.stopAuthRequestCache();
     await runShutdownSequence(signal, {
       role: env.ROLE,
       drainMs,
@@ -310,7 +453,23 @@ async function main(): Promise<void> {
       // open connection, so one connected browser used to park shutdown
       // there until the orchestrator's SIGKILL, never reaching the graceful
       // job stop and killing in-flight jobs mid-write.
-      closeServer: server ? () => closeServerGracefully(server) : null,
+      // The web tier's listener closes first: a request it is still
+      // answering may ask the API for a verdict.
+      closeServer: server
+        ? async () => {
+            await web?.close();
+            // A tunnel is a connection the server neither waits for as a
+            // request nor closes when forced: left open, it keeps the close
+            // below from ever finishing.
+            endVideoProxyRelay?.();
+            await Promise.all([
+              closeServerGracefully(server),
+              ...(modelRelay !== null
+                ? [closeServerGracefully(modelRelay)]
+                : []),
+            ]);
+          }
+        : null,
       stopBoss: (options) => boss.stop(options),
       settleLiveTurns,
       releaseOwnedRunLeases: () => releaseOwnedRunLeases(sql),

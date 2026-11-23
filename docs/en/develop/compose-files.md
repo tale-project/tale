@@ -53,7 +53,7 @@ This inspects the static files. The `docker:dev` command also supplies its gener
 
 The source stack separates `backend-api` from `backend-worker`. The API handles application requests and authentication; the worker runs jobs, model turns and knowledge processing. `platform` serves the web app. `proxy` routes traffic, while `db`, `knowledge-db` and `object-store` hold application, knowledge and blob data.
 
-`sandbox`, `sandbox-egress` and `sandbox-llm-gateway` provide isolated execution and its network/model paths. The source stack also includes the video-ingestion sidecar. Production topology can differ: the generated single-host stack combines the application and knowledge databases. Use [Container architecture](/self-hosted/operate/container-architecture) for service responsibilities and [Environment reference](/self-hosted/configuration/environment-reference) for their configuration.
+`sandbox` and `sandbox-egress` provide isolated execution and its network path. A session's agent calls its models through the [model relay](/self-hosted/configuration/environment-reference#model-relay) at `http://backend-api:8080`. When `bun dev` runs the backend on the host, the `backend-relay` service of `compose.dev.yml` carries the `backend-api` name on the sandbox network and forwards that port to the host backend's relay on port 3008. The source stack also includes the video-ingestion sidecar. Production topology can differ: the generated single-host stack combines the application and knowledge databases. Use [Container architecture](/self-hosted/operate/container-architecture) for service responsibilities and [Environment reference](/self-hosted/configuration/environment-reference) for their configuration.
 
 ## Diagnose the first failure
 

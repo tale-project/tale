@@ -54,7 +54,9 @@ describe('verifySnapshot', () => {
     );
   });
 
-  test('checks the model gateway archive like every other before a restore extracts it', async () => {
+  // No snapshot takes the retired gateway's store any more; one taken while
+  // it ran still restores it, so its archive is checked like the rest.
+  test('checks the model gateway archive of an older snapshot like every other before a restore extracts it', async () => {
     execMock.mockResolvedValue({ success: true, stdout: '', stderr: '' });
 
     await verifySnapshot('p_', {

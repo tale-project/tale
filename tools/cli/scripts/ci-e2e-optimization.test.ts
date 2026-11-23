@@ -167,7 +167,7 @@ describe('E2E service scheduling', () => {
       ['services/sandbox-runtime/daemon/src/file-ops.ts', ['platform']],
       ['tools/cli/src/lib/compose/types.ts', ['platform']],
       ['scripts/ensure-sandbox-runtime-image.ts', ['platform']],
-      ['compose.sandbox-llm-gateway.dev.yml', ['platform']],
+      ['compose.dev.yml', ['platform']],
       ['services/web/playwright.config.ts', ['web']],
       ['services/session-manager/playwright.config.ts', ['session-manager']],
       ['services/session-manager/tests/e2e/server.ts', ['session-manager']],

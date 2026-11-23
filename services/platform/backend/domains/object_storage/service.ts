@@ -27,9 +27,9 @@ import {
   invalidateOrgObjectStore,
   probeS3ObjectStore,
   s3DeleteObject,
-  s3GetObject,
+  s3GetObjectStream,
   s3HeadObject,
-  s3PutObject,
+  s3PutObjectStream,
   sameObjectStore,
   sharesPhysicalStore,
   type S3ObjectHead,
@@ -489,13 +489,18 @@ async function handleRef(
       });
     }
     if (dryRun || target === null || source === null) return;
-    const { bytes, contentType } = await s3GetObject(source, key);
-    await s3PutObject(
-      target,
-      key,
-      bytes,
-      contentType ?? 'application/octet-stream',
-    );
+    // From one store to the other as it arrives. The object used to be read
+    // whole, with no bound on its size: a recording of gigabytes that came
+    // in over WebDAV could not be moved at all, and a file of 512 MiB took
+    // three times that in this process (tale-project/tale#4942).
+    const object = await s3GetObjectStream(source, key);
+    if (object === null) {
+      throw new Error('the source lost the object while it was being moved');
+    }
+    await s3PutObjectStream(target, key, object.body, {
+      contentLength: sourceHead.size,
+      contentType: object.contentType ?? 'application/octet-stream',
+    });
     const landed = await s3HeadObject(target, key);
     if (landed === null || landed.size !== sourceHead.size) {
       await s3DeleteObject(target, key);
@@ -505,7 +510,7 @@ async function handleRef(
     }
     await s3DeleteObject(source, key);
     counters.migrated += 1;
-    counters.bytesMigrated += bytes.byteLength;
+    counters.bytesMigrated += sourceHead.size;
   } catch (error) {
     counters.failed += 1;
     console.warn(`[object-storage] backfill failed for ${ref}:`, error);

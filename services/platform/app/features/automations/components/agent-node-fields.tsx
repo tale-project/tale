@@ -35,7 +35,9 @@ import type { NodeDef } from '@/lib/engine/core/types';
 import { useT } from '@/lib/i18n/client';
 import {
   DEFAULT_HARNESS,
+  defaultHarnessFor,
   findSelectedModel,
+  offeredOnDefault,
   offeredToHarness,
   toModelOptions,
 } from '@/lib/shared/harness-offer';
@@ -115,18 +117,24 @@ export function AgentNodeFields({
   // Subscription-served entries are bound to their forced harness, a
   // Responses-only model needs a harness that speaks that API, and a model
   // served through Anthropic's API a harness that runs one — offer each only
-  // when the node's EFFECTIVE harness (the host default when the field is
-  // unset) can run it. Other direct-served entries fit every harness.
-  const effectiveHarness = harness === '' ? DEFAULT_HARNESS : harness;
-  const harnessRow = roster.data?.harnesses.find(
-    (entry) => entry.harness === effectiveHarness,
-  );
+  // where the node runs it. A node that names a harness runs every pick
+  // there; one on Default runs a subscription's pick on the runtime that
+  // subscription is bound to and any other on the default
+  // (`offeredOnDefault`), as the host does. Other direct-served entries fit
+  // every harness.
+  const onDefault = harness === '';
+  const harnessRow = onDefault
+    ? undefined
+    : roster.data?.harnesses.find((entry) => entry.harness === harness);
+  const runtimes = roster.data?.harnesses;
   const offeredModels = useMemo(
     () =>
       models.filter((option) =>
-        offeredToHarness(option, effectiveHarness, harnessRow),
+        onDefault
+          ? offeredOnDefault(option, runtimes)
+          : offeredToHarness(option, harness, harnessRow),
       ),
-    [models, effectiveHarness, harnessRow],
+    [models, onDefault, runtimes, harness, harnessRow],
   );
   const selectedModel = findSelectedModel(offeredModels, model, modelProvider);
   // Only claim "not offered" once the listing has answered — an empty roster
@@ -142,11 +150,11 @@ export function AgentNodeFields({
   // would pick RIGHT NOW (the runtime's own resolver answers, so display
   // and run cannot drift), never a lookalike row matched by id alone.
   const unpinnedModel = model !== '' && modelProvider === '';
+  // On Default the preview asks with no harness: the run's own resolution
+  // picks the runtime as it picks the provider.
   const preview = useUnpinnedServingPreview(
     'workflow',
-    unpinnedModel
-      ? { organizationId, model, harness: effectiveHarness }
-      : undefined,
+    unpinnedModel ? { organizationId, model, harness } : undefined,
   );
   const resolved = preview.data;
   const resolvedRow =
@@ -188,6 +196,24 @@ export function AgentNodeFields({
       })),
     [offeredModels, tProjects],
   );
+  // The runtime a node on Default actually runs on: the picked model's
+  // subscription runtime, or for a pinless pick the one the run's own
+  // resolution answers; said under the field whenever it is not the
+  // default, so "Default" never reads as a runtime the step does not use.
+  const defaultRuntime = !onDefault
+    ? undefined
+    : displayedModel !== undefined
+      ? defaultHarnessFor(displayedModel)
+      : resolved?.ok === true &&
+          'harness' in resolved &&
+          resolved.harness !== undefined
+        ? resolved.harness
+        : DEFAULT_HARNESS;
+  const boundRuntimeLabel =
+    defaultRuntime !== undefined && defaultRuntime !== DEFAULT_HARNESS
+      ? (runtimes?.find((entry) => entry.harness === defaultRuntime)?.label ??
+        defaultRuntime)
+      : undefined;
 
   return (
     <Stack gap={3}>
@@ -198,18 +224,27 @@ export function AgentNodeFields({
         options={harnessOptions}
         value={harness === '' ? HARNESS_DEFAULT : harness}
         disabled={readOnly}
+        {...(boundRuntimeLabel !== undefined
+          ? {
+              description: t('editor.agent.harnessDefaultBound', {
+                runtime: boundRuntimeLabel,
+              }),
+            }
+          : {})}
         onValueChange={(value) => {
           // Radix fires a spurious '' on unmount — never act on it.
           if (value === '') return;
           const nextHarness = value === HARNESS_DEFAULT ? undefined : value;
           // A subscription-served model pick is bound to its harness; a
-          // switch that invalidates it clears the pick rather than saving
-          // a pair the run would refuse — the author re-picks from what
-          // the new harness offers.
+          // switch to another harness clears the pick rather than saving a
+          // pair the run would refuse — the author re-picks from what the
+          // new harness offers. Default keeps it: the run takes the
+          // subscription's runtime.
           const selected = findSelectedModel(models, model, modelProvider);
           const invalidated =
+            nextHarness !== undefined &&
             selected?.subscription !== undefined &&
-            selected.subscription.harness !== (nextHarness ?? DEFAULT_HARNESS);
+            selected.subscription.harness !== nextHarness;
           onChange({
             harness: nextHarness,
             ...(invalidated

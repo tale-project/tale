@@ -140,7 +140,8 @@ deadline covers the whole batch, including cache verification and final
 reconciliation. Queued items share the same deadline. Cancellation propagates
 through the platform and spawner to the active transfer. URL inputs retain their
 100 MiB limit; inline inputs take up to 4 MiB, the most a skill bundle file holds. Output reads also stream, within their
-20 MiB file limit. Immutable source identities can skip a transfer once the
+20 MiB file limit, and declare the length they send. A caller that passes the
+bytes on names its own limit with `maxBytes` in place of the 20 MiB. Immutable source identities can skip a transfer once the
 current destination is verified: by a rehash that checks its pathname still
 names the same unchanged file, or, after one such rehash, by an unchanged stat
 (device, inode, size, nanosecond mtime and ctime, read through the path twice)
@@ -427,6 +428,17 @@ when the baked browser is present. Explicit browser, executable and configuratio
 overrides keep the real server's installation behavior. Office, PDF, CJK fonts,
 XeTeX, all managed harnesses and Docker tooling remain available offline.
 
+The video tools ride in the image as well. Video-link ingestion runs `yt-dlp`
+in a default-profile session, with `deno` for the JavaScript challenges a
+platform sets and the bgutil PO-token plugin under `/opt/yt-dlp/plugins`.
+Each is pinned in a build stage of its own and checked against its release's
+checksum; `/etc/yt-dlp-version`, `/etc/deno-version` and
+`/etc/bgutil-pot-version` say what an image was built from. Extractors stop
+working as the platforms change, so the yt-dlp pin is the one to move first
+when videos start to fail, and the plugin's version is the `bgutil-provider`
+image's. The image carries no ffmpeg: a session downloads a video's audio as
+it is served, and the platform's transcription lane does the one conversion.
+
 The runtime's image-validation budget measures the sum of unpacked image layers,
 including files superseded in later layers. It does not use packed OCI content
 size, which Docker's containerd store can report through `image inspect .Size`.
@@ -489,7 +501,23 @@ place Gemini reads a global context file from), and Pi's config directory
 under `$TMPDIR`. The next wrapper to start removes every one whose pid no
 longer runs, and the entrypoint empties `$TMPDIR` at every container start. A
 wrapper cancelled before its CLI starts removes what it staged itself. The
-Qwen, Hermes and OpenClaw wrappers run their CLI as a child and wait for it.
+Pi wrapper hands Pi the platform's instructions as a file it stages beside
+that config directory and names on Pi's command line
+(`--append-system-prompt`), so the text stays off argv and Pi reads no other
+append file. It starts Pi with `--no-approve`, so none of the workspace's own
+Pi configuration loads (its `.pi/settings.json` and `.pi/mcp.json`,
+extensions and packages, prompt templates, themes, `SYSTEM.md` and
+`APPEND_SYSTEM.md`): a turn runs on the configuration the wrapper staged. The
+workspace's skills still load, because the wrapper names the directories Pi
+searches for them (`.pi/skills`, and `.agents/skills` from the working
+directory up to the repository's root) with `--skill`; Pi reads the
+workspace's `AGENTS.md` either way. With `--rpc` it drives Pi's RPC mode,
+which the platform can steer: it reads only the first line of stdin, the
+staging envelope, a byte at a time, and leaves the rest of the pipe to Pi
+(the prompt command, then the steer commands while the turn runs, until EOF
+ends it). RPC mode prints no session header, so the wrapper prints one for the
+session it names. The Qwen, Hermes and OpenClaw wrappers run their CLI as a
+child and wait for it.
 
 ### Built-in skills
 

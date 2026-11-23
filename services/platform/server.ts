@@ -1,15 +1,20 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { existsSync, statSync } from 'node:fs';
-import { dirname, join, resolve, sep } from 'node:path';
+import { existsSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { serve, type ServerType } from '@hono/node-server';
 import { parseSessionIdleTimeoutMinutes } from '@tale/shared/utils/session-idle';
 import {
   requestSiteOrigin,
   resolveSiteOrigins,
 } from '@tale/shared/utils/site-urls';
 import { createAnalytics } from '@tale/ui/analytics/server';
-import { createPrecompiledServer, type ArtifactsServer } from '@tale/ui/seo';
+// The precompiled server alone: the `@tale/ui/seo` barrel also loads the
+// compiler behind it (markdown parsers, an HTML parser), which only the
+// build runs.
+import type { ArtifactsServer } from '@tale/ui/seo/runtime/on-demand-server';
+import { createPrecompiledServer } from '@tale/ui/seo/runtime/precompiled-server';
 import {
   createServingIdentity,
   SERVING_IDENTITY_HEADER,
@@ -17,7 +22,13 @@ import {
 import { Hono } from 'hono';
 import { NONCE, secureHeaders } from 'hono/secure-headers';
 
-import { headContentLength } from './backend/lib/http-hygiene';
+import { closeHttpServer } from './backend/lib/close-http-server';
+import {
+  BACKEND_SERVER_OPTIONS,
+  headContentLength,
+  installClientErrorEnvelope,
+} from './backend/lib/http-hygiene';
+import { PLATFORM_ROOT } from './backend/lib/layout';
 import {
   parseAuthenticatorEnv,
   type AuthenticatorEnv,
@@ -38,6 +49,7 @@ import {
   retainedAssetName,
   STATIC_ASSETS_DIR,
 } from './lib/static-assets';
+import { readTextFile, staticFileResponse } from './lib/static-file';
 import { inlineScriptJson, replaceLiteral } from './lib/utils/inline-script';
 import { slaRulesResponse } from './sla-targets';
 import {
@@ -46,17 +58,18 @@ import {
   renderStatusJson,
   renderStatusPage,
 } from './status-probe';
-import { initTelemetry, metricsResponse } from './telemetry';
+import { metricsResponse } from './telemetry';
 
-// The run markers, files in /tmp the entrypoint and the runtime set. The
+// The run markers, files in /tmp this process and the runtime set. The
 // entrypoint deletes all of them, as root, at every start.
 const MARKER_DIRECTORY = '/tmp';
-// Platform graceful shutdown marker (written by docker-entrypoint.sh trap).
-// When present, /api/health returns 503 so Caddy/Docker drain traffic before
-// the process actually terminates.
+// Graceful shutdown marker, written when the process is told to stop
+// (`startWebServer`'s `markShuttingDown`). When present, /api/health returns
+// 503 so a balancer that checks each replica drains traffic before the
+// process actually terminates.
 const SHUTDOWN_MARKER = 'platform-shutting-down';
-// Touched by docker-entrypoint.sh once the server answers (the compose
-// healthcheck's gate).
+// Written once the process serves (`markReady`): the compose healthcheck's
+// gate.
 const READY_MARKER = 'platform-ready';
 // Set by a blue/green runtime that takes this replica out of its traffic
 // switch (Incus), read by `/api/admission` alone. Docker never sets it.
@@ -90,11 +103,12 @@ const sseClients = new Set<SseClient>();
 /**
  * How often an idle `/events/file` stream writes a `: ping` comment frame.
  * Config changes are rare, so without it a quiet client sits silent until
- * Bun's `idleTimeout` (255 s, see Bun.serve below) cuts the socket; the
- * EventSource then reconnects, costing a backend auth lookup per cycle and
- * dropping any change event that lands in the gap. 30 s keeps a healthy
- * client an order of magnitude inside the timeout; a comment frame is
- * invisible to EventSource consumers.
+ * something between it and this process gives the connection up for idle
+ * (the edge and many corporate proxies do, within minutes); the EventSource
+ * then reconnects, costing a backend auth lookup per cycle and dropping any
+ * change event that lands in the gap. 30 s keeps a healthy client well
+ * inside any such timeout; a comment frame is invisible to EventSource
+ * consumers.
  */
 const SSE_HEARTBEAT_MS = 30_000;
 
@@ -102,6 +116,26 @@ const SSE_HEARTBEAT_MS = 30_000;
 function dropSseClient(client: SseClient): void {
   clearInterval(client.heartbeat);
   sseClients.delete(client);
+}
+
+/**
+ * End every open `/events/file` stream, for a process that is stopping: the
+ * streams never end on their own, so a listener waiting for its connections
+ * to finish would wait for the force deadline. A client reconnects to
+ * whichever replica answers next. Returns how many were open.
+ */
+export function endFileEventStreams(): number {
+  const open = [...sseClients];
+  for (const client of open) {
+    dropSseClient(client);
+    try {
+      client.controller.close();
+    } catch (error) {
+      // Closed already from the other end; the client is forgotten either way.
+      console.warn('SSE close at shutdown failed (ignored)', error);
+    }
+  }
+  return open.length;
 }
 
 /**
@@ -165,11 +199,14 @@ const defaultOrgFrameAncestors = createOrgFrameAncestorsProvider(
 );
 
 /**
- * The backend tier this process asks for verdicts it cannot reach a database
- * to answer (the two oracles in `backend/realtime/oracle-routes.ts`). Compose,
- * or failing that the container's env.sh, sets TALE_BACKEND_URL to the
- * in-network name; the loopback default is what `bun dev` uses, matching
- * vite.config.ts and status-probe.ts.
+ * The API this app asks for verdicts it cannot reach a database to answer
+ * (the oracle in `backend/realtime/oracle-routes.ts`), where the app was
+ * given no address of its own (`CreateAppOptions.backendUrl`, which a backend
+ * process that serves this app beside its API sets to its own listener): at
+ * TALE_BACKEND_URL. A process that serves the web tier alone (the `web`
+ * role) gets the in-network name there from compose, or failing that from
+ * the container's env.sh. The loopback default is what `bun dev` uses,
+ * matching vite.config.ts and status-probe.ts.
  *
  * Read per call, never frozen at import: the module is loaded before the
  * process env is fully assembled in some entry paths.
@@ -186,14 +223,16 @@ const SESSION_ORACLE_TIMEOUT_MS = 5_000;
  * Validate the request's session cookie against the backend's `/api/sse/auth`
  * door and answer the caller's org memberships — `null` means "no valid
  * session". Shared by the `/events/file` SSE gate and the `/canvas-preview`
- * gate; this process has no database, so the backend is the oracle.
+ * gate; this app holds no database connection of its own, in whichever
+ * process it runs, so the API is the oracle.
  */
 async function resolveAllowedOrgSlugs(
   cookieHeader: string | undefined,
+  backendUrl: string,
 ): Promise<Set<string> | null> {
   if (!cookieHeader) return null;
   try {
-    const res = await fetch(`${backendBaseUrl()}/api/sse/auth`, {
+    const res = await fetch(`${backendUrl}/api/sse/auth`, {
       headers: { cookie: cookieHeader },
       // A hung backend must not leave every `/events/file` and
       // `/canvas-preview` request pending forever; the catch below turns
@@ -257,10 +296,12 @@ interface EnvConfig extends AuthenticatorEnv {
   CANVAS_PREVIEW_CSP_EXTRA_ORIGINS: readonly string[];
 }
 
-const port = process.env.PORT || 3000;
-const moduleDir = dirname(fileURLToPath(import.meta.url));
-const distDir = join(moduleDir, 'dist');
-const distSeoDir = join(moduleDir, 'dist-seo');
+// The built app and the precompiled SEO artifacts, beside the platform's
+// other trees: `services/platform/dist` in a checkout, `/app/dist` in the
+// image. From the platform's root and not from this module's own location,
+// which is `backend-dist/` once the backend build has folded it in.
+const distDir = fileURLToPath(new URL('dist', PLATFORM_ROOT));
+const distSeoDir = fileURLToPath(new URL('dist-seo', PLATFORM_ROOT));
 
 // Content-hashed bundler output — `assets/<name>-<hash>.js|css` (+ its `.map`) —
 // is content-addressed: a given filename never maps to different bytes across
@@ -354,8 +395,7 @@ async function readBootShellTemplate(): Promise<string | null> {
   if (!DEV_HOT_RELOAD && bootShellTemplate !== undefined) {
     return bootShellTemplate;
   }
-  const file = Bun.file(join(distDir, 'boot-shell.html'));
-  const content = (await file.exists()) ? await file.text() : null;
+  const content = await readTextFile(join(distDir, 'boot-shell.html'));
   if (content === null && bootShellTemplate === undefined) {
     console.warn(
       'Missing dist/boot-shell.html — dashboard first paint falls back to an empty shell (did the build run prerender-boot-shell?)',
@@ -644,6 +684,28 @@ export interface CreateAppOptions {
    * withdrawn) the health and admission probes read. Production: `/tmp`.
    */
   markerDirectory?: string;
+  /**
+   * What `/metrics` answers. A process that serves this app alone answers
+   * its own registry (`telemetry.ts`, the default). A backend process that
+   * serves it beside its API has one registry for the whole process, the
+   * backend's, and answers that here too: the process figures are the same
+   * process's, and two sets of default metrics cannot register twice.
+   */
+  metrics?: () => Promise<Response>;
+  /**
+   * Where this app asks the API for what it cannot answer itself: the
+   * session verdicts and the status page's probes. A backend process that
+   * serves it beside its API names its own API listener here, so a replica
+   * answers for itself and never for the one a shared network name happens
+   * to resolve to. Unset — the `web` role, tests — TALE_BACKEND_URL.
+   */
+  backendUrl?: string;
+  /**
+   * Told each time something asks `/api/health` or `/api/admission`: the two
+   * doors a balancer or a traffic switch checks a replica through. The
+   * listener keeps the time of the last one ({@link startWebServer}).
+   */
+  onHealthCheck?: () => void;
 }
 
 let openapiDocumentPromise: Promise<Record<string, unknown> | null> | null =
@@ -655,9 +717,9 @@ function builtOpenapiDocument(): Promise<Record<string, unknown> | null> {
     return openapiDocumentPromise;
   }
   openapiDocumentPromise = (async () => {
-    const file = Bun.file(join(distDir, 'openapi.json'));
-    if (!(await file.exists())) return null;
-    const parsed: unknown = JSON.parse(await file.text());
+    const text = await readTextFile(join(distDir, 'openapi.json'));
+    if (text === null) return null;
+    const parsed: unknown = JSON.parse(text);
     return typeof parsed === 'object' &&
       parsed !== null &&
       !Array.isArray(parsed)
@@ -675,6 +737,8 @@ export function createApp(
   const app = new Hono();
   const servingIdentity = createServingIdentity('platform');
   const analytics = createAnalytics(process.env, env.BASE_PATH);
+  // Per request, like the variable behind it: see `backendBaseUrl`.
+  const backendUrl = () => opts.backendUrl ?? backendBaseUrl();
 
   const makeSecure = (
     storageOrigins: readonly string[],
@@ -812,6 +876,7 @@ export function createApp(
     // document with no reach into the app.
     const allowedOrgSlugs = await resolveAllowedOrgSlugs(
       c.req.header('cookie'),
+      backendUrl(),
     );
     if (allowedOrgSlugs === null) {
       return new Response('Unauthenticated', {
@@ -870,6 +935,7 @@ export function createApp(
   const marked = (name: string) => existsSync(join(markerDirectory, name));
 
   app.get('/api/health', (c) => {
+    opts.onHealthCheck?.();
     c.header('Cache-Control', 'no-store');
     c.header(SERVING_IDENTITY_HEADER, servingIdentity);
     if (marked(SHUTDOWN_MARKER)) {
@@ -889,6 +955,7 @@ export function createApp(
   // seeing a 503 there, which would cut the whole site. The edge routes every
   // other /api/* path to the backend, so this is not reachable from outside.
   app.get('/api/admission', (c) => {
+    opts.onHealthCheck?.();
     c.header('Cache-Control', 'no-store');
     c.header(SERVING_IDENTITY_HEADER, servingIdentity);
     if (marked(WITHDRAWN_MARKER) || marked(SHUTDOWN_MARKER)) {
@@ -921,7 +988,9 @@ export function createApp(
   // backend-bound block). Both routes project from the same `StatusFeed`
   // so the human and machine views cannot drift.
   app.get('/status', async (c) => {
-    const feed = buildStatusFeed(await probeServices());
+    const feed = buildStatusFeed(
+      await probeServices(fetch, Date.now, backendUrl()),
+    );
     const html = renderStatusPage(feed, c.req.header('accept-language') ?? '');
     return new Response(html, {
       headers: {
@@ -942,7 +1011,9 @@ export function createApp(
     'Access-Control-Max-Age': '600',
   };
   app.get('/status.json', async () => {
-    const feed = buildStatusFeed(await probeServices());
+    const feed = buildStatusFeed(
+      await probeServices(fetch, Date.now, backendUrl()),
+    );
     return new Response(renderStatusJson(feed), {
       headers: {
         'Content-Type': 'application/json',
@@ -972,7 +1043,10 @@ export function createApp(
     // gates events at fan-out time so foreign-org payloads never
     // reach the wire.
     const cookieHeader = c.req.header('cookie');
-    const allowedOrgSlugs = await resolveAllowedOrgSlugs(cookieHeader);
+    const allowedOrgSlugs = await resolveAllowedOrgSlugs(
+      cookieHeader,
+      backendUrl(),
+    );
     if (allowedOrgSlugs === null) {
       return new Response('Unauthenticated', {
         status: 401,
@@ -1014,7 +1088,7 @@ export function createApp(
     });
   });
 
-  app.get('/metrics', () => metricsResponse());
+  app.get('/metrics', () => (opts.metrics ?? metricsResponse)());
 
   // Generated Prometheus recording + alerting rules for the response-time
   // SLAs, derived from the canonical targets in `sla-targets.ts`. Operators
@@ -1026,8 +1100,8 @@ export function createApp(
   // down (no `/`, no `..`), but the prefix check uses `path.sep` so a
   // future sibling dir like `imagesXYZ/` cannot prefix-match via
   // string compare. We also pin Content-Type from an allowlist
-  // instead of letting Bun.file infer it from the extension so a
-  // mis-renamed file cannot be served with a script-y content type.
+  // instead of inferring it from the extension so a mis-renamed file
+  // cannot be served with a script-y content type.
   const BRANDING_MIME: Record<string, string> = {
     png: 'image/png',
     svg: 'image/svg+xml',
@@ -1047,17 +1121,15 @@ export function createApp(
     if (!filePath.startsWith(imagesDir + sep) && filePath !== imagesDir) {
       return c.notFound();
     }
-    const file = Bun.file(filePath);
-    if (!(await file.exists())) return c.notFound();
     const ext = filename.split('.').pop()?.toLowerCase() ?? '';
     const contentType = BRANDING_MIME[ext];
     if (!contentType) return c.notFound();
-    return new Response(file, {
-      headers: {
-        'Cache-Control': 'no-cache, must-revalidate',
-        'Content-Type': contentType,
-      },
-    });
+    return (
+      (await staticFileResponse(filePath, c.req.raw, {
+        contentType,
+        headers: { 'Cache-Control': 'no-cache, must-revalidate' },
+      })) ?? c.notFound()
+    );
   });
 
   // Dev live-reload build-id endpoint (polled by DEV_RELOAD_SCRIPT). Registered
@@ -1161,10 +1233,9 @@ export function createApp(
       const staticDist = opts.distDirectory ?? distDir;
       const filePath = resolve(staticDist, pathname.slice(1));
       if (filePath.startsWith(staticDist + sep)) {
-        const file = Bun.file(filePath);
-        if (await file.exists()) {
-          if (pathname === '/offline.html') {
-            const canonical = await file.text();
+        if (pathname === '/offline.html') {
+          const canonical = await readTextFile(filePath);
+          if (canonical !== null) {
             const html =
               new URL(c.req.url).searchParams.get('__tale_offline') === '1'
                 ? canonical
@@ -1177,24 +1248,30 @@ export function createApp(
               'X-Tale-PWA-Offline': '1',
             });
           }
-          // Bun infers Content-Type from the file extension; we only add the
-          // caching directive (immutable for content-hashed chunks).
-          return new Response(file, {
+        } else {
+          // The file decides its type, length and coding (a precompressed
+          // neighbour when the request accepts one); this adds the caching
+          // directive (immutable for content-hashed chunks).
+          const response = await staticFileResponse(filePath, c.req.raw, {
             headers: { 'Cache-Control': cacheControlForStaticPath(pathname) },
+            precompressed: true,
           });
+          if (response !== null) return response;
         }
       }
     }
 
     const retained = retainedAssetName(pathname);
     if (retained) {
-      const file = Bun.file(
+      const response = await staticFileResponse(
         join(opts.retainedAssetsDirectory ?? STATIC_ASSETS_DIR, retained),
-      );
-      if (await file.exists())
-        return new Response(file, {
+        c.req.raw,
+        {
           headers: { 'Cache-Control': cacheControlForStaticPath(pathname) },
-        });
+          precompressed: true,
+        },
+      );
+      if (response !== null) return response;
     }
     // A missing module is an asset miss, never an HTML 200 that a browser
     // might cache under an immutable bundle name.
@@ -1208,14 +1285,13 @@ export function createApp(
 
     let template = opts.indexHtml ?? indexHtmlTemplate;
     if (template === null || (DEV_HOT_RELOAD && opts.indexHtml === undefined)) {
-      const indexFile = Bun.file(
+      template = await readTextFile(
         join(opts.distDirectory ?? distDir, 'index.html'),
       );
-      if (!(await indexFile.exists())) {
+      if (template === null) {
         console.error(`Missing dist/index.html in ${distDir}`);
         return c.text('Internal Server Error', 500);
       }
-      template = await indexFile.text();
       // Only memoize in production; in dev the next rebuild invalidates it.
       if (!DEV_HOT_RELOAD) {
         indexHtmlTemplate = template;
@@ -1311,22 +1387,193 @@ export function createApp(
   return app;
 }
 
-if (import.meta.main) {
+/** The port the web tier listens on unless `APP_PORT` names another. */
+export const DEFAULT_WEB_PORT = 3000;
+
+/** The port `APP_PORT` names, or the default when it is unset or blank. A
+ * value that is no port fails the start: a web tier on a guessed port is a
+ * site that answers nowhere. */
+export function webPort(value: string | undefined = process.env.APP_PORT) {
+  const text = value?.trim() ?? '';
+  if (text === '') return DEFAULT_WEB_PORT;
+  const port = Number(text);
+  if (!/^\d+$/.test(text) || port < 1 || port > 65_535) {
+    throw new Error(`APP_PORT must be a port number, got: ${value}`);
+  }
+  return port;
+}
+
+/**
+ * The `APP_PORT` that starts a backend process (`backend/main.ts`) without
+ * the web tier: it serves its API alone, for a process whose app something
+ * else serves. The dev orchestrator starts its backend so, since Vite serves
+ * the app there on the port this one would have taken. The `web` role serves
+ * nothing else, so {@link webPort} refuses it there like any value that is
+ * no port.
+ */
+export const WEB_TIER_OFF = 'off';
+
+/** Whether `APP_PORT` is {@link WEB_TIER_OFF}, in any case. */
+export function webTierOff(
+  value: string | undefined = process.env.APP_PORT,
+): boolean {
+  return value?.trim().toLowerCase() === WEB_TIER_OFF;
+}
+
+/** How long a stopping web tier keeps answering once `/api/health` says
+ * 503, unless `SHUTDOWN_DRAIN_SECONDS` names another span (0 to 300): a
+ * balancer that checks each replica needs a check or two to stop sending it
+ * requests, and the edge checks every five seconds. */
+export const DEFAULT_WEB_DRAIN_MS = 6_000;
+
+/** The span `SHUTDOWN_DRAIN_SECONDS` names, in milliseconds, or the default
+ * when it is unset, blank or no such number. Never fails a stop over it. */
+export function webDrainMs(
+  value: string | undefined = process.env.SHUTDOWN_DRAIN_SECONDS,
+): number {
+  const text = value?.trim() ?? '';
+  if (text === '') return DEFAULT_WEB_DRAIN_MS;
+  const seconds = Number(text);
+  if (!Number.isFinite(seconds) || seconds < 0 || seconds > 300) {
+    console.warn(
+      `[web] SHUTDOWN_DRAIN_SECONDS must be a number from 0 to 300, got: ${value} — using ${DEFAULT_WEB_DRAIN_MS / 1000}`,
+    );
+    return DEFAULT_WEB_DRAIN_MS;
+  }
+  return Math.round(seconds * 1000);
+}
+
+/**
+ * How recent the last health check must be for a stopping web tier to wait
+ * for its balancer: three of the edge's five-second checks. A replica
+ * nothing has checked for that long has no balancer that would act on the
+ * 503, so its wait would only delay the stop: the web tier a `backend-api`
+ * replica serves but no edge routes to, a process on a workstation.
+ */
+export const HEALTH_CHECK_WINDOW_MS = 15_000;
+
+export interface WebServerOptions {
+  /** The port to listen on; `APP_PORT`, else 3000. */
+  port?: number;
+  /** The interface to listen on; every interface when omitted. */
+  hostname?: string;
+  /** Passed to {@link createApp}. */
+  app?: CreateAppOptions;
+}
+
+export interface WebServer {
+  server: ServerType;
+  /** Write the ready marker: the compose healthcheck's gate, and what
+   * `/api/admission` waits for. Called once everything the process serves is
+   * up — by this function's caller, which knows what else that is. */
+  markReady(): void;
+  /** Write the shutdown marker, so `/api/health` answers 503 from now on and
+   * a balancer that checks each replica stops sending it requests. */
+  markShuttingDown(): void;
+  /** How long to keep answering between {@link markShuttingDown} and
+   * {@link close}: the span of {@link webDrainMs} while something checks
+   * this replica's health ({@link HEALTH_CHECK_WINDOW_MS}), and none when
+   * nothing does. */
+  drainMs(): number;
+  /** Stop serving: end the `/events/file` streams, which never end on their
+   * own, close the listener once its requests have finished (or the force
+   * deadline has passed), stop the upkeep of the shared assets and delete
+   * the two markers. */
+  close(): Promise<void>;
+}
+
+/**
+ * Serve the web tier: the built app with its shell, the status page, the
+ * OpenAPI document, branding images and the other doors of {@link createApp}.
+ *
+ * It runs in the backend process, beside the API, on a port of its own
+ * (`backend/main.ts`; the api and all roles), or alone as the `web` role
+ * (`backend/web-main.ts`). Either way on Node: there is no second JavaScript
+ * server behind the site any more.
+ */
+export async function startWebServer(
+  options: WebServerOptions = {},
+): Promise<WebServer> {
   // Named volumes exist before the process starts. Publishing must finish
   // before /api/health can succeed on a newly joining blue/green replica.
+  let stopMaintenance: (() => Promise<void>) | undefined;
   if (existsSync(STATIC_ASSETS_DIR)) {
     await publishStaticAssets(join(distDir, 'assets'));
-    maintainStaticAssets(join(distDir, 'assets'));
+    stopMaintenance = maintainStaticAssets(join(distDir, 'assets'));
   }
-  initTelemetry();
-  const app = createApp();
-  Bun.serve({
-    port,
-    hostname: '0.0.0.0',
-    // Bun's default idleTimeout (10s) would kill the long-lived `/events/file`
-    // SSE stream; 255 is Bun's max. The stream's own heartbeats keep a healthy
-    // client well inside it, so this only backstops a wedged socket.
-    idleTimeout: 255,
-    fetch: (req, server) => app.fetch(req, server),
+  const markerDirectory = options.app?.markerDirectory ?? MARKER_DIRECTORY;
+  const marker = (name: string) => join(markerDirectory, name);
+  // A marker of the previous run would answer for this one: `/tmp` outlives
+  // a restart that keeps the container's filesystem. The entrypoint deletes
+  // them as root; a start that never was root (a container run as the app
+  // user, a workstation) deletes its own here, before the listener can read
+  // one. A marker it may not delete is the entrypoint's to deal with, and
+  // must not stop the start.
+  for (const name of [READY_MARKER, SHUTDOWN_MARKER]) {
+    try {
+      rmSync(marker(name), { force: true });
+    } catch (error) {
+      console.warn(
+        `[web] could not delete the run marker ${marker(name)} of a previous start:`,
+        error,
+      );
+    }
+  }
+  let lastHealthCheckAt: number | null = null;
+  const app = createApp(getEnvConfig(), {
+    ...options.app,
+    onHealthCheck: () => {
+      lastHealthCheckAt = Date.now();
+      options.app?.onHealthCheck?.();
+    },
   });
+  const port = options.port ?? webPort();
+  const server = await new Promise<ServerType>((resolveServer, reject) => {
+    const listening = serve(
+      {
+        fetch: app.fetch,
+        port,
+        ...(options.hostname === undefined
+          ? {}
+          : { hostname: options.hostname }),
+        // The header budget, the arrival deadline and the response class
+        // the API's listener runs with (lib/http-hygiene.ts): the edge
+        // forwards to both, and a long-lived `/events/file` stream needs no
+        // idle timeout raised, since Node sets none on a response in
+        // progress.
+        serverOptions: BACKEND_SERVER_OPTIONS,
+      },
+      () => resolveServer(listening),
+    );
+    listening.once('error', reject);
+  });
+  installClientErrorEnvelope(server);
+  console.log(`[web] serving the app on :${port}`);
+  return {
+    server,
+    markReady: () => {
+      writeFileSync(marker(READY_MARKER), '');
+      // The line the dev log reader shows as "platform running"
+      // (`@tale/shared` classify/sources/platform-container.ts).
+      console.log(
+        `Tale Platform is running!\n   Application: ${process.env.SITE_URL ?? `http://localhost:${port}`}${getBasePath()}`,
+      );
+    },
+    markShuttingDown: () => writeFileSync(marker(SHUTDOWN_MARKER), ''),
+    drainMs: () =>
+      lastHealthCheckAt !== null &&
+      Date.now() - lastHealthCheckAt <= HEALTH_CHECK_WINDOW_MS
+        ? webDrainMs()
+        : 0,
+    close: async () => {
+      const ended = endFileEventStreams();
+      if (ended > 0) {
+        console.log(`[web] ended ${ended} open event stream(s) for shutdown`);
+      }
+      await closeHttpServer(server, { name: 'web' });
+      await stopMaintenance?.();
+      for (const name of [READY_MARKER, SHUTDOWN_MARKER])
+        rmSync(marker(name), { force: true });
+    },
+  };
 }

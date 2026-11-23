@@ -1,9 +1,10 @@
 # Caddy configuration of the traffic switch (TALE_PROXY_ROLE=switch)
 #
 # On the Incus runtime the stable names `platform` and `backend-api` resolve to
-# this instance, and it balances each over the replicas of both colours. The
-# edge in front of it (the proxy in its default role, Caddyfile unchanged) and
-# the stack's own callers never see a colour flip as a change of address.
+# this instance, and it balances each over the replicas of both colours, the
+# backend API's model relay too. The edge in front of it (the proxy in its
+# default role, Caddyfile unchanged) and the stack's own callers never see a
+# colour flip as a change of address.
 #
 # Each upstream file names every replica slot of its role in both colours. The
 # runtime writes them once, when it creates the switch, on the volume mounted
@@ -46,6 +47,23 @@
 	reverse_proxy {
 		import /switch/backend-api.upstreams
 		health_uri /admission
+		health_interval 2s
+		lb_try_duration 5s
+		lb_try_interval 250ms
+		flush_interval -1
+	}
+}
+
+# The model relay each backend API replica serves beside the API, where a
+# sandbox session calls its models (tale-project/tale#4942). Its upstream
+# file names the same replicas on the relay's port, and each is asked the
+# API's admission probe, on the API's port: a replica withdrawn from the API
+# is withdrawn from its relay at the same time.
+:8080 {
+	reverse_proxy {
+		import /switch/model-relay.upstreams
+		health_uri /admission
+		health_port 3005
 		health_interval 2s
 		lb_try_duration 5s
 		lb_try_interval 250ms

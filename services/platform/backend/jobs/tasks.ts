@@ -485,8 +485,16 @@ export interface TaskPayloads {
     attempt?: number;
   };
   /** One video-link ingest attempt (the reused orchestrator; its
-   * [30s,60s,120s] retry self-chain re-enters this queue). */
-  'video.ingest': { jobId: string; userLocale?: string };
+   * [30s,60s,120s] retry self-chain re-enters this queue). `waitingSince`
+   * is when the video began waiting for a sandbox session, on a job that
+   * came back because there was none to be had, and `waitingAs` the key of
+   * the run that began the wait, under which the job asks again. */
+  'video.ingest': {
+    jobId: string;
+    userLocale?: string;
+    waitingSince?: number;
+    waitingAs?: string;
+  };
   /** Materialize a donor transcript for a clone job (no yt-dlp). */
   'video.clone': {
     jobId: string;
@@ -995,9 +1003,10 @@ export const NATIVE_RUNS_PER_ORG = 4;
 
 /**
  * How many documents one organization's uploads have read at once across
- * every worker. A read is short, but it holds a file's bytes and text and
- * runs the PII scan; one person dropping a folder of files into a chat must
- * not take every read slot while another organization's attachment waits.
+ * every worker. A read is short, but each takes a turn at the heavy slot,
+ * where a process reads one file at a time, and holds the text it read; one
+ * person dropping a folder of files into a chat must not take every read
+ * slot while another organization's attachment waits.
  */
 export const READS_PER_ORG = 2;
 
@@ -1051,10 +1060,11 @@ const TASK_WORKER_MIN_SLOTS: ReadonlyMap<string, number> = new Map<
 
 /**
  * The most slots a slot queue runs on one worker, whatever
- * `WORKER_CONCURRENCY` says. A document read holds a whole file and its text
- * — a large PDF or spreadsheet takes hundreds of megabytes while it is
- * extracted — beside the index runs that do the same with other files, so a
- * worker reads a few documents at once, never as many as it indexes.
+ * `WORKER_CONCURRENCY` says. A document read waits its turn at the heavy
+ * slot (`lib/heavy-slot`), which reads one file at a time in a process of
+ * its own, beside the index runs that wait there too, and then holds the
+ * text it read: a worker takes a few reads at once, never as many as it
+ * indexes.
  */
 const TASK_WORKER_MAX_SLOTS: ReadonlyMap<string, number> = new Map<
   TaskIdentifier,

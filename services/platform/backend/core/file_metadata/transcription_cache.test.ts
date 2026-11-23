@@ -2,7 +2,10 @@ import { createHash } from 'node:crypto';
 
 import { describe, expect, it } from 'vitest';
 
-import { transcriptionCacheHash } from './transcription_cache';
+import {
+  transcriptionCacheHash,
+  transcriptionCacheHasher,
+} from './transcription_cache';
 
 const bytes = new Uint8Array([0, 1, 255, 0, 2]);
 const target = {
@@ -64,5 +67,21 @@ describe('transcription cache identity', () => {
     const current = transcriptionCacheHash(bytes, target);
     expect(current).toMatch(/^[a-f0-9]{64}$/);
     expect(current).not.toBe(legacy);
+  });
+
+  it('makes the same hash of bytes that arrive in pieces, wherever they are cut', () => {
+    const audio = new Uint8Array(1000).map((_byte, at) => (at * 31) % 256);
+    const expected = transcriptionCacheHash(audio, target);
+    for (const piece of [1, 7, 256, 999, 1000, 4096]) {
+      const hasher = transcriptionCacheHasher(target);
+      for (let at = 0; at < audio.length; at += piece) {
+        hasher.update(audio.subarray(at, at + piece));
+      }
+      expect(hasher.digest(), `pieces of ${piece}`).toBe(expected);
+    }
+    // And of no bytes at all.
+    expect(transcriptionCacheHasher(target).digest()).toBe(
+      transcriptionCacheHash(new Uint8Array(), target),
+    );
   });
 });

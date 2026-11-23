@@ -67,6 +67,7 @@ const ARGS = {
   defaultBudgetCents: 500,
   modelRef: 'openai/openai/gpt-5',
   harness: 'pi',
+  harnessReason: 'default' as const,
 };
 
 beforeEach(() => {
@@ -169,6 +170,13 @@ describe('reserveTurnBudget', () => {
     expect(upsert?.values).toContain('pi');
     expect(upsert?.text).toContain(
       'harness = coalesce(EXCLUDED.harness, app.sandbox_session_ops.harness)',
+    );
+    // Beside it, why the turn runs there — the rule the host applied, which
+    // the run's details tell; a later write without one keeps it too.
+    expect(upsert?.text).toContain('harness_reason');
+    expect(upsert?.values).toContain('default');
+    expect(upsert?.text).toMatch(
+      /harness_reason = coalesce\(EXCLUDED\.harness_reason,\s+app\.sandbox_session_ops\.harness_reason\)/,
     );
   });
 

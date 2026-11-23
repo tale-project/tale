@@ -44,6 +44,7 @@ import {
 import { sseResponse } from '../sse.ts';
 import type { SpawnerConfig } from '../types.ts';
 import { msSince, notAhead } from '../wall-clock.ts';
+import { FILE_SIZE_HEADER } from '../wire.ts';
 import type {
   SandboxErrorCode,
   SandboxSessionProfile,
@@ -2725,6 +2726,9 @@ export class SessionRoutes {
           organizationId: req.organizationId,
           profile: req.profile,
           docker: req.docker,
+          ...(req.maxFileBytes === undefined
+            ? {}
+            : { maxFileBytes: req.maxFileBytes }),
           ttlMs: req.ttlMs,
           idleTimeoutMs: req.idleTimeoutMs,
           env: req.env,
@@ -4668,12 +4672,16 @@ export class SessionRoutes {
     return jsonResponse({ entries }, 200);
   }
 
-  /** GET /v1/sessions/:id/files/content?path= — raw file bytes streamed
-   * through the spawner. */
+  /** GET /v1/sessions/:id/files/content?path=[&maxBytes=] — raw file bytes
+   * streamed through the spawner. A caller that passes them on names how
+   * much it will take; the answer says how many bytes the file is
+   * (`x-tale-file-size`) before the first of them, where the session's
+   * runtime declares it. */
   async handleFileContent(
     sessionId: string,
     path: string,
     signal?: AbortSignal,
+    maxBytes?: number,
   ): Promise<Response> {
     const session = await this.ensureRegistered(sessionId);
     if (session instanceof Response) return session;
@@ -4684,6 +4692,7 @@ export class SessionRoutes {
         { baseUrl: session.endpoint, token: this.tokenFor(sessionId) },
         path,
         signal,
+        maxBytes,
       );
     } catch (err) {
       // 502 not 404 — see handleFilesStage.
@@ -4697,9 +4706,17 @@ export class SessionRoutes {
       );
     }
     if (bytes === null) return jsonResponse({ error: 'not_found' }, 404);
+    // A header of its own: a server may frame a streamed body in chunks and
+    // drop the length it was given.
+    const size = bytes.headers.get('content-length');
     return new Response(bytes.body, {
       status: 200,
-      headers: { 'content-type': 'application/octet-stream' },
+      headers: {
+        'content-type': 'application/octet-stream',
+        ...(size !== null && /^[0-9]+$/.test(size)
+          ? { [FILE_SIZE_HEADER]: size }
+          : {}),
+      },
     });
   }
 }

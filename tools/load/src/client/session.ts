@@ -41,6 +41,8 @@ export interface AuthResult {
 export interface SignInResult extends AuthResult {
   /** Better Auth answered with a second-factor challenge, not a session. */
   twoFactorRedirect?: boolean;
+  /** A refusal for load (429, 503) said when to ask again. */
+  retryAfterMs?: number;
 }
 
 export interface SessionInfo {
@@ -86,6 +88,8 @@ export class UserSession {
   readonly http: HttpClient;
   /** The session cookie's name on this deployment. */
   readonly cookieName: string;
+  /** Headers every request of this user carries (a browser's own). */
+  readonly #defaultHeaders: Readonly<Record<string, string>> | undefined;
 
   constructor(options: UserSessionOptions) {
     this.email = options.email;
@@ -95,6 +99,7 @@ export class UserSession {
     this.orgSlug = options.orgSlug;
     this.cookies = new CookieJar();
     this.cookieName = sessionCookieName(options.baseUrl);
+    this.#defaultHeaders = options.defaultHeaders;
     this.http = new HttpClient({
       baseUrl: options.baseUrl,
       agent: options.agent,
@@ -118,10 +123,11 @@ export class UserSession {
 
   /**
    * Headers an event stream needs to authenticate as this user, read at
-   * call time so a reconnect after a re-sign-in sends the new cookie.
+   * call time so a reconnect after a re-sign-in sends the new cookie, and
+   * the headers every request of the user carries.
    */
   streamHeaders(): Record<string, string> {
-    const headers: Record<string, string> = {};
+    const headers: Record<string, string> = { ...this.#defaultHeaders };
     const cookie = this.cookies.header();
     if (cookie !== '') {
       headers.cookie = cookie;
@@ -146,11 +152,15 @@ export class UserSession {
     if (userId !== undefined) {
       this.userId = userId;
     }
+    const retryAfter = Number(response.header('retry-after'));
     return {
       ok: response.ok && !twoFactorRedirect && this.signedIn,
       status: response.status,
       userId,
       ...(twoFactorRedirect ? { twoFactorRedirect } : {}),
+      ...(Number.isFinite(retryAfter) && retryAfter > 0
+        ? { retryAfterMs: retryAfter * 1000 }
+        : {}),
     };
   }
 

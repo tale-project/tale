@@ -40,6 +40,9 @@
  * `websites/scan_scheduling.ts`.
  */
 
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+
 import { computeContentHash } from '@tale/shared/utils/hashing';
 import type { JSONValue, Sql, TransactionSql } from 'postgres';
 
@@ -78,8 +81,8 @@ import {
 } from '../../../lib/net/crawl-host-policy';
 import {
   safeFetch,
-  safeFetchBinary,
   SafeFetchError,
+  safeFetchToFile,
 } from '../../../lib/net/safe-fetch';
 import { sanitizeError } from '../lib/utils/sanitize_secrets';
 
@@ -97,12 +100,17 @@ function assertCrawlableUrl(url: string): void {
     throw new SafeFetchError('private_ip', `Crawl target refused: ${refusal}`);
   }
 }
+import {
+  documentTextLimitBytes,
+  extractInHeavySlot,
+} from '../../lib/heavy-slot/documents';
+import { newJobDir, removeJobDir } from '../../lib/heavy-slot/job-dir';
+import { refusedAtCap } from '../../lib/heavy-slot/slot';
 import { ModelEndpointRefusal } from '../governance/model_endpoint_gate';
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
-import { extractText } from '../lib/knowledge/extraction/router';
-import { sniffDocumentExtension } from '../lib/knowledge/extraction/sniff';
+import { sniffDocumentFile } from '../lib/knowledge/file_extraction/sniff_file';
 import {
   RENDER_MAX_HTML_BYTES,
   RenderCapacityError,
@@ -404,6 +412,13 @@ export async function scanWebsiteImpl(
       const linkStartedAt = Date.now();
       const hardWall = actionStartedAt + ACTION_HARD_WALL_MS;
       const deadline = Math.min(linkStartedAt + SCAN_BUDGET_MS, hardWall);
+      // What a document's reading is given up for: the link's hard wall, or
+      // the end of the job the link runs in. A document waits its turn for
+      // the heavy slot, and without this it went on waiting after both.
+      const linkEnds = AbortSignal.any([
+        AbortSignal.timeout(Math.max(1, hardWall - Date.now())),
+        ...(args.signal === undefined ? [] : [args.signal]),
+      ]);
       const indexer = new PageIndexer(ctx, sql, identity, args.embeddingMeter);
       const renderQueue: { page: DuePage; probe: PageProbe }[] = [];
       let renderBatchCounter = 0;
@@ -551,7 +566,7 @@ export async function scanWebsiteImpl(
       // `renderDeferred` is set inside `flushRenderBatch`, which this loop
       // calls — the static check cannot see the closure write.
       // oxlint-disable-next-line eslint/no-unmodified-loop-condition
-      while (Date.now() < deadline && !renderDeferred) {
+      while (Date.now() < deadline && !renderDeferred && !linkEnds.aborted) {
         const pages = await nextDuePages(
           sql,
           args.domain,
@@ -560,13 +575,16 @@ export async function scanWebsiteImpl(
         );
         if (pages.length === 0) break;
         for (const page of pages) {
-          if (Date.now() >= deadline || renderDeferred) break;
+          if (Date.now() >= deadline || renderDeferred || linkEnds.aborted) {
+            break;
+          }
           const outcome = await fetchAndStorePage(
             sql,
             args.domain,
             page,
             policy,
             scanStartedAt,
+            { signal: linkEnds },
           );
           seen.requested += 1;
           if (outcome === 'not_modified') {
@@ -1298,16 +1316,14 @@ function decodeHtml(bytes: Uint8Array, contentType: string): string {
 }
 
 /** Read the text out of a probed page's plain HTML — null for a page over
- * the bound a rendered page has, which is rendered without the comparison. */
+ * the bound a rendered page has, which is rendered without the comparison
+ * and is not read from its file at all. */
 async function readPlainHtml(
-  body: Blob,
+  body: { path: string; size: number },
   contentType: string,
 ): Promise<PlainHtml | null> {
   if (body.size > RENDER_MAX_HTML_BYTES) return null;
-  const html = decodeHtml(
-    new Uint8Array(await body.arrayBuffer()),
-    contentType,
-  );
+  const html = decodeHtml(await readFile(body.path), contentType);
   const text = htmlToText(html);
   return { html, text, hash: computeContentHash(text) };
 }
@@ -1444,6 +1460,39 @@ export async function fetchAndStorePage(
   page: DuePage,
   policy: RobotsPolicy,
   scanStartedAt?: string,
+  /** Ends a document's wait for the heavy slot and its reading: the link
+   * ran out of time, or its job ended. */
+  work: { signal?: AbortSignal } = {},
+): Promise<FetchOutcome> {
+  // The page's body is kept in a file of this visit's own, never in this
+  // process: a document may be 100 MiB, and was held three times over
+  // while it was fetched and read (tale-project/tale#4942). The file is
+  // gone when the visit ends.
+  const dir = await newJobDir();
+  try {
+    return await visitPage(
+      sql,
+      domain,
+      page,
+      policy,
+      scanStartedAt,
+      work,
+      path.join(dir, 'body'),
+    );
+  } finally {
+    await removeJobDir(dir);
+  }
+}
+
+async function visitPage(
+  sql: Sql,
+  domain: string,
+  page: DuePage,
+  policy: RobotsPolicy,
+  scanStartedAt: string | undefined,
+  work: { signal?: AbortSignal },
+  /** Where the page's body is written as it arrives. */
+  bodyPath: string,
 ): Promise<FetchOutcome> {
   const hosts = siteHosts(domain);
 
@@ -1461,7 +1510,7 @@ export async function fetchAndStorePage(
   let response;
   try {
     assertCrawlableUrl(page.url);
-    response = await safeFetchBinary(page.url, {
+    response = await safeFetchToFile(page.url, bodyPath, {
       timeoutMs: PAGE_FETCH_TIMEOUT_MS,
       maxResponseBytes: DOCUMENT_MAX_BYTES,
       allowedHosts: [...hosts],
@@ -1596,7 +1645,10 @@ export async function fetchAndStorePage(
     return 'failed';
   }
   if (dispatch.kind === 'html') {
-    const plain = await readPlainHtml(response.body, contentType);
+    const plain = await readPlainHtml(
+      { path: bodyPath, size: response.size },
+      contentType,
+    );
     const validators = responseValidators(response.headers);
     if (
       plain !== null &&
@@ -1639,13 +1691,12 @@ export async function fetchAndStorePage(
       },
     };
   }
-  const bytes = new Uint8Array(await response.body.arrayBuffer());
   if (dispatch.kind === 'sniff') {
     // A download whose declared type says nothing or the wrong thing: the
     // bytes decide. A TYPO3 export answered `application/vnd.ms-excel` with
     // an `.xlsx` named in its Content-Disposition, and read as unsupported
     // (2026-09-30).
-    const extension = await sniffDocumentExtension(bytes);
+    const extension = await sniffDocumentFile(bodyPath);
     if (extension === null) {
       const named = dispatch.filename === null ? '' : ` (${dispatch.filename})`;
       await recordPageFailure(sql, domain, page.url, {
@@ -1660,8 +1711,19 @@ export async function fetchAndStorePage(
   let title: string | null;
   let text: string;
   if (dispatch.kind === 'text') {
+    // A page that is text already is held here as it is, so it is held to
+    // what a document's text may come to: the same limit, in the same
+    // words, as a document whose text does not fit.
+    if (response.size > documentTextLimitBytes()) {
+      const { message } = refusedAtCap('reading a page of plain text');
+      await recordPageFailure(sql, domain, page.url, {
+        kind: 'extraction_failed',
+        message: `Text extraction failed for the page: ${message}`,
+      });
+      return 'failed';
+    }
     title = null;
-    text = new TextDecoder().decode(bytes);
+    text = new TextDecoder().decode(await readFile(bodyPath));
   } else {
     const name = documentNameForUrl(
       page.url,
@@ -1670,14 +1732,31 @@ export async function fetchAndStorePage(
     );
     try {
       // The crawl lane carries no vision arm; extractors degrade on their
-      // own (scanned PDF pages come back empty instead of failing).
-      const [extracted] = await extractText(bytes, name, {
-        visionClient: null,
-        processImages: false,
-      });
-      text = extracted;
+      // own (scanned PDF pages come back empty instead of failing). Read in
+      // the heavy slot, one document at a time and in a process of its own
+      // (`lib/heavy-slot`): a site of large PDFs must not cost the worker
+      // their size.
+      const extracted = await extractInHeavySlot(
+        { kind: 'file', path: bodyPath },
+        name,
+        {
+          priority: 'background',
+          processImages: false,
+          ...(work.signal !== undefined ? { signal: work.signal } : {}),
+        },
+      );
+      text = extracted.text;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      if (work.signal?.aborted === true) {
+        // Given up, not failed: the link ran out of time while the document
+        // waited its turn, or its job ended. The page is as it was, and is
+        // read by the link that comes next.
+        console.warn(
+          `[crawl] ${page.url}: the reading of ${name} was given up with its link: ${message}`,
+        );
+        return 'failed';
+      }
       console.warn(
         `[crawl] ${page.url}: extraction failed for ${name}: ${message}`,
       );

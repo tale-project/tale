@@ -108,19 +108,22 @@
     inputCentsPerMillion: 500
     outputCentsPerMillion: 3000
     cacheReadCentsPerMillion: 50
+# The pro tier is served on the Responses API alone. Vendor model page, read
+# 2026-11-23 (developers.openai.com/api/docs/models/gpt-5.5-pro): Chat
+# Completions is "Not supported", tools are listed "when using the Responses
+# API", "Reasoning.effort supports: medium, high (default) and xhigh", and
+# the context is 1,050,000 tokens with 128,000 of output. Its reasoning cannot
+# be turned off, so it declares no off level: the vendor's default applies.
 - id: gpt-5.5-pro
   provider: openai
   tags:
     - chat
   supportsTools: true
+  toolCallingApi: responses
   supportsVision: true
   reasoning:
     knob: effort
-    # Family behavior (see gpt-5.5 above); the pro tier may turn out to be
-    # served on /v1/responses only — a 404 here means repoint, not retune.
-    off: none
-    toolsRequireOff: true
-  contextWindow: 400000
+  contextWindow: 1050000
   maxOutputTokens: 128000
   pricing:
     inputCentsPerMillion: 3000

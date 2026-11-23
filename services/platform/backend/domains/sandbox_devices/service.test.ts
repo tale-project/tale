@@ -200,7 +200,8 @@ describe('joinDevice', () => {
       tunnelUrl: 'wss://acme.tale.dev/sandbox/tunnel',
       relays: [
         { name: 'api', url: 'http://backend-api:3005' },
-        { name: 'gateway', url: 'http://sandbox-llm-gateway:8080' },
+        // The model relay, on the backend, as the hub's logical `gateway`.
+        { name: 'gateway', url: 'http://backend-api:8080' },
       ],
       registry: 'ghcr.io/tale-project/tale',
     });

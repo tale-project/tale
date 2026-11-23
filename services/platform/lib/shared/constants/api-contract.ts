@@ -986,5 +986,13 @@
  * that is empty, longer than 50 or holds anything but names is refused as
  * `INVALID_ARGUMENTS`, and a test that gives one fails the document check
  * (`TESTS_INVALID`). Additive: a single name answers as it did.
+ *
+ * 3.60.0 — 2026-11-21: a document's indexing `errorCode` gains
+ * `memory_limit` — a `failed` document whose file needed more memory to
+ * read than the deployment gives one file (`HEAVY_SLOT_MEMORY_MB`). Its
+ * `error` names that limit in MiB and the setting that raises it. The job
+ * does not retry it, since the same file meets the same limit: once the
+ * deployment's administrator has raised the limit, a `retry-indexing` reads
+ * the file again. Additive.
  */
-export const API_CONTRACT_VERSION = '3.59.0';
+export const API_CONTRACT_VERSION = '3.60.0';

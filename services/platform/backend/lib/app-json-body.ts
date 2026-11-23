@@ -1,12 +1,57 @@
 import type { Context, Env, MiddlewareHandler } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import { HTTPException } from 'hono/http-exception';
 
 import { requestIdOf } from '../error-reporting.ts';
+import { describeByteCap } from './byte-cap.ts';
 import { invalidBodyIssuesResponse } from './invalid-body-response.ts';
 import { findNulByte, toWellFormedJson } from './unstorable-text.ts';
 
 /** The sentence a body that is not JSON answers on the app door. */
 export const INVALID_JSON_MESSAGE = 'The request body is not valid JSON';
+
+/**
+ * The most bytes a body on the app door may hold. The routes' own limits (a
+ * dictation of 12,000,000 characters is the largest; a document's text is
+ * a million) are checked only once the whole body has been read and parsed,
+ * so without a byte limit any signed-in member could have the process hold
+ * a body of any size, three times over, before a schema refused it
+ * (tale-project/tale#4942). 16 MiB is above every body a route accepts.
+ */
+export const APP_BODY_MAX_BYTES = 16 * 1024 * 1024;
+
+/** The one door on `/api/app` that takes a file as its body, and holds it
+ * to its own limit as it passes it on (`domains/files/bounded-body.ts`). */
+const FILE_DOOR = '/api/app/files/upload';
+
+/** The sentence a body over the limit answers on the app door. */
+export const BODY_TOO_LARGE_MESSAGE = `The request body exceeds the ${describeByteCap(APP_BODY_MAX_BYTES)} limit`;
+
+/**
+ * The app door's byte limit, installed on `/api/app/*` in `app.ts`. A body
+ * that declares more than {@link APP_BODY_MAX_BYTES} is refused before a
+ * byte of it is read, and one that declares nothing is cut at the first
+ * byte past the limit: the 413 `BODY_TOO_LARGE`, in the flat envelope
+ * every refusal of this door speaks. The file door is left to its own
+ * limit.
+ */
+export function appBodyLimit<E extends Env>(): MiddlewareHandler<E> {
+  const limit = bodyLimit({
+    maxSize: APP_BODY_MAX_BYTES,
+    onError: (c) => {
+      const requestId = requestIdOf(c);
+      return c.json(
+        {
+          error: BODY_TOO_LARGE_MESSAGE,
+          code: 'BODY_TOO_LARGE',
+          ...(requestId === undefined ? {} : { requestId }),
+        },
+        413,
+      );
+    },
+  });
+  return (c, next) => (c.req.path === FILE_DOOR ? next() : limit(c, next));
+}
 
 /**
  * The app door's one JSON body reader, installed on `/api/app/*` in

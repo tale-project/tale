@@ -47,7 +47,10 @@ import { exportSnapshot, importSnapshot } from '../backup/export-import';
 import { listSnapshots } from '../backup/list-snapshots';
 import { resolveSnapshotPrefix } from '../backup/resolve-prefix';
 import { verifySnapshot } from '../backup/verify-snapshot';
-import { REQUIRED_VOLUMES } from '../compose/generators/constants';
+import {
+  REQUIRED_VOLUMES,
+  RETIRED_VOLUMES,
+} from '../compose/generators/constants';
 import { runDeploymentSmoke } from '../deployment/deployment-smoke';
 import { docker as dockerCommand } from '../docker/docker';
 import { readProject } from '../project/read-project';
@@ -515,10 +518,13 @@ export async function migrateToDocker(
 }
 
 /** The Docker volumes `--finish` removes: every data volume a deploy
- * creates; `backups`, which holds Docker's snapshots and is none of them,
- * stays. */
+ * creates, and the model gateway's store an earlier release left, which the
+ * Incus stack has no use for; `backups`, which holds Docker's snapshots and
+ * is none of them, stays. */
 function dockerDataVolumes(): string[] {
-  return REQUIRED_VOLUMES.map((name) => `${getProjectId()}_${name}`);
+  return [...REQUIRED_VOLUMES, ...RETIRED_VOLUMES].map(
+    (name) => `${getProjectId()}_${name}`,
+  );
 }
 
 /** `tale runtime migrate --finish`: remove the stopped Docker stack. */

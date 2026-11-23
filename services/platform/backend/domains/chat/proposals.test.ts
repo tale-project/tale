@@ -503,6 +503,58 @@ describe('a proposal [CHAT-R44]', () => {
     });
   });
 
+  it('takes the default runtime for a new agent named without one, where the default runs its model', async () => {
+    // The managed roster as the composer lists it, by label: Claude Code
+    // leads it, and Pi is the default.
+    mocks.listComposerModels.mockResolvedValue({
+      models: [
+        MODEL,
+        RESPONSES_MODEL,
+        {
+          ...MODEL,
+          id: 'claude-plan-model',
+          label: 'Claude Plan Model',
+          providerSlug: 'anthropic',
+          providerLabel: 'Anthropic',
+          credential: {
+            authMethod: 'subscription-key',
+            constraints: { harness: 'claude-code', execution: 'sandbox' },
+          },
+        },
+      ],
+      harnesses: [
+        ...HARNESSES,
+        {
+          harness: 'pi',
+          label: 'Pi',
+          toolCallingWire: 'openai-chat' as const,
+          anthropicModels: true,
+        },
+      ],
+    });
+    const runtimeOf = async (model: string, id: string) => {
+      const { sql, proposals } = fakeSql();
+      await propose(await settingsFor(sql), {
+        change: 'create_agent',
+        project: 'Website relaunch',
+        name: 'Proofreader',
+        model,
+      });
+      return (proposals.get(id)?.payload as { harness?: string } | undefined)
+        ?.harness;
+    };
+    // Served directly: the default runtime, not the roster's first.
+    await expect(runtimeOf('chat-model', 'proposal-1')).resolves.toBe('pi');
+    // Only a Claude subscription serves it: the runtime it is bound to.
+    await expect(runtimeOf('Claude Plan Model', 'proposal-1')).resolves.toBe(
+      'claude-code',
+    );
+    // Its tools need the Responses API, which the default does not speak.
+    await expect(runtimeOf('responses-model', 'proposal-1')).resolves.toBe(
+      'codex',
+    );
+  });
+
   it('gives a new agent named without skills the document skills the project can equip', async () => {
     const { sql, proposals } = fakeSql();
     await propose(await settingsFor(sql), {

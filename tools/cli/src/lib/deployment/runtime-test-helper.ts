@@ -67,7 +67,6 @@ export function runtimeFixture(
       'object-store-data': {},
       'caddy-data': {},
       'caddy-config': {},
-      'llm-gateway-data': {},
       'convex-data': {},
       'platform-data': {},
     },
@@ -81,7 +80,6 @@ export function runtimeFixture(
     proxy: 'tale-proxy',
     sandbox: 'tale-sandbox',
     'sandbox-egress': 'tale-sandbox-egress',
-    'sandbox-llm-gateway': 'tale-sandbox-llm-gateway',
   };
   for (const name of RUNTIME_SERVICES)
     source.services[name] = {
@@ -107,7 +105,6 @@ export function runtimeFixture(
     'backend-api': ['internal', 'sandbox'],
     'sandbox-egress': ['sandbox', 'internal'],
     sandbox: ['internal', 'sandbox'],
-    'sandbox-llm-gateway': ['internal', 'sandbox'],
   };
   for (const name of RUNTIME_SERVICES)
     source.services[name].networks = attachments[name] ?? ['internal'];
@@ -133,9 +130,6 @@ export function runtimeFixture(
   source.services['object-store'].volumes = ['object-store-data:/data'];
   source.services.proxy.volumes = ['caddy-data:/data', 'caddy-config:/config'];
   source.services.proxy.ports = ['80:80', '443:443'];
-  source.services['sandbox-llm-gateway'].volumes = [
-    'llm-gateway-data:/app/data',
-  ];
   source.services.sandbox.volumes = [
     '/var/run/docker.sock:/var/run/docker.sock',
     '/var/lib/tale-sandbox:/var/lib/tale-sandbox',

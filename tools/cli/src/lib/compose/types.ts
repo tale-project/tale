@@ -1,3 +1,5 @@
+import type { AppTier } from './app-tier';
+
 interface LoggingConfig {
   driver: string;
   options: Record<string, string>;
@@ -85,17 +87,56 @@ export interface ComposeConfig {
 
 export type DeploymentColor = 'blue' | 'green';
 
+/**
+ * The server the bundled blob store runs (tale-project/tale#4942):
+ * versitygw, an S3 gateway over a directory of files, on `blob-data`; or
+ * MinIO, on `object-store-data`, for a deployment whose blobs are still in
+ * MinIO's format. Neither reads what the other wrote.
+ */
+export type ObjectStoreEngine = 'versitygw' | 'minio';
+
 export interface ServiceConfig {
   version: string;
   registry: string;
   /** Exact platform digest admitted by the automation protocol fence. */
   platformImage?: string;
   /**
+   * The shape of the colour these services belong to (app-tier.ts). Left
+   * out, the generators build the three-way shape every image can run: a
+   * caller names another only once it has read what the image can do.
+   */
+  appTier?: AppTier;
+  /**
    * The cgroup version the Docker engine reports (probeCgroupVersion), null
    * when it reports none. Only 2 lets the generators emit `mem_reservation`
    * (memory-env.ts); left out, the engine counts as unread.
    */
   cgroupVersion?: 1 | 2 | null;
+  /**
+   * The server the bundled blob store runs here, which the deployment's own
+   * volumes say (docker/resolve-object-store.ts). Left out, the generators
+   * build the store a new install gets.
+   */
+  objectStore?: ObjectStoreEngine;
+  /**
+   * The sandbox network's IPv4 subnet (`tale-sandbox-net`), as Docker
+   * reports it at the deploy: the model relay in the app tier binds this
+   * container's address in it alone (services/platform/backend/domains/
+   * llm_relay/listener.ts). Left out, the backend reads
+   * `SANDBOX_NETWORK_SUBNET` from `.env`, and without it listens beside the
+   * API.
+   */
+  sandboxNetworkSubnet?: string;
+  /**
+   * Whether the sandbox LLM gateway an earlier release ran is retired here:
+   * its container is gone (actions/retire-gateway.ts). True tells every
+   * backend role so, with `SANDBOX_LLM_GATEWAY_URL` empty, and the backend
+   * then looks no gone name up: a host whose resolver cannot answer at all
+   * would report that lookup as unfinished, which reads as a gateway away
+   * for a while. Left out, the backend asks the gateway at its address and
+   * reads a name that no longer resolves as a retired gateway.
+   */
+  gatewayRetired?: boolean;
 }
 
 /**
@@ -128,12 +169,11 @@ export const STATEFUL_SERVICES = [
   // The edge's read-only Docker API proxy: the proxy image in its
   // `docker-api` role, rolled with the proxy (create-proxy-service.ts).
   'docker-api',
-  'sandbox-llm-gateway',
   // Sandbox tier — the single spawner and its egress proxy. Rolled in place
   // through the stateful compose on every default deploy (see
   // ALWAYS_ROLL_SERVICES); a serialized /v1/drain (drainSandbox) runs first.
-  // NOT colour-rolled: the spawner holds docker.sock, the session directory
-  // and the gateway volume, so it is a singleton by construction.
+  // NOT colour-rolled: the spawner holds docker.sock and the session
+  // directory, so it is a singleton by construction.
   'sandbox',
   'sandbox-egress',
 ] as const;
@@ -172,23 +212,30 @@ export const STOP_GATED_SERVICES = [
 ] as const;
 /**
  * Always-roll-in-place tier — deployed via the stateful compose on EVERY
- * default deploy. `sandbox-llm-gateway` is a singleton that owns the single
- * `llm-gateway-data` volume, so it is recreated in place and only when its
- * image actually changed. `sandbox` / `sandbox-egress` are the
- * single-container sandbox tier: they roll in place too, drained first via
- * /v1/drain (drainSandbox, deploy.ts). The wire protocol versions with
- * platform, so they must roll on every deploy.
+ * default deploy. `sandbox` / `sandbox-egress` are the single-container
+ * sandbox tier: they roll in place, drained first via /v1/drain
+ * (drainSandbox, deploy.ts). The wire protocol versions with platform, so
+ * they must roll on every deploy.
  *
  * The application tier is NOT here — `platform`, `backend-api` and
  * `backend-worker` are stateless and deploy as one colour
  * (ROTATABLE_SERVICES). A copy in this list would roll them in place beside
  * the colour that already owns them.
  */
-export const ALWAYS_ROLL_SERVICES = [
-  'sandbox-llm-gateway',
-  'sandbox',
-  'sandbox-egress',
-] as const;
+export const ALWAYS_ROLL_SERVICES = ['sandbox', 'sandbox-egress'] as const;
+
+/**
+ * Services an earlier release ran that this one never creates, but whose
+ * container a deployment may still hold: the sandbox LLM gateway, which the
+ * model relay in the backend replaced (tale-project/tale#4942). Its
+ * container stays while keys it minted still settle through it, until
+ * `tale deploy` retires it (actions/retire-gateway.ts), and its volume stays
+ * until the operator removes it (RETIRED_VOLUMES). Teardown (`reset --all`,
+ * `uninstall --purge`) removes the container like any other of the project,
+ * and `restore` stops it before it writes its volume back; `tale stop` and
+ * `tale start` reach it through the project's label, like every container.
+ */
+export const RETIRED_SERVICES = ['sandbox-llm-gateway'] as const;
 
 export type RotatableService = (typeof ROTATABLE_SERVICES)[number];
 export type StatefulService = (typeof STATEFUL_SERVICES)[number];
@@ -213,8 +260,22 @@ export function isStatefulService(name: string): name is StatefulService {
  * and the deploy pull list share.
  */
 export const THIRD_PARTY_IMAGES = {
-  'object-store': 'ghcr.io/tale-project/ops/minio:RELEASE.2025-04-22T22-12-26Z',
+  // versitygw (Apache-2.0), its publisher's own image for amd64 and arm64,
+  // pinned by digest so every host runs the same bytes.
+  'object-store':
+    'ghcr.io/versity/versitygw:v1.11.0@sha256:8319a530d08d537426e2f855bae5280709795dc73a3f0c347973ef915d6343c5',
 } as const satisfies Partial<Record<ServiceName, string>>;
+
+/**
+ * MinIO, the blob store of a deployment whose blobs are still in MinIO's
+ * volume. It is MinIO's own release, rebuilt: MinIO archived its community
+ * edition and withdrew the free images, so tale-project/ops rebuilds
+ * Dockerfile.release from the GitHub release assets, checked against
+ * MinIO's minisign key, and publishes it under the upstream tag, for amd64
+ * alone. The tag is never rebuilt in place.
+ */
+export const MINIO_IMAGE =
+  'ghcr.io/tale-project/ops/minio:RELEASE.2025-04-22T22-12-26Z';
 
 /**
  * The pull-through registry mirror the spawner runs beside each
@@ -230,12 +291,10 @@ export const BUILDKITD_MIRROR_IMAGE =
 /**
  * A single-architecture image needs the same selection in Compose and the
  * deploy pre-pull. ARM hosts also need amd64 emulation already configured.
- * Remove this exception once the object-store pin has a native arm64 build.
+ * The one such image is MinIO's: versitygw's is built for both.
  */
 export function imagePlatform(image: string): 'linux/amd64' | undefined {
-  return image === THIRD_PARTY_IMAGES['object-store']
-    ? 'linux/amd64'
-    : undefined;
+  return image === MINIO_IMAGE ? 'linux/amd64' : undefined;
 }
 
 /**
@@ -258,9 +317,15 @@ export function imageRepoForService(
 
 /** The full image reference a service runs under the given registry+version. */
 export function imageRef(
-  config: Pick<ServiceConfig, 'registry' | 'version' | 'platformImage'>,
+  config: Pick<
+    ServiceConfig,
+    'registry' | 'version' | 'platformImage' | 'objectStore'
+  >,
   service: ServiceName,
 ): string {
+  if (service === 'object-store' && config.objectStore === 'minio') {
+    return MINIO_IMAGE;
+  }
   if (service in THIRD_PARTY_IMAGES) {
     return THIRD_PARTY_IMAGES[service as keyof typeof THIRD_PARTY_IMAGES];
   }

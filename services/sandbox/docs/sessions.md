@@ -476,7 +476,13 @@ the workspace; Linux pins the destination directory while downloading. At
 most two stage requests, including body intake, are admitted at once; a busy
 request must be retried. `/fs/read` streams an opened regular file within the
 20 MiB read cap and fixes its range before sending bytes, so later growth does
-not bypass the limit.
+not bypass the limit. It declares the file's length, and the spawner passes
+that on as `x-tale-file-size` on `GET /v1/sessions/:id/files/content`, a header
+of its own because a streamed answer may be framed in chunks. The 20 MiB cap is
+what a caller may hold whole. A caller that passes the bytes on as they arrive
+names how much it will take with `maxBytes`, a whole number of bytes above 0,
+and the file is refused over that instead; any other value answers 400. Such a
+read is given 30 seconds and one more for every mebibyte asked for.
 
 A file may carry an immutable `sourceId` (or `cacheKey`) supplied by the platform,
 or a `sha256` digest for content verification. runnerd
@@ -615,7 +621,7 @@ render 512 MiB), and each session started in the last 90 seconds at the part
 of it a linear decay leaves (its turn is still growing into it while
 MemAvailable shows only the idle footprint), the host must keep
 `SANDBOX_MIN_FREE_MEMORY` free (a tenth of it, at least 1 GiB and at least the
-`SANDBOX_RESERVED_MEMORY` the database and the application tier reserve).
+`SANDBOX_RESERVED_MEMORY` the stack's services reserve).
 Short of it
 by the host's own reading — its available memory, less this create's working
 set, under the reserve — the create reclaims a released idle session like
@@ -1143,11 +1149,11 @@ The spawner's part:
 
 Secrets entering a sandbox is a graded decision, documented and enforced:
 
-- **Tier 0 — platform-global secrets** (`SANDBOX_TOKEN`, LLM gateway management
-  token, SOPS age key, raw provider API keys): **never enter a sandbox**, ever.
+- **Tier 0 — platform-global secrets** (`SANDBOX_TOKEN`, SOPS age key, raw
+  provider API keys): **never enter a sandbox**, ever.
 - **Tier 1 — proxiable credentials** (LLM provider keys): stay outside. The
-  sandbox holds only a session-scoped gateway virtual key (`sk-bf-*`); LLM
-  traffic transits the gateway, which attaches the real key. Bought: per-key
+  sandbox holds only its turn's model key (`tale-rt-*`); LLM traffic transits
+  the platform's model relay, which attaches the real key. Bought: per-turn
   budget, model allowlist, instant revoke, server-side usage metering.
 - **Tier 2 — managed-entry credentials** (connector secrets — git tokens,
   DB passwords, third-party API keys — that can't be transparently proxied):
@@ -1211,6 +1217,19 @@ estimate and retains the full idle window once its inner engine has run.
 These estimates are admission headroom, not memory limits. The actual
 capability is returned as `session.docker` and recorded on the container or Pod
 so a spawner restart preserves that session's behavior.
+
+The create body also accepts `maxFileBytes` for a `default` session: the most
+one file of the session may weigh, a whole number of bytes from 1 to
+2147483648 (2 GiB, the platform's largest media upload). Omitting it keeps the
+profile's own 100 MiB. The platform asks for more where it runs a download in
+a session: a video's sound, which several platforms serve in fragments of no
+declared length, so that nothing can refuse the download before it starts. A
+value that is no such number is refused with `400 bad_request`. An `agent`
+session keeps the deployment's configured cap (`SANDBOX_AGENT_FSIZE_BYTES`)
+and ignores the field. Docker and Incus apply the value as the session's
+file-size limit (`RLIMIT_FSIZE`): a write past it fails with `EFBIG`.
+Kubernetes sets no per-file limit for any session and bounds a session's files
+by the size of its workspace alone (`SANDBOX_K8S_WORKSPACE_SIZE_LIMIT`).
 
 `default` uses uid 65534 with the hardened code/render profile. Because it runs
 untrusted code, it mounts none of the shared per-organization dependency caches
@@ -1291,7 +1310,7 @@ NetworkPolicy verbs, is in [kubernetes.md](kubernetes.md#rbac-namespaced-role--n
 ### NetworkPolicy
 
 - Session Pods (`tale.sandbox/role: session`): egress to the egress proxy, the
-  LLM gateway Service (`:8080`), and DNS only.
+  backend's model relay (`:8080`), and DNS only.
 - Ingress to session Pods on `:8200` (runnerd) is allowed **from the spawner
   Deployment only**.
 
@@ -1359,7 +1378,7 @@ storage driver.
   idle-reap-stop → resume (workspace + PVC preserved) → explicit destroy (PVC
   deleted); cross-replica exec/destroy. (Pending — requires a kind cluster + the
   built agent image.)
-- Live agent smoke (secret-gated, needs real provider creds via the LLM gateway):
+- Live agent smoke (secret-gated, needs real provider creds via the model relay):
   one real `claude -p` + `agent -p` turn end-to-end. (Pending.)
 
 ### Checkpoint and staging protocol

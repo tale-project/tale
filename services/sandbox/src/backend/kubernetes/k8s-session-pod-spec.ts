@@ -448,10 +448,11 @@ export function buildSessionPod(
           env: [
             { name: 'HTTPS_PROXY', value: cfg.egressProxy },
             { name: 'HTTP_PROXY', value: cfg.egressProxy },
-            // Gateway reached directly on the cluster network, not via proxy.
+            // The model relay (on backend-api) is reached directly on the
+            // cluster network, not via the proxy.
             {
               name: 'NO_PROXY',
-              value: '127.0.0.1,localhost,sandbox-llm-gateway',
+              value: '127.0.0.1,localhost,backend-api',
             },
             // How long an exec may stay quiet and idle before runnerd ends
             // it as stalled; 0 turns the watch off.

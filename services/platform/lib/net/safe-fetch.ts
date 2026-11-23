@@ -35,6 +35,7 @@
  */
 
 import dns from 'node:dns';
+import { open, rm } from 'node:fs/promises';
 import type { LookupFunction } from 'node:net';
 
 import { isMetadataAddress, isPrivateIp } from '@tale/shared/net/private-ip';
@@ -542,6 +543,17 @@ export interface SafeFetchBinaryResponse {
   outboundProxy?: OutboundProxyRef;
 }
 
+export interface SafeFetchFileResponse {
+  status: number;
+  statusText: string;
+  headers: Headers;
+  /** How many bytes of body the file holds. */
+  size: number;
+  finalUrl: string;
+  /** As on {@link SafeFetchResponse}. */
+  outboundProxy?: OutboundProxyRef;
+}
+
 const DEFAULT_TIMEOUT_MS = 10_000;
 const DEFAULT_MAX_RESPONSE_BYTES = 1_048_576; // 1 MB
 const DEFAULT_MAX_REDIRECTS = 5;
@@ -719,6 +731,62 @@ async function readBinaryBodyWithCap(
     offset += chunk.byteLength;
   }
   return { buffer, contentType };
+}
+
+/** Write a response's body to a new file as it arrives, under the same cap
+ * and with the same refusals as {@link readBinaryBodyWithCap}; answers how
+ * many bytes it wrote. A body that fails leaves no file. */
+async function writeBodyWithCap(
+  response: Response,
+  filePath: string,
+  maxBytes: number,
+): Promise<number> {
+  const contentLength = response.headers.get('Content-Length');
+  if (contentLength) {
+    const declared = Number.parseInt(contentLength, 10);
+    if (Number.isFinite(declared) && declared > maxBytes) {
+      throw new SafeFetchError(
+        'response_too_large',
+        `Response Content-Length ${declared} exceeds limit ${maxBytes}`,
+        response.status,
+      );
+    }
+  }
+
+  // `wx`: a path that exists is somebody else's file, never overwritten.
+  const file = await open(filePath, 'wx', 0o600);
+  let total = 0;
+  try {
+    const reader = response.body?.getReader();
+    if (reader !== undefined) {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        total += value.byteLength;
+        if (total > maxBytes) {
+          await reader.cancel();
+          throw new SafeFetchError(
+            'response_too_large',
+            `Response body exceeded limit ${maxBytes}`,
+            response.status,
+          );
+        }
+        // The whole chunk, from where the last one ended.
+        await file.writeFile(value);
+      }
+    }
+  } catch (error) {
+    await file.close();
+    await rm(filePath, { force: true }).catch((cause: unknown) => {
+      console.warn(
+        `[safe_fetch] a half-written ${filePath} could not be removed:`,
+        cause,
+      );
+    });
+    throw error;
+  }
+  await file.close();
+  return total;
 }
 
 async function readBodyWithCap(
@@ -1129,6 +1197,68 @@ export async function safeFetchBinary(
       statusText: response.statusText,
       headers: response.headers,
       body: blob,
+      finalUrl,
+      ...(carried !== null ? { outboundProxy: carried.ref } : {}),
+    };
+  } finally {
+    clearTimeout(timeout);
+    signal?.removeEventListener('abort', onCallerAbort);
+    await dispatcher.destroy().catch((error: unknown) => {
+      console.warn('[safe_fetch] closing the pinned dispatcher failed:', error);
+    });
+    await route?.close();
+  }
+}
+
+/**
+ * `safeFetchBinary` for a body that is read elsewhere or passed on: it is
+ * written to `filePath` as it arrives and never held whole, so a caller
+ * takes a download of a hundred megabytes at the cost of none of them
+ * (tale-project/tale#4942). The same request, redirects, pinning and cap;
+ * the file is created here and must not exist, and a fetch that fails
+ * leaves none.
+ */
+export async function safeFetchToFile(
+  rawUrl: string,
+  filePath: string,
+  options: SafeFetchOptions = {},
+): Promise<SafeFetchFileResponse> {
+  const {
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+    maxResponseBytes = DEFAULT_MAX_RESPONSE_BYTES,
+    signal,
+  } = options;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const onCallerAbort = (): void => controller.abort();
+  signal?.addEventListener('abort', onCallerAbort, { once: true });
+  const pinned = new Map<string, readonly ResolvedAddress[]>();
+  const dispatcher = pinnedDispatcher(pinned);
+  const route = options.outboundProxy === true ? ProxyRoute.next() : null;
+
+  try {
+    const { response, finalUrl, carried } = await fetchFollowingRedirects(
+      rawUrl,
+      options,
+      controller.signal,
+      timeoutMs,
+      pinned,
+      dispatcher,
+      route,
+    );
+    let size: number;
+    try {
+      size = await writeBodyWithCap(response, filePath, maxResponseBytes);
+    } catch (error) {
+      throw through(bodyRefusal(error, signal, timeoutMs), carried);
+    }
+
+    return {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+      size,
       finalUrl,
       ...(carried !== null ? { outboundProxy: carried.ref } : {}),
     };

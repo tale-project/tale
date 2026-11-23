@@ -2,7 +2,8 @@
 
 Tale’s web app and application backend. The app uses Vite, React and TanStack
 Router; the backend uses Node, Hono, Postgres and pg-boss. One platform image runs
-as the web server, API or worker according to its startup role.
+the web server, the API, the worker, or several of them in one Node process,
+according to its startup role.
 
 ## Start local development
 
@@ -30,8 +31,8 @@ use CLI-generated files.
 
 | Interface | Purpose |
 | --- | --- |
-| Port 3000 | Vite during development; the web server in the platform container. |
-| Port 3005 | Backend HTTP and SSE in `api` or `all` mode. |
+| Port 3000 | Vite during development, where the backend serves no web tier (`APP_PORT=off`). In the platform container the web server (`server.ts`): alone in the `web` role, beside the API in the `api` and `all` roles (`APP_PORT`). |
+| Port 3005 | Backend HTTP and SSE in `api` or `all` mode (`PORT`). |
 | `/api/auth` | Sessions and authentication. |
 | `/api/app` | The application’s authenticated operations. |
 | `/api/v1` | Public REST API and inbound MCP endpoint. |
@@ -89,8 +90,9 @@ are:
   builtin and system catalogs.
 - `INSTANCE_SECRET`, `BETTER_AUTH_SECRET` and `ENCRYPTION_SECRET_HEX` for distinct
   cryptographic purposes. Preserve the matching secrets with recovery plans.
-- `SANDBOX_URL`, `SANDBOX_TOKEN` and
-  `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` for the sandbox and model gateway.
+- `SANDBOX_URL` and `SANDBOX_TOKEN` for the sandbox spawner. A deployment that
+  ran the retired sandbox LLM gateway keeps `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD`
+  while keys that gateway minted still settle there.
 
 Set `TOTP_CLIENT_NAME` and `TOTP_ENVIRONMENT` in the deployment environment
 (the web tier and the backend both read them) so new authenticator entries and

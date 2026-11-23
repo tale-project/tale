@@ -11,7 +11,7 @@
 export interface MockModel {
   readonly id: string;
   readonly name: string;
-  readonly kind: 'chat' | 'embedding';
+  readonly kind: 'chat' | 'embedding' | 'transcription';
   readonly contextLength: number;
   readonly maxOutputTokens?: number;
   readonly reasoning: boolean;
@@ -71,6 +71,18 @@ const MOCK_MODELS: readonly MockModel[] = [
     promptPrice: '0.00000002',
     completionPrice: '0',
   },
+  {
+    // Priced like a hosted Whisper: USD 0.006 a minute of audio, listed as
+    // USD per second with a zero completion price.
+    id: 'load-transcribe',
+    name: 'Load Transcribe',
+    kind: 'transcription',
+    contextLength: 0,
+    reasoning: false,
+    vision: false,
+    promptPrice: '0.0001',
+    completionPrice: '0',
+  },
 ];
 
 /** The reply ceiling of a model the catalog does not know. */
@@ -102,6 +114,24 @@ const CREATED = 1_767_225_600;
 
 /** One model as an OpenAI/OpenRouter-style listing entry. */
 export function listingEntry(model: MockModel): Record<string, unknown> {
+  if (model.kind === 'transcription') {
+    return {
+      id: model.id,
+      object: 'model',
+      created: CREATED,
+      owned_by: 'tale-load',
+      name: model.name,
+      type: 'transcription',
+      architecture: {
+        input_modalities: ['audio'],
+        output_modalities: ['transcription'],
+      },
+      pricing: {
+        prompt: model.promptPrice,
+        completion: model.completionPrice,
+      },
+    };
+  }
   const chat = model.kind === 'chat';
   return {
     id: model.id,

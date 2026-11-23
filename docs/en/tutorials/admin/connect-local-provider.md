@@ -36,7 +36,7 @@ Start a chat and explicitly select the local model. Leave **Auto** for later: th
 
 Ask the operator to confirm the request in the intended inference server’s logs. Check that Tale displays a completed reply. A saved credential or a populated model list proves less than a completed generation; timing depends on model size, hardware and load.
 
-If coding agents will use this provider, repeat the check in a new sandbox session with the intended model and compatible runtime. Ask the operator to verify the gateway’s DNS, connectivity and TLS trust as well as the backend’s. General sandbox web-access rules do not configure model access. A chat reply and an agent reply verify different paths.
+If coding agents will use this provider, repeat the check in a new sandbox session with the intended model and compatible runtime. Tale calls the provider for the agent from the backend too, at the same endpoint, but the session must reach Tale's model relay, and the runtime must work with the model. General sandbox web-access rules do not configure model access. A chat reply and an agent reply verify different paths.
 
 ## Resolve a failed check
 
@@ -47,6 +47,6 @@ If coding agents will use this provider, repeat the check in a new sandbox sessi
 | Empty model list | Server model discovery, loaded models, credential allowlist and model policy. |
 | Connection or certificate error | Backend network reachability, container hostname and TLS trust. |
 | Model rejected or no reply | Exact upstream model ID, authentication, API compatibility and server capacity. |
-| Chat works but an agent cannot reach the model | Gateway DNS, network access, TLS trust, private-provider opt-in and runtime compatibility. |
+| Chat works but an agent cannot reach the model | The session's access to the model relay, which the operator checks in the backend log, and runtime compatibility. |
 
 [AI providers](/platform/admin/providers) covers credential rotation and defaults. Keep the endpoint and model ID in the operating handoff so another admin can repeat this test after a server change.

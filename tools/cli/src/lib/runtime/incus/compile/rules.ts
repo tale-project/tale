@@ -22,7 +22,7 @@ export const RULES = {
   },
   platform: {
     action: 'map',
-    rule: 'must equal the server architecture; the bundled object store on another one is left out only when OBJECT_STORE_ENDPOINT names an external store',
+    rule: 'must equal the server architecture; the bundled object store, which names one only while it is MinIO, is left out on another one only when OBJECT_STORE_ENDPOINT names an external store',
   },
   container_name: {
     action: 'ignore',

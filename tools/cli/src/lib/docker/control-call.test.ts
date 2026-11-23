@@ -1,7 +1,10 @@
 import { describe, expect, mock, test } from 'bun:test';
 
 import { createModuleMocks } from '../../utils/module-mock-fixture';
+import { SPLIT, THREE_WAY, UNIFIED, type AppTier } from '../compose/app-tier';
+import type { DeploymentColor } from '../compose/types';
 import { setProjectId } from '../project/project-context';
+import { FakeRuntime } from '../runtime/fake-runtime';
 
 setProjectId('tale');
 
@@ -16,8 +19,11 @@ await mockModule('./exec', () => ({ exec: execMock }));
 
 const {
   backendApiContainer,
+  backendApiContainers,
+  backendApiContainersInColor,
   backendApiDrainWriter,
   controlCall,
+  isBackendTierRunning,
   DEFAULT_CONTROL_TIMEOUT_S,
 } = await import('./control-call');
 
@@ -143,5 +149,168 @@ describe('controlCall', () => {
     routeDocker();
     await controlCall('POST', '/api/control/reseed', { timeoutS: 1800 });
     expect(argvOf(doorCalls()[0] ?? [])).toContain('timeout 1800 curl');
+  });
+});
+
+/**
+ * A colour runs the API in `backend-api` or in `platform` (compose/app-tier.ts).
+ * Which, the replicas say themselves: a `platform` is the API where its role
+ * says so, never merely where no `backend-api` stands beside it.
+ */
+describe('the API of a colour of any shape', () => {
+  const IMAGE = 'ghcr.io/tale-project/tale/tale-platform:0.6.1';
+  /** One replica of each service of a shape, in the role it names for it. */
+  function colour(
+    runtime: FakeRuntime,
+    tier: AppTier,
+    name: DeploymentColor,
+    replicas = 1,
+  ): FakeRuntime {
+    for (const service of tier.services) {
+      const role = tier.roles[service];
+      for (let index = 1; index <= replicas; index += 1)
+        runtime.seedInstance({
+          stack: `tale-${name}`,
+          service,
+          index,
+          image: IMAGE,
+          environment:
+            role === undefined || role === 'web' ? {} : { TALE_ROLE: role },
+        });
+    }
+    return runtime;
+  }
+
+  test('one process: platform answers, every replica of it', async () => {
+    const runtime = colour(new FakeRuntime(), UNIFIED, 'blue', 2);
+    expect(await backendApiContainers(null, runtime)).toEqual([
+      'tale-blue-platform-1',
+      'tale-blue-platform-2',
+    ]);
+    expect(await backendApiContainer(null, runtime)).toBe(
+      'tale-blue-platform-1',
+    );
+    expect(await backendApiContainersInColor('blue', runtime)).toEqual([
+      'tale-blue-platform-1',
+      'tale-blue-platform-2',
+    ]);
+    expect(await isBackendTierRunning(runtime)).toBe(true);
+  });
+
+  test('the jobs apart: platform answers, the worker never does', async () => {
+    const runtime = colour(new FakeRuntime(), SPLIT, 'green');
+    expect(await backendApiContainers(null, runtime)).toEqual([
+      'tale-green-platform-1',
+    ]);
+  });
+
+  test('three services: backend-api answers, and its platform is never asked', async () => {
+    const runtime = colour(new FakeRuntime(), THREE_WAY, 'blue');
+    expect(await backendApiContainers(null, runtime)).toEqual([
+      'tale-blue-backend-api-1',
+    ]);
+  });
+
+  test('a colour of three whose api is down reads as down, not as a colour whose pages take the call', async () => {
+    const runtime = colour(new FakeRuntime(), THREE_WAY, 'blue');
+    const api = runtime.instances.get('tale-blue-backend-api-1');
+    if (api === undefined) throw new Error('seed');
+    api.state = 'exited';
+    expect(await backendApiContainers(null, runtime)).toEqual([]);
+    expect(await isBackendTierRunning(runtime)).toBe(false);
+  });
+
+  test('the role decides, whatever stands stopped beside it', async () => {
+    // A stopped backend-api does not hide a platform that is the API.
+    const runtime = colour(new FakeRuntime(), UNIFIED, 'blue');
+    runtime.seedInstance({
+      stack: 'tale-blue',
+      service: 'backend-api',
+      image: IMAGE,
+      state: 'exited',
+    });
+    expect(await backendApiContainers(null, runtime)).toEqual([
+      'tale-blue-platform-1',
+    ]);
+  });
+
+  test('a colour that is the web tier alone leaves the call to the stateful backend', async () => {
+    // A host from before the backend joined the colours.
+    const runtime = new FakeRuntime();
+    runtime.seedInstance({
+      stack: 'tale-blue',
+      service: 'platform',
+      image: IMAGE,
+    });
+    expect(await backendApiContainers(null, runtime)).toEqual([]);
+    runtime.seedInstance({
+      name: 'tale-backend-api',
+      stack: 'tale',
+      service: 'backend-api',
+      image: IMAGE,
+    });
+    expect(await backendApiContainers(null, runtime)).toEqual([
+      'tale-backend-api',
+    ]);
+    expect(await backendApiContainersInColor('blue', runtime)).toEqual([]);
+  });
+
+  test('a stopped platform answers nothing, and a role no shape gives it neither', async () => {
+    const stopped = colour(new FakeRuntime(), UNIFIED, 'blue');
+    const platform = stopped.instances.get('tale-blue-platform-1');
+    if (platform === undefined) throw new Error('seed');
+    platform.state = 'exited';
+    expect(await backendApiContainers(null, stopped)).toEqual([]);
+
+    const worker = new FakeRuntime();
+    worker.seedInstance({
+      stack: 'tale-blue',
+      service: 'platform',
+      image: IMAGE,
+      environment: { TALE_ROLE: 'worker' },
+    });
+    expect(await backendApiContainers(null, worker)).toEqual([]);
+  });
+
+  test('while two colours of two shapes overlap, each answers through its own API', async () => {
+    const runtime = colour(
+      colour(new FakeRuntime(), THREE_WAY, 'blue'),
+      UNIFIED,
+      'green',
+    );
+    expect(await backendApiContainersInColor('blue', runtime)).toEqual([
+      'tale-blue-backend-api-1',
+    ]);
+    expect(await backendApiContainersInColor('green', runtime)).toEqual([
+      'tale-green-platform-1',
+    ]);
+    // The drain aimed at blue is written by the colour that is not retiring.
+    expect(await backendApiDrainWriter('blue', runtime)).toBe(
+      'tale-green-platform-1',
+    );
+    expect(await backendApiDrainWriter('green', runtime)).toBe(
+      'tale-blue-backend-api-1',
+    );
+  });
+
+  test('a call reaches the control port of the platform replica', async () => {
+    const runtime = colour(new FakeRuntime(), UNIFIED, 'blue');
+    const sent: Array<{ name: string; argv: string }> = [];
+    runtime.execHandler = (instance, argv) => {
+      sent.push({ name: instance.name, argv: argv.join(' ') });
+      return undefined;
+    };
+    const result = await controlCall('GET', '/api/control/drain-status', {
+      runtime,
+    });
+    expect(result.success).toBe(true);
+    expect(sent).toEqual([
+      {
+        name: 'tale-blue-platform-1',
+        argv: expect.stringContaining(
+          'http://localhost:3005/api/control/drain-status',
+        ),
+      },
+    ]);
   });
 });

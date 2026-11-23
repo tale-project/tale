@@ -130,8 +130,11 @@ export function parseVtt(input: string | Buffer): CaptionSegment[] {
 function parseTimestampLine(
   line: string,
 ): { startSec: number; endSec: number } | null {
+  // A dot before the milliseconds is WebVTT's, a comma SubRip's: a SubRip
+  // file is a WebVTT file but for that and its missing header, and a
+  // platform that serves captions in SubRip alone is read as it serves them.
   const match = line.match(
-    /(\d{1,2}:)?(\d{1,2}):(\d{2})\.(\d{3})\s*-->\s*(\d{1,2}:)?(\d{1,2}):(\d{2})\.(\d{3})/,
+    /(\d{1,2}:)?(\d{1,2}):(\d{2})[.,](\d{3})\s*-->\s*(\d{1,2}:)?(\d{1,2}):(\d{2})[.,](\d{3})/,
   );
   if (!match) return null;
   const startSec = hmsToSec(match[1], match[2], match[3], match[4]);

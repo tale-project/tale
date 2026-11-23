@@ -22,7 +22,7 @@ const PLATFORM = path.join(
 
 const RESOLVES = /\bresolveProviderCredential\w*\s*\(/;
 const GATED =
-  /\b(assertModelEndpointAllowed|refuseModelEndpoint|modelEndpointRefusal|gatewayBuiltinRefusal|gatewayModelRefusal)\b/;
+  /\b(assertModelEndpointAllowed|refuseModelEndpoint|modelEndpointRefusal|relayModelRefusal)\b/;
 
 const NOT_GATED: Readonly<Record<string, string>> = {
   'backend/core/provider_credentials/resolve_credential.ts':

@@ -102,6 +102,10 @@ const DOTENV_FILE = '.env';
 const BUNDLE_CADDYFILE_BIND = './Caddyfile.production:/etc/caddy/Caddyfile:ro';
 /** The roles the switch holds by name, on the ports it listens on. */
 export const SWITCHED_ROLES = { platform: 3000, 'backend-api': 3005 } as const;
+/** The port of the model relay each `backend-api` replica serves beside the
+ * API, where sessions call their models (tale-project/tale#4942). The switch
+ * listens on it too, over the same replicas. */
+export const MODEL_RELAY_PORT = 8080;
 
 /** Volumes the runtime renders itself and never snapshots (design D-28a). */
 export const RUNTIME_VOLUMES = {
@@ -943,8 +947,9 @@ function publishedPorts(
       continue;
     }
     if (
-      ((name === 'backend-api' && containerPort === 3005) ||
-        (name === 'sandbox-llm-gateway' && containerPort === 8080)) &&
+      name === 'backend-api' &&
+      (containerPort === SWITCHED_ROLES['backend-api'] ||
+        containerPort === MODEL_RELAY_PORT) &&
       match &&
       hostAddress !== undefined &&
       hostPort === containerPort

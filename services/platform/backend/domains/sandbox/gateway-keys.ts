@@ -1,7 +1,9 @@
 import type { Sql } from 'postgres';
 
 import { settleGatewayKey } from '../../core/node_only/sandbox/gateway_key_settlement.ts';
-import { revokeVirtualKey } from '../../core/node_only/sandbox/llm_gateway_admin.ts';
+import { RELAY_KEY_PREFIX } from '../../core/node_only/sandbox/relay_keys.ts';
+import { SANDBOX_SESSION_LIVE_STATUSES } from '../../core/sandbox/session_constants.ts';
+import { revokeTurnKey } from '../llm_relay/keys.ts';
 import { pgGatewayKeySettlementPort } from './spend-settlement.ts';
 
 /**
@@ -9,12 +11,14 @@ import { pgGatewayKeySettlementPort } from './spend-settlement.ts';
  * `node_only/sandbox/session_teardown.ts` + the revoke half of
  * `session_admin_actions.destroySandbox`.
  *
- * WHY this exists as its own seam: the gateway has NO native TTL on a
- * virtual key, and `mintVirtualKey` deliberately gives every key a
- * `reset_duration: '1M'` budget window because teardown is supposed to
- * delete it long before any reset matters. A key that outlives its session
- * is therefore a permanent bearer credential with a self-refilling monthly
- * allowance against the org's own provider keys. Every teardown edge — TTL
+ * WHY this exists as its own seam: the sandbox LLM gateway an earlier
+ * release ran has NO native TTL on a virtual key, and its mint gave every
+ * key a `reset_duration: '1M'` budget window because teardown was to delete
+ * it long before any reset mattered. A key that outlives its session is
+ * therefore a permanent bearer credential with a self-refilling monthly
+ * allowance against the org's own provider keys, for as long as the gateway
+ * runs. A turn's key is the model relay's now (`tr_…`): revoking it is
+ * revoking its tokens, which the same claim does. Every teardown edge — TTL
  * expiry, admin destroy, phantom heal, a deadline-failed agent run — has to
  * come through here, and there is exactly ONE copy of the behaviour so the
  * edges cannot drift.
@@ -67,7 +71,7 @@ async function revokeGatewayKeys(
       if (turn === undefined) {
         // A key with no op behind it (the session row's parked key): nothing
         // to book — delete it.
-        await revokeVirtualKey(keyId);
+        await revokeTurnKey(sql, keyId);
         outcomes.set(keyId, true);
         continue;
       }
@@ -218,4 +222,69 @@ export async function revokeSessionGatewayKeys(
     `;
   }
   return { revoked, failed };
+}
+
+/**
+ * How many keys the sandbox LLM gateway minted are still open: something
+ * will still read their spend or revoke them at the gateway, so a deploy
+ * keeps the gateway while any is (`GET /api/control/gateway-keys`). Each key
+ * counts once, whatever holds it, and a key the model relay minted
+ * (`tr_<uuid>`) never counts. A key is open while
+ *
+ *  - its turn's op has not booked its spend or has not revoked it: the
+ *    turn's own settle, its reconcile job and the sandbox watchdog's sweep
+ *    read the spend at the gateway, then revoke the key there, and the sweep
+ *    visits every ended op until both facts close;
+ *  - an unrevoked token, or the parked key of a session row, names it under
+ *    a session that has a live incarnation: that incarnation's end — expiry,
+ *    hibernation, Destroy, a workspace's deletion — claims every unrevoked
+ *    token of the session and its parked keys, and revokes them at the
+ *    gateway. A session that ended had its teardown already: what it could
+ *    not revoke is retried only through its turn's op, counted above, so a
+ *    leftover of its own never holds the gateway;
+ *  - a deleted organization's retirement job still carries it: the deletion
+ *    removed the rows that named the key, and the job revokes it at the
+ *    gateway, until it succeeds or its retries run out.
+ */
+export async function countOpenGatewayKeys(sql: Sql): Promise<number> {
+  const rows = await sql<{ open: number }[]>`
+    SELECT count(DISTINCT key_id)::int AS open FROM (
+      SELECT minted_key_id AS key_id FROM app.sandbox_session_ops
+      WHERE (spend_settled_at_ms IS NULL
+          OR (minted_key_id IS NOT NULL AND key_revoked_at_ms IS NULL))
+        AND minted_key_id IS NOT NULL
+        AND NOT starts_with(minted_key_id, ${RELAY_KEY_PREFIX})
+      UNION ALL
+      SELECT token.llm_gateway_key_id FROM app.sandbox_session_tokens token
+      WHERE token.revoked_at_ms IS NULL
+        AND token.llm_gateway_key_id IS NOT NULL
+        AND NOT starts_with(token.llm_gateway_key_id, ${RELAY_KEY_PREFIX})
+        AND EXISTS (
+          SELECT 1 FROM app.sandbox_sessions live
+          WHERE live.org_id = token.org_id
+            AND live.session_id = token.session_id
+            AND live.status = ANY(${[...SANDBOX_SESSION_LIVE_STATUSES]})
+        )
+      UNION ALL
+      SELECT parked.llm_gateway_key_id FROM app.sandbox_sessions parked
+      WHERE parked.llm_gateway_key_id IS NOT NULL
+        AND NOT starts_with(parked.llm_gateway_key_id, ${RELAY_KEY_PREFIX})
+        AND EXISTS (
+          SELECT 1 FROM app.sandbox_sessions live
+          WHERE live.org_id = parked.org_id
+            AND live.session_id = parked.session_id
+            AND live.status = ANY(${[...SANDBOX_SESSION_LIVE_STATUSES]})
+        )
+      UNION ALL
+      SELECT carried.key_id FROM pgboss.job job
+      CROSS JOIN LATERAL jsonb_array_elements_text(
+        CASE WHEN jsonb_typeof(job.data -> 'gatewayKeyIds') = 'array'
+          THEN job.data -> 'gatewayKeyIds' ELSE '[]'::jsonb END
+      ) AS carried(key_id)
+      WHERE job.name = 'sandbox.retire_organization'
+        AND job.state IN ('created', 'retry', 'active')
+        AND NOT starts_with(carried.key_id, ${RELAY_KEY_PREFIX})
+    ) AS open_keys
+  `;
+  return rows[0]?.open ?? 0;
 }

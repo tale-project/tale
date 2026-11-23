@@ -66,7 +66,7 @@ export interface RawDispatcher {
     path: string;
     method: 'PUT';
     headers: Record<string, string>;
-    body: string;
+    body: string | Uint8Array;
     signal: AbortSignal;
   }): Promise<{
     statusCode: number;
@@ -79,15 +79,17 @@ const PRESIGNED_PUT_NAME = 'PUT <object store presigned URL>';
 /**
  * PUT the bytes to a presigned URL — another origin (the object store), so
  * outside the user's HTTP client; recorded under {@link PRESIGNED_PUT_NAME}.
- * Never throws; answers the status (`0` for a network failure).
+ * `headers` go with it (a browser's own). Never throws; answers the status
+ * (`0` for a network failure).
  */
 export async function putPresigned(
   dispatcher: RawDispatcher,
   metrics: MetricsRegistry,
   url: string,
   contentType: string,
-  body: string,
+  body: string | Uint8Array,
   timeoutMs: number,
+  headers: Readonly<Record<string, string>> = {},
 ): Promise<number> {
   const target = new URL(url);
   const controller = new AbortController();
@@ -98,7 +100,7 @@ export async function putPresigned(
       origin: target.origin,
       path: `${target.pathname}${target.search}`,
       method: 'PUT',
-      headers: { 'content-type': contentType },
+      headers: { ...headers, 'content-type': contentType },
       body,
       signal: controller.signal,
     });
@@ -164,6 +166,53 @@ export async function listHubDocuments(
     rowsOf(body, 'page').flatMap((row) => {
       const id = asString(row.id) ?? asString(row._id);
       return id === undefined ? [] : [id];
+    }),
+  );
+}
+
+/** A hub document and where its indexing stands. */
+export interface DocumentStatus {
+  id: string;
+  /** `queued`, `running`, `completed`, `failed`, `unsupported`, … */
+  ragStatus: string | undefined;
+  ragError: string | undefined;
+}
+
+/** The rag states an indexing run ends in. */
+export const RAG_TERMINAL_STATUSES: ReadonlySet<string> = new Set([
+  'completed',
+  'failed',
+  'unsupported',
+  'skipped',
+]);
+
+/**
+ * `GET /api/app/documents/paginated?numItems=&orgId=` — the hub's root with
+ * each document's indexing status, as the hub's list shows it.
+ */
+export async function listDocumentStatuses(
+  api: ApiClient,
+  orgId: string,
+  numItems = 100,
+): Promise<ApiResult<DocumentStatus[]>> {
+  const result = await api.call<unknown>({
+    method: 'GET',
+    path: '/api/app/documents/paginated',
+    query: orgQuery(orgId, { numItems }),
+    name: 'GET /api/app/documents/paginated',
+  });
+  return mapResult(result, (body) =>
+    rowsOf(body, 'page').flatMap((row) => {
+      const id = asString(row.id) ?? asString(row._id);
+      return id === undefined
+        ? []
+        : [
+            {
+              id,
+              ragStatus: asString(row.ragStatus),
+              ragError: asString(row.ragError) ?? asString(row.ragErrorCode),
+            },
+          ];
     }),
   );
 }

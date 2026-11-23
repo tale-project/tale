@@ -179,6 +179,8 @@ export interface MessageRow {
   role: string;
   text: string;
   status: string | undefined;
+  /** The stored parts as they came: text, tool calls and results, files. */
+  parts: Record<string, unknown>[];
 }
 
 function textOfParts(parts: unknown): string {
@@ -216,6 +218,12 @@ export async function listMessages(
               role,
               text: textOfParts(row.parts),
               status: asString(row.status),
+              parts: Array.isArray(row.parts)
+                ? row.parts.flatMap((part) => {
+                    const record = asRecord(part);
+                    return record === undefined ? [] : [record];
+                  })
+                : [],
             },
           ];
     }),

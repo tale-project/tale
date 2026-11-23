@@ -1,7 +1,8 @@
-import * as Sentry from '@sentry/node';
+import type * as Sentry from '@sentry/node';
 import type { MiddlewareHandler } from 'hono';
 
 import { TASK_QUEUE_OPTIONS } from './jobs/tasks.ts';
+import { sentrySdk, type SentrySdk } from './sentry-sdk.ts';
 import {
   httpDuration,
   httpRequests,
@@ -16,16 +17,23 @@ export function configureBackendTracing(value: boolean): void {
   enabled = value;
 }
 
+/** The SDK while tracing is on: the SDK is loaded only by a process that
+ * initialized error reporting (`sentry-sdk.ts`), so off means null. */
+function tracingSdk(): SentrySdk | null {
+  return enabled ? sentrySdk() : null;
+}
+
 type SpanCallback<T> = (span?: Sentry.Span) => T;
 type WorkerPhase = 'check_drain' | 'handover' | 'handler';
 
 /** No SDK scope or promise allocation on the default, disabled path. */
 function traceRoot<T>(op: string, name: string, run: SpanCallback<T>): T {
-  if (!enabled) return run();
+  const sdk = tracingSdk();
+  if (sdk === null) return run();
   // Never inherit sampling or parentage from caller-controlled trace headers,
   // nor from the queue poll that delivered a batch of unrelated jobs.
-  return Sentry.withIsolationScope(() =>
-    Sentry.startNewTrace(() => Sentry.startSpan({ op, name }, run)),
+  return sdk.withIsolationScope(() =>
+    sdk.startNewTrace(() => sdk.startSpan({ op, name }, run)),
   );
 }
 
@@ -37,8 +45,9 @@ export function traceBackendTask<T>(task: string, run: SpanCallback<T>): T {
 
 /** A bounded child of a task; includes database wait in the phase that owns it. */
 export function traceWorkerPhase<T>(phase: WorkerPhase, run: () => T): T {
-  if (!enabled) return run();
-  return Sentry.startSpan({ op: `queue.${phase}`, name: phase }, run);
+  const sdk = tracingSdk();
+  if (sdk === null) return run();
+  return sdk.startSpan({ op: `queue.${phase}`, name: phase }, run);
 }
 
 /** Bounded phase vocabulary only: no org, exec id, prompt, path or credential
@@ -47,8 +56,9 @@ export function traceSandboxPhase<T>(
   phase: 'acquire' | 'gateway' | 'stage' | 'execute' | 'persist' | 'harvest',
   run: () => T,
 ): T {
-  if (!enabled) return run();
-  return Sentry.startSpan({ op: `sandbox.${phase}`, name: phase }, run);
+  const sdk = tracingSdk();
+  if (sdk === null) return run();
+  return sdk.startSpan({ op: `sandbox.${phase}`, name: phase }, run);
 }
 
 /** Measures handler completion, not the lifetime of a streamed response body. */
@@ -71,7 +81,7 @@ export function requestTelemetry(): MiddlewareHandler {
         if (span !== undefined) {
           span.setAttribute('http.request.method', method);
           span.setAttribute('http.route', route);
-          Sentry.setHttpStatus(span, c.res.status);
+          sentrySdk()?.setHttpStatus(span, c.res.status);
         }
       }
     });

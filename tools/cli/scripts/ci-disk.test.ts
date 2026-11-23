@@ -41,6 +41,7 @@ async function cleanupSteps() {
     'sandbox-incus-e2e',
     'cli-incus-e2e',
     'load',
+    'memory-budget',
   ]) {
     const file = parse(
       await readFile(
@@ -85,6 +86,7 @@ test('every image cleanup uses one candidate-independent policy and preserves co
     ['sandbox-incus-e2e', 'incus', '40'],
     ['cli-incus-e2e', 'incus', '40'],
     ['load', 'load', '40'],
+    ['memory-budget', 'budget', '40'],
   ]);
   expect(new Set(entries.map(({ step }) => step.run)).size).toBe(1);
   for (const { workflow, job, step } of entries) {

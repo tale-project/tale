@@ -20,8 +20,9 @@ export const SESSION_EGRESS_POLICY_NAME = 'tale-sandbox-session-egress';
  * Default-deny egress for `tale.sandbox/role=session` pods. Allows egress ONLY
  * to:
  *   - DNS (UDP/TCP 53), so names still resolve, and
- *   - the sandbox namespace itself, where the egress proxy + LLM gateway live —
- *     the runner reaches the outside world ONLY through that proxy.
+ *   - the sandbox namespace itself, where the egress proxy and the backend's
+ *     model relay live — the runner reaches the outside world ONLY through
+ *     that proxy.
  *
  * Everything else is denied by omission: cloud IMDS (169.254.169.254), node and
  * pod IPs in other namespaces, and the public internet directly. A workload that
@@ -54,7 +55,7 @@ export function buildSessionEgressNetworkPolicy(
           ],
         },
         {
-          // The egress proxy + LLM gateway, reached WITHIN the sandbox
+          // The egress proxy and the model relay, reached WITHIN the sandbox
           // namespace. Every namespace carries the immutable
           // `kubernetes.io/metadata.name` label, so this pins egress to THIS
           // namespace only — not other tenants', not the node.

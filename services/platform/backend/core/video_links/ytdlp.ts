@@ -1,29 +1,40 @@
 'use node';
 
 /**
- * yt-dlp subprocess wrapper for the video-link ingest pipeline.
+ * yt-dlp for the video-link ingest pipeline: what a run is asked for, how
+ * its end is judged, and the places it runs in.
  *
- * Mirrors `audio_preprocess.ts:runFfmpeg` shape: array-form `spawn` (no
- * shell), per-call wall-clock timeout with `SIGKILL`, structured error
- * surfaces with sanitized stderr.
+ * A run happens in a {@link YtdlpPlace}. A deployment's is a sandbox session
+ * (`session_place.ts`): yt-dlp fetches pages and streams from whatever a
+ * member pastes and runs a platform's JavaScript to get at them, and it
+ * does that under the sandbox's rules and the host's admission, never as a
+ * child of the application (tale-project/tale#4942). A developer's own
+ * machine and the tests run it as a child of this process
+ * ({@link createLocalYtdlpPlace}, array-form `spawn`, no shell, a
+ * wall-clock timeout with `SIGTERM` then `SIGKILL` to its process group).
+ * Either way a run downloads and converts nothing: no ffmpeg is involved.
  *
  * Hardening (from C4 sub-agent audit + 2024-25 yt-dlp CVE class):
- *   - `--no-config --no-call-home --no-exec --no-update --ignore-config`:
- *     neutralize CVE-2024-22423 `--exec` injection and config-file
- *     hijacks.
+ *   - `--no-config --no-exec --no-update --ignore-config`: neutralize
+ *     CVE-2024-22423 `--exec` injection and config-file hijacks.
  *   - `--restrict-filenames`: yt-dlp's own filename sanitizer (mitigates
  *     CVE-2024-38519 path-traversal class).
- *   - `--paths home:<jobDir> --paths temp:<jobDir>`: every yt-dlp file
- *     write stays inside the per-job sandbox. Output template `%(id)s.%(ext)s`
- *     is fixed by us, never derived from metadata (template injection).
+ *   - `--paths home:<dir> --paths temp:<dir>`: every yt-dlp file write
+ *     stays inside the place's directory. The output templates
+ *     (`media.%(ext)s`, `subs.%(ext)s`) are fixed by us, never derived from
+ *     metadata (template injection).
  *   - `--downloader native`: avoid yt-dlp falling through to ffmpeg-as-
  *     downloader (CVE-2023-35934 cookie leak class) or aria2.
- *   - `env` stripped to `{ PATH, HOME: jobDir, LANG: 'C.UTF-8' }` only —
- *     no Convex secrets, no LD_*, no NODE_*.
- *   - Output file validation post-spawn: `fs.realpath` + extension
- *     whitelist; reject anything outside the sandbox.
+ *   - A child of this process gets an `env` stripped to
+ *     `{ PATH, HOME: <dir>, LANG: 'C.UTF-8' }` only: no secrets, no LD_*,
+ *     no NODE_*. A session holds none of this process's environment at all.
+ *   - What a run leaves is taken only under a name the lane asked for, of
+ *     one path segment, and a place of this machine checks by `realpath`
+ *     that the file lies in its directory.
  *
- * Boot-time SHA256-verified install in `services/platform/Dockerfile`.
+ * The pinned yt-dlp, its JavaScript runtime and the PO-token plugin are
+ * installed, checksum-verified, in the sandbox runtime image
+ * (`services/sandbox-runtime/Dockerfile`).
  */
 
 import { spawn } from 'node:child_process';
@@ -41,29 +52,60 @@ import {
   isVideoProxyScheme,
   videoIngestProxyRotation,
 } from '../../../lib/net/video-ingest-proxies';
+import { fileBody } from '../lib/storage/object_store';
+import { RELAY_PROXY_UNREACHABLE_STATUS } from './relay';
 
 const YTDLP_BIN = 'yt-dlp';
 
 /**
- * Where `services/platform/Dockerfile` bakes the bgutil PO-token-provider yt-dlp
- * plugin, and the compose sidecar (`bgutil-provider`) that serves the tokens.
- * Both are present only in the self-hosted image + stack; when the plugin dir
- * exists we default the plugin path and provider URL so PO tokens work with
- * ZERO operator config (mirrors `knowledge_db.ts`'s `knowledge-db` fallback).
- * `VIDEO_INGEST_YTDLP_PLUGIN_DIRS` / `VIDEO_INGEST_POT_PROVIDER_URL` override.
- * Evaluated once at module load — cheap, and the image layout never changes at
- * runtime. Absent on a host `bun dev` (no baked dir) → defaults stay dormant.
+ * Where the sandbox runtime image carries the bgutil PO-token-provider yt-dlp
+ * plugin (`services/sandbox-runtime/Dockerfile`), and the compose sidecar
+ * (`bgutil-provider`) that serves the tokens. A session's yt-dlp is told
+ * where the plugin is and asks the sidecar through the platform's relay
+ * (`session_place.ts`). The sidecar runs only where a deployment turned it on
+ * (`VIDEO_INGEST_POT_PROVIDER=true`), with nothing else to set;
+ * `VIDEO_INGEST_POT_PROVIDER_URL` names another provider.
+ *
+ * A run on this machine (`VIDEO_INGEST_LANE=local`) finds the plugin here
+ * only where this path exists, which it does on no ordinary machine: `bun
+ * dev` and the live test name the directory of the toolchain they
+ * provisioned (`VIDEO_INGEST_YTDLP_PLUGIN_DIRS`). Looked at once, when the
+ * module loads.
  *
  * Layout under this root MUST be `bgutil/yt_dlp_plugins/…` (not a bare
  * `yt_dlp_plugins/`): yt-dlp `--plugin-dirs` iterates children of this path.
  * See `BGUTIL_PLUGIN_NEST_DIR` in `ytdlp_toolchain.ts` and the Dockerfile.
  */
-const BAKED_YTDLP_PLUGIN_DIR = '/opt/yt-dlp/plugins';
+export const BAKED_YTDLP_PLUGIN_DIR = '/opt/yt-dlp/plugins';
 const DEFAULT_POT_PROVIDER_URL = 'http://bgutil-provider:4416';
 const HAS_BAKED_YTDLP_PLUGIN = existsSync(BAKED_YTDLP_PLUGIN_DIR);
 
+/** Which place a deployment's videos are fetched in. */
+export type VideoIngestLane = 'sandbox' | 'local';
+
+/**
+ * `VIDEO_INGEST_LANE`: `sandbox` unless it says `local`. `local` is for a
+ * machine that has yt-dlp itself and no sandbox to run it in: `bun dev`,
+ * which provisions the tools, and the tests. A deployment's image carries
+ * no yt-dlp, so there it would find none.
+ */
+export function videoIngestLane(
+  env: NodeJS.ProcessEnv = process.env,
+): VideoIngestLane {
+  return env.VIDEO_INGEST_LANE?.trim().toLowerCase() === 'local'
+    ? 'local'
+    : 'sandbox';
+}
+
+/** Whether a run has the PO-token plugin at hand: always in a sandbox
+ * session, whose image carries it, and on this machine where its directory
+ * exists. */
+function pluginAtHand(env: NodeJS.ProcessEnv): boolean {
+  return videoIngestLane(env) === 'sandbox' || HAS_BAKED_YTDLP_PLUGIN;
+}
+
 // Flags supported by every yt-dlp release we care about (≥ 2024.04).
-const BASE_FLAGS: ReadonlyArray<string> = [
+export const BASE_FLAGS: ReadonlyArray<string> = [
   '--no-config',
   // NOTE: `--no-call-home` was removed in yt-dlp 2025.xx (deprecated since
   // 2024) — emitting it spams stderr and the deprecation message can land
@@ -101,18 +143,18 @@ const BASE_FLAGS: ReadonlyArray<string> = [
 ];
 
 // ---------------------------------------------------------------------------
-// Spawn PATH + ffmpeg location — resolved from `process.env` on EVERY spawn so
-// the LIVE ingest test (`ytdlp_live.test.ts`) can inject a self-provisioned
-// toolchain (see `ytdlp_toolchain.ts`) AFTER this module is imported + cached.
-// Both keep the production defaults byte-for-byte, so an unset environment (the
-// baked convex image) behaves exactly as before.
+// Spawn PATH + ffmpeg location of a run on this machine — resolved from
+// `process.env` on EVERY spawn so `bun dev` and the LIVE ingest test
+// (`ytdlp_live.test.ts`) can name a self-provisioned toolchain (see
+// `ytdlp_toolchain.ts`) AFTER this module is imported + cached. A session's
+// run takes neither: its image has yt-dlp on its own PATH, and no ffmpeg.
 // ---------------------------------------------------------------------------
 
 /**
- * PATH for the yt-dlp/ffmpeg child. Production pins the minimal set the
- * Dockerfile installs into (`/usr/local/bin:/usr/bin:/bin`) — deliberately NOT
+ * PATH for a yt-dlp that runs as a child of this process: the minimal set a
+ * system installs into (`/usr/local/bin:/usr/bin:/bin`) — deliberately NOT
  * `process.env.PATH`, so a dev host's shell PATH can't leak arbitrary binaries
- * into the sandboxed child. `VIDEO_INGEST_BIN_DIR`, when set, is PREPENDED so a
+ * into the child. `VIDEO_INGEST_BIN_DIR`, when set, is PREPENDED so a
  * self-provisioned yt-dlp + deno (downloaded outside the pinned dirs, e.g. into
  * a per-user cache) is found first. Read per-spawn — never baked into a cache —
  * so the live test can set it after module load.
@@ -124,13 +166,15 @@ export function buildSpawnPath(env: NodeJS.ProcessEnv): string {
 }
 
 /**
- * `--ffmpeg-location` for yt-dlp's post-processing (subtitle convert + audio
- * extract). Passed EXPLICITLY rather than resolved via PATH, so it works even
- * when ffmpeg lives outside the pinned spawn PATH — e.g. Homebrew's
- * `/opt/homebrew/bin/ffmpeg` on a dev laptop. Defaults to the Dockerfile's
- * `/usr/bin/ffmpeg`; `VIDEO_INGEST_FFMPEG_LOCATION` overrides with an absolute
- * path. Built per-invocation (NOT in the cached `BASE_FLAGS`) so the live test
- * can point it at a self-provisioned ffmpeg after module load.
+ * `--ffmpeg-location` for a yt-dlp that runs on this machine. A run converts
+ * nothing, so yt-dlp starts no ffmpeg of its own accord; the flag only says
+ * where one is for a stream its own downloader hands on to ffmpeg, which a
+ * session's run, with no ffmpeg, cannot fetch. Passed EXPLICITLY rather than
+ * resolved via PATH, so it works even when ffmpeg lives outside the pinned
+ * spawn PATH — e.g. Homebrew's `/opt/homebrew/bin/ffmpeg` on a dev laptop.
+ * Defaults to `/usr/bin/ffmpeg`; `VIDEO_INGEST_FFMPEG_LOCATION` overrides with
+ * an absolute path. Built per-invocation (NOT in the cached `BASE_FLAGS`) so
+ * the live test can point it at a self-provisioned ffmpeg after module load.
  */
 export function ffmpegLocationFlags(env: NodeJS.ProcessEnv): string[] {
   return [
@@ -141,9 +185,10 @@ export function ffmpegLocationFlags(env: NodeJS.ProcessEnv): string[] {
 
 // Flags whose support depends on the installed yt-dlp version. Probed
 // once via `yt-dlp --help` at first invocation and cached for the
-// lifetime of the Node action runtime. Production runs the version
-// pinned by services/platform/Dockerfile and always has every flag; this
-// machinery is for dev hosts running older system-installed yt-dlp.
+// lifetime of the process. A deployment runs the version pinned by
+// services/sandbox-runtime/Dockerfile, which has every flag and is not
+// probed; this machinery is for dev hosts running an older system-installed
+// yt-dlp (a place of this machine).
 //
 // Each entry: a probe substring that must appear in `--help` output AND
 // the argv tokens to inject when present. The pair is contiguous in argv
@@ -256,6 +301,23 @@ function ytdlpProxyList(env: NodeJS.ProcessEnv): YtdlpProxyList {
 }
 
 /**
+ * Every proxy a video's yt-dlp could be sent through, as its entry is
+ * written: the single one video ingestion may be given, its own list, and
+ * the outbound list. The platform's relay dials these and no other host
+ * (`domains/video_links/proxy-relay.ts`).
+ */
+export function configuredYtdlpProxyUrls(
+  env: NodeJS.ProcessEnv = process.env,
+): string[] {
+  const override = videoIngestProxyOverride(env);
+  return [
+    ...(override === null ? [] : [override]),
+    ...VIDEO_PROXIES.rotation.proxies(env).map((proxy) => proxy.url),
+    ...OUTBOUND_PROXIES.rotation.proxies(env).map((proxy) => proxy.url),
+  ];
+}
+
+/**
  * The proxy a video's yt-dlp runs start on — the single highest-leverage
  * mitigation: routing extraction through a residential/ISP egress moves it
  * off the deployment's flagged datacenter IP. `VIDEO_INGEST_PROXY_URL` wins
@@ -277,12 +339,34 @@ export function ytdlpProxyFromEnv(
   return pooled === null ? null : { url: pooled.url, pooled };
 }
 
+/**
+ * What a run is told of its surroundings where they are not this process's
+ * own. A yt-dlp in a sandbox session reaches a proxy and the PO-token
+ * provider through the platform's relays (`relay.ts`), and finds the plugin
+ * where its image carries it; one that runs beside this process is told
+ * nothing here and reads the deployment's settings as they are.
+ */
+export interface YtdlpReach {
+  /** A proxy's address as the run is given it. */
+  readonly proxyUrl?: (proxy: YtdlpProxy) => string;
+  /** The PO-token provider's base URL as the run reaches it; `null` for
+   * none. */
+  readonly potProviderUrl?: string | null;
+  /** Where the run finds the PO-token plugin; `null` for nowhere. */
+  readonly pluginDir?: string | null;
+  /** The deployment's own cookie jar (`VIDEO_INGEST_COOKIES_FILE`) as the
+   * run reads it; `null` for none. */
+  readonly cookiesFile?: string | null;
+}
+
 /** `--proxy` for one run, its proxy chosen by {@link ytdlpProxyFromEnv}. */
 export function proxyFlagsFromEnv(
   env: NodeJS.ProcessEnv,
   proxy: YtdlpProxy | null = ytdlpProxyFromEnv(env),
+  reach: YtdlpReach = {},
 ): string[] {
-  return proxy === null ? [] : ['--proxy', proxy.url];
+  if (proxy === null) return [];
+  return ['--proxy', reach.proxyUrl?.(proxy) ?? proxy.url];
 }
 
 /** The status a proxy answered yt-dlp's tunnel request with, when it
@@ -300,11 +384,23 @@ const PROXY_UNREACHABLE_STDERR =
  * does: the proxy could not be reached, or refused its credentials for the
  * tunnel (407). A tunnel refused with another status (a 502 for a
  * destination the proxy could not reach) says nothing against the proxy.
+ *
+ * A yt-dlp that runs in a session reaches its proxy through the platform's
+ * relay (`relayed`): there a proxy that could not be used is the relay's own
+ * answer to the tunnel request, a status no proxy sends
+ * (`RELAY_PROXY_UNREACHABLE_STATUS`), and a refused credential is the
+ * proxy's 407 passed on. A proxy that yt-dlp itself could not reach is then
+ * the relay, which is the platform's own listener: a restart of it, or an
+ * address it is not at, says nothing against the video's proxy.
  */
-export function proxyFailedRun(stderr: string): boolean {
+export function proxyFailedRun(stderr: string, relayed = false): boolean {
   const status = TUNNEL_STATUS_STDERR.exec(stderr)?.[1];
-  if (status !== undefined) return status === '407';
-  return PROXY_UNREACHABLE_STDERR.test(stderr);
+  if (status !== undefined) {
+    return (
+      status === '407' || status === String(RELAY_PROXY_UNREACHABLE_STATUS)
+    );
+  }
+  return !relayed && PROXY_UNREACHABLE_STDERR.test(stderr);
 }
 
 /**
@@ -419,12 +515,13 @@ export class YtdlpRoute {
    * through this route: the proxy could not carry the run (passed over for a
    * while by its list's rotation, as for any request), or the platform
    * turned the address away (no longer where the platform's next video
-   * starts).
+   * starts). `relayed` says the run reached its proxy through the platform's
+   * relay ({@link proxyFailedRun}).
    */
-  blame(error: YtDlpError): boolean {
+  blame(error: YtDlpError, relayed = false): boolean {
     const pooled = this.current?.pooled;
     if (!pooled) return false;
-    if (proxyFailedRun(error.sanitizedStderr)) {
+    if (proxyFailedRun(error.sanitizedStderr, relayed)) {
       this.list.rotation.setAside(pooled, 'yt-dlp could not get through');
     } else if (TURNED_AWAY.has(error.reason)) {
       if (this.list.serving.get(this.platform)?.url === pooled.url) {
@@ -470,13 +567,59 @@ export function resetServingProxiesForTests(): void {
 const DEFAULT_YOUTUBE_PLAYER_CLIENT = 'default,tv_simply';
 
 /**
- * When a PO-token provider is available (baked plugin → compose sidecar, or
- * an explicit `VIDEO_INGEST_POT_PROVIDER_URL`), include `mweb` — yt-dlp's
+ * When a PO-token provider is available (the bundled one, turned on, or an
+ * explicit `VIDEO_INGEST_POT_PROVIDER_URL`), include `mweb` — yt-dlp's
  * PO-Token Guide TL;DR is "provider + mweb for GVS". Without `mweb` in the
  * list the provider is registered but rarely asked, and flagged datacenter
  * IPs still hit the bot wall. Operators can still override via env.
  */
 const DEFAULT_YOUTUBE_PLAYER_CLIENT_WITH_POT = 'default,mweb,tv_simply';
+
+/**
+ * Whether the deployment turned on the PO-token provider it ships
+ * (`VIDEO_INGEST_POT_PROVIDER=true`). Off unless it says so: the provider is
+ * one more container, about 60 MiB at rest, and only a deployment whose
+ * address YouTube challenges has a use for it.
+ */
+export function potProviderOn(env: NodeJS.ProcessEnv): boolean {
+  return env.VIDEO_INGEST_POT_PROVIDER?.trim().toLowerCase() === 'true';
+}
+
+/**
+ * The PO-token provider a run asks: the one the deployment names, else the
+ * bundled one where it is turned on and the run has its plugin at hand
+ * ({@link pluginAtHand}). Undefined when a run has none.
+ */
+export function potProviderUrl(
+  env: NodeJS.ProcessEnv,
+  hasBakedPlugin: boolean = pluginAtHand(env),
+): string | undefined {
+  return (
+    env.VIDEO_INGEST_POT_PROVIDER_URL?.trim() ||
+    (hasBakedPlugin && potProviderOn(env)
+      ? DEFAULT_POT_PROVIDER_URL
+      : undefined)
+  );
+}
+
+/**
+ * What a member is told when a platform's bot check ended a video for good.
+ * YouTube's is one a deployment answers with PO tokens. Where it has no
+ * source of them, the wall is the deployment's own setting to change, and
+ * "try again later" would send the member round in circles: that case has a
+ * reason of its own, which names who can change it.
+ */
+export function botWallReason(
+  platform: string,
+  env: NodeJS.ProcessEnv,
+  hasBakedPlugin: boolean = pluginAtHand(env),
+): 'botDetection' | 'poTokenProviderOff' {
+  if (platform !== 'youtube') return 'botDetection';
+  const hasTokens =
+    potProviderUrl(env, hasBakedPlugin) !== undefined ||
+    Boolean(env.VIDEO_INGEST_PO_TOKEN?.trim());
+  return hasTokens ? 'botDetection' : 'poTokenProviderOff';
+}
 
 /** Values yt-dlp accepts for the `youtube:fetch_pot` extractor-arg. */
 const FETCH_POT_VALUES = new Set(['never', 'auto', 'always']);
@@ -505,12 +648,15 @@ export function youtubeExtractorArgsFromEnv(
   env: NodeJS.ProcessEnv,
   session?: YtdlpSession,
   hasBakedPlugin: boolean = HAS_BAKED_YTDLP_PLUGIN,
+  reach: YtdlpReach = {},
 ): string[] {
-  // Explicit env wins; otherwise, when the bgutil plugin is baked into the
-  // image, default to the compose sidecar so PO tokens work out of the box.
+  // Explicit env wins; otherwise the bundled provider, where the deployment
+  // turned it on and the image ships its plugin. A run somewhere else is
+  // told where it reaches the provider, or that it has none.
   const providerUrl =
-    env.VIDEO_INGEST_POT_PROVIDER_URL?.trim() ||
-    (hasBakedPlugin ? DEFAULT_POT_PROVIDER_URL : undefined);
+    reach.potProviderUrl === undefined
+      ? potProviderUrl(env, hasBakedPlugin)
+      : (reach.potProviderUrl ?? undefined);
 
   const client =
     env.VIDEO_INGEST_PLAYER_CLIENT?.trim() ||
@@ -571,36 +717,52 @@ export function youtubeExtractorArgsFromEnv(
 export function cookiesFlagsFromEnv(
   env: NodeJS.ProcessEnv,
   session?: YtdlpSession,
+  reach: YtdlpReach = {},
 ): string[] {
-  // A pooled session's freshly-written jar takes precedence over the static
-  // env-configured path.
-  const path =
-    session?.cookiesFile?.trim() || env.VIDEO_INGEST_COOKIES_FILE?.trim();
+  // The deployment's jar lies on this machine's disk. A run somewhere else
+  // is told where its copy is, or that it has none: never this machine's
+  // path, which names nothing there.
+  const own =
+    reach.cookiesFile === undefined
+      ? env.VIDEO_INGEST_COOKIES_FILE?.trim()
+      : (reach.cookiesFile ?? undefined);
+  // A pooled session's freshly-written jar takes precedence over the
+  // deployment's own.
+  const path = session?.cookiesFile?.trim() || own;
   return path ? ['--cookies', path] : [];
 }
 
 /**
  * `--plugin-dirs <dir>` from `VIDEO_INGEST_YTDLP_PLUGIN_DIRS`. Points yt-dlp at
- * a plugins directory (e.g. where the bgutil PO-token-provider plugin is baked
- * into the image) — needed because the spawn sets `HOME` to the throwaway job
- * dir, so the default `~/.config/yt-dlp/plugins` never resolves. Falls back to
- * the baked plugin dir when it exists, so the self-hosted image needs no config.
+ * a plugins directory (where the toolchain of `bun dev` put the bgutil
+ * PO-token-provider plugin) — needed because the spawn sets `HOME` to the
+ * throwaway job dir, so the default `~/.config/yt-dlp/plugins` never resolves.
+ * Falls back to the baked plugin dir where a run has a provider to ask: loaded
+ * without one, the plugin would look for a provider on the loopback that
+ * nobody runs. A run somewhere else is told where its plugin is, or that it
+ * has none (`reach.pluginDir`), and the setting names nothing there.
  */
 export function pluginDirFlagsFromEnv(
   env: NodeJS.ProcessEnv,
   hasBakedPlugin: boolean = HAS_BAKED_YTDLP_PLUGIN,
+  reach: YtdlpReach = {},
 ): string[] {
   const dir =
-    env.VIDEO_INGEST_YTDLP_PLUGIN_DIRS?.trim() ||
-    (hasBakedPlugin ? BAKED_YTDLP_PLUGIN_DIR : undefined);
+    reach.pluginDir === undefined
+      ? env.VIDEO_INGEST_YTDLP_PLUGIN_DIRS?.trim() ||
+        (hasBakedPlugin && potProviderUrl(env, hasBakedPlugin) !== undefined
+          ? BAKED_YTDLP_PLUGIN_DIR
+          : undefined)
+      : (reach.pluginDir ?? undefined);
   return dir ? ['--plugin-dirs', dir] : [];
 }
 
 /**
  * `--impersonate <target>` (e.g. `safari`) from `VIDEO_INGEST_IMPERSONATE`.
  * Matches the TLS/JA3 fingerprint to a real browser for the web clients.
- * Requires `curl_cffi` in the image, so it stays opt-in — an unset default can
- * never break a build that lacks it.
+ * Requires `curl_cffi` where yt-dlp runs (its standalone binary, which the
+ * sandbox runtime image carries, bundles it), so it stays opt-in — an unset
+ * default can never break a yt-dlp that lacks it.
  */
 export function impersonateFlagsFromEnv(env: NodeJS.ProcessEnv): string[] {
   const target = env.VIDEO_INGEST_IMPERSONATE?.trim();
@@ -619,24 +781,25 @@ export function buildAntiBotFlags(
   env: NodeJS.ProcessEnv,
   session?: YtdlpSession,
   proxy: YtdlpProxy | null = ytdlpProxyFromEnv(env),
+  reach: YtdlpReach = {},
 ): string[] {
   return [
-    ...proxyFlagsFromEnv(env, proxy),
-    ...pluginDirFlagsFromEnv(env),
-    ...cookiesFlagsFromEnv(env, session),
+    ...proxyFlagsFromEnv(env, proxy, reach),
+    ...pluginDirFlagsFromEnv(env, HAS_BAKED_YTDLP_PLUGIN, reach),
+    ...cookiesFlagsFromEnv(env, session, reach),
     ...impersonateFlagsFromEnv(env),
-    ...youtubeExtractorArgsFromEnv(env, session),
+    ...youtubeExtractorArgsFromEnv(env, session, HAS_BAKED_YTDLP_PLUGIN, reach),
     ...STEALTH_FLAGS,
   ];
 }
 
 /**
  * Oldest yt-dlp this lane is known to work against. Must never exceed the
- * `ARG YTDLP_VERSION` pin in `services/platform/Dockerfile` — the guard test
- * in `ytdlp.test.ts` reads the Dockerfile and enforces that, so the two
- * cannot drift apart.
+ * `ARG YTDLP_VERSION` pin in `services/sandbox-runtime/Dockerfile`, the image
+ * a deployment's yt-dlp runs in — the guard test in `ytdlp.test.ts` reads
+ * that Dockerfile and enforces it, so the two cannot drift apart.
  *
- * The image is pinned, so production always satisfies this. A dev host is
+ * The image is pinned, so a deployment always satisfies this. A dev host is
  * NOT: `buildSpawnPath` runs whatever `yt-dlp` sits on `/usr/local/bin`,
  * which is typically installed once and never touched again. Extractors are
  * the whole product here and they rot on a scale of weeks — on 2026-09-08 a
@@ -862,7 +1025,8 @@ export type YtDlpErrorReason =
   | 'jsRuntimeMissing'
   | 'binaryNotInstalled'
   | 'timeout'
-  | 'outputValidationFailed';
+  | 'outputValidationFailed'
+  | 'videoTooLarge';
 
 export class YtDlpError extends Error {
   readonly reason: YtDlpErrorReason;
@@ -890,8 +1054,8 @@ export class YtDlpError extends Error {
  *    [30s, 60s, 120s] retry — caller should use long jitter or fail
  *    fast. YouTube's per-IP rate limit is minutes; short retries
  *    just trigger harder blocks.
- *  - `jsRuntimeMissing` means the image is misconfigured (no Deno).
- *    Caller should alert loudly, not silently retry.
+ *  - `jsRuntimeMissing` means the place yt-dlp runs in is misconfigured
+ *    (no Deno). Caller should alert loudly, not silently retry.
  *  - Anything this function cannot name falls through to `transient`,
  *    which IS retried. So every terminal HTTP shape must be named here
  *    or it burns the full [30s, 60s, 120s] ladder and tells the user
@@ -901,6 +1065,15 @@ export class YtDlpError extends Error {
  */
 export function classifyYtDlpStderr(stderr: string): YtDlpErrorReason {
   const s = stderr.toLowerCase();
+  // The operating system's own words for a file that passed what a process
+  // may write to one (`EFBIG`): a download of no declared length ran into the
+  // per-file limit of the session it ran in. yt-dlp ends with `ERROR: unable
+  // to write data: [Errno 27] File too large`. That is the video's size, which
+  // no retry changes, and three of them would each fetch the same bytes up to
+  // the limit again.
+  if (s.includes('[errno 27]') || s.includes('file too large')) {
+    return 'videoTooLarge';
+  }
   if (
     s.includes('sign in to confirm') ||
     s.includes("you're not a bot") ||
@@ -987,40 +1160,35 @@ interface YtDlpSpawnResult {
 }
 
 /**
- * One yt-dlp call: `args` run through `route`, the video's proxy (a route of
- * its own when the caller has none). A run that fails because of its outbound
- * proxy's address — the platform turned it away, or the proxy could not carry
- * it — runs again through another proxy, at most {@link MAX_PROXY_RUNS} runs,
- * none started once the step's {@link PROXY_FAILOVER_WINDOW_MS} is spent; any
- * other failure is the video's own answer, and so is the last one.
+ * One yt-dlp call: `args` run in `place` through `route`, the video's proxy
+ * (a route of its own when the caller has none). A run that fails because of
+ * its outbound proxy's address — the platform turned it away, or the proxy
+ * could not carry it — runs again through another proxy, at most
+ * {@link MAX_PROXY_RUNS} runs, none started once the step's
+ * {@link PROXY_FAILOVER_WINDOW_MS} is spent; any other failure is the video's
+ * own answer, and so is the last one.
  */
 async function runYtdlp(
   args: string[],
-  jobDir: string,
+  place: YtdlpPlace,
   timeoutMs: number,
   session?: YtdlpSession,
   route: YtdlpRoute = YtdlpRoute.forVideo(),
 ): Promise<YtDlpSpawnResult> {
-  // Resolve the flag set the installed yt-dlp actually accepts. First
-  // call probes `--help` and caches; subsequent calls are free.
-  const commonFlags = await resolveSupportedFlags();
-  await warnIfYtdlpBelowFloor();
+  // The flag set the place's yt-dlp accepts, and where its tools are.
+  const commonFlags = await place.commonFlags();
   route.beginCall();
   for (let run = 1; ; run += 1) {
     try {
       // Anti-bot flags are rebuilt per run (cheap), for the proxy the route
-      // is on. A pooled session (if provided) supplies its own cookie jar +
-      // visitor data. `ffmpegLocationFlags` is merged in per-invocation
-      // (read from `process.env`, NOT the cached `commonFlags`) so the live
-      // test's self-provisioned ffmpeg path takes effect after module load.
-      const result = await spawnYtdlp(
+      // is on, as the place reaches it. A pooled session (if provided)
+      // supplies its own cookie jar + visitor data.
+      const result = await place.run(
         [
           ...commonFlags,
-          ...ffmpegLocationFlags(process.env),
-          ...buildAntiBotFlags(process.env, session, route.proxy),
+          ...buildAntiBotFlags(process.env, session, route.proxy, place.reach),
           ...args,
         ],
-        jobDir,
         timeoutMs,
       );
       route.served();
@@ -1028,7 +1196,7 @@ async function runYtdlp(
     } catch (error) {
       if (
         !(error instanceof YtDlpError) ||
-        !route.blame(error) ||
+        !route.blame(error, place.reach.proxyUrl !== undefined) ||
         run >= MAX_PROXY_RUNS ||
         !route.windowOpen() ||
         !route.moveOn(`failed (${error.reason})`)
@@ -1048,18 +1216,17 @@ function spawnYtdlp(
   return new Promise((resolve, reject) => {
     // `detached: true` puts the child in its own process group so we can
     // signal the whole group with `process.kill(-pid, ...)` on timeout.
-    // Without this, yt-dlp's ffmpeg grandchild orphans when the Convex
-    // action is hard-killed — the wrapper Node process terminates but
-    // ffmpeg continues to its natural exit, leaving disk/CPU usage that
-    // the entrypoint's 60-min tmpdir sweep can only partially reclaim.
+    // Without this, what yt-dlp started itself (its JavaScript runtime, an
+    // ffmpeg for a stream its downloader hands on) is orphaned when yt-dlp
+    // is killed, and runs on to its natural exit.
     const proc = spawn(YTDLP_BIN, argv, {
       stdio: ['ignore', 'pipe', 'pipe'],
       cwd: jobDir,
       detached: true,
-      // env stripped to the minimum yt-dlp + ffmpeg need. NEVER pass
-      // process.env — Convex secrets (SOPS_AGE_KEY, db creds, provider
-      // tokens) would land in the child's environment. `buildSpawnPath`
-      // keeps the pinned production PATH unless `VIDEO_INGEST_BIN_DIR` is set.
+      // env stripped to the minimum yt-dlp needs. NEVER pass process.env:
+      // the backend's secrets (SOPS_AGE_KEY, db creds, provider tokens)
+      // would land in the child's environment. `buildSpawnPath` keeps the
+      // pinned PATH unless `VIDEO_INGEST_BIN_DIR` is set.
       env: {
         PATH: buildSpawnPath(process.env),
         HOME: jobDir,
@@ -1180,7 +1347,7 @@ function spawnYtdlp(
         settleReject(
           new YtDlpError(
             'binaryNotInstalled',
-            `yt-dlp binary not found at PATH — rebuild the Convex container`,
+            'yt-dlp is not on PATH: install it, or point VIDEO_INGEST_BIN_DIR at one',
             '',
           ),
         );
@@ -1189,110 +1356,230 @@ function spawnYtdlp(
       settleReject(err);
     });
     proc.on('close', (code) => {
-      const sanitized = sanitizeStderr(stderr);
-      if (timedOut) {
-        settleReject(
-          new YtDlpError(
-            'timeout',
-            `yt-dlp timed out after ${timeoutMs}ms`,
-            sanitized,
-          ),
+      try {
+        settleResolve(
+          ytdlpRunOutcome({
+            code,
+            stdout,
+            stderr,
+            timedOut,
+            outputCapped: byteCapExceeded,
+            timeoutMs,
+            outputCapBytes: MAX_BYTES,
+          }),
         );
-        return;
+      } catch (error) {
+        settleReject(error);
       }
-      if (byteCapExceeded) {
-        settleReject(
-          new YtDlpError(
-            'transient',
-            `yt-dlp output exceeded ${MAX_BYTES} bytes (cap-killed)`,
-            sanitized,
-          ),
-        );
-        return;
-      }
-      if (code !== 0) {
-        const reason = classifyYtDlpStderr(sanitized);
-        settleReject(
-          new YtDlpError(
-            reason,
-            `yt-dlp exited ${code} (reason: ${reason})`,
-            sanitized,
-          ),
-        );
-        return;
-      }
-      settleResolve({ stdout, stderr });
     });
   });
 }
 
+/** How one yt-dlp run ended, wherever it ran. */
+export interface YtdlpRunEnd {
+  /** Its exit code; `null` for a run a signal ended. */
+  readonly code: number | null;
+  readonly stdout: string;
+  readonly stderr: string;
+  /** It was stopped at its time limit. */
+  readonly timedOut: boolean;
+  /** It was stopped, or its output cut, at the output cap. */
+  readonly outputCapped: boolean;
+  readonly timeoutMs: number;
+  readonly outputCapBytes: number;
+}
+
 /**
- * Create a per-job tmp sandbox dir. Caller is responsible for cleaning
- * it up via the returned `cleanup` function in a `finally` block.
- *
- * Dir name prefix `vlink-` matches the orphan-sweep regex in
- * `services/platform/docker-entrypoint.sh`.
+ * What a finished run comes to: its output, or the {@link YtDlpError} its
+ * end means. One judgment for every place a run happens, so that a video
+ * fails for the same reason wherever its yt-dlp ran: a timeout, output past
+ * its cap, and otherwise what stderr says of an exit that is not 0. stderr
+ * is sanitized before it is kept or classified.
  */
-export async function createJobDir(): Promise<{
-  jobDir: string;
-  cleanup: () => Promise<void>;
-}> {
-  const jobDir = join(tmpdir(), `vlink-${randomUUID()}`);
-  await fs.mkdir(jobDir, { recursive: true, mode: 0o700 });
+export function ytdlpRunOutcome(end: YtdlpRunEnd): YtDlpSpawnResult {
+  const sanitized = sanitizeStderr(end.stderr);
+  if (end.timedOut) {
+    throw new YtDlpError(
+      'timeout',
+      `yt-dlp timed out after ${end.timeoutMs}ms`,
+      sanitized,
+    );
+  }
+  if (end.outputCapped) {
+    throw new YtDlpError(
+      'transient',
+      `yt-dlp output exceeded ${end.outputCapBytes} bytes (cap-killed)`,
+      sanitized,
+    );
+  }
+  if (end.code !== 0) {
+    const reason = classifyYtDlpStderr(sanitized);
+    throw new YtDlpError(
+      reason,
+      `yt-dlp exited ${end.code} (reason: ${reason})`,
+      sanitized,
+    );
+  }
+  return { stdout: end.stdout, stderr: end.stderr };
+}
+
+/** A file of a place's directory as a listing names it. */
+export interface YtdlpEntry {
+  readonly name: string;
+  readonly size: number;
+}
+
+/** A file a place hands on as it is read: its bytes, and how many they
+ * are. Whoever takes it reads the body to its end or cancels it. */
+export interface YtdlpFile {
+  readonly body: ReadableStream<Uint8Array>;
+  readonly size: number;
+}
+
+/**
+ * Where one video's yt-dlp runs, and where its files are: a sandbox session
+ * (`session_place.ts`), which is how a deployment runs it, or a directory of
+ * this machine with yt-dlp as a child of this process
+ * ({@link createLocalYtdlpPlace}), which is how a developer's own machine and
+ * the tests do. The three calls below are the same in both: what differs is
+ * who starts the process and who holds the files.
+ */
+export interface YtdlpPlace {
+  /** The directory yt-dlp works in, as it is named to yt-dlp. */
+  readonly dir: string;
+  /** What a run here is told of its surroundings. */
+  readonly reach: YtdlpReach;
+  /** The flags every run here begins with: the set the place's yt-dlp
+   * accepts, and where its tools are. */
+  commonFlags(): Promise<string[]>;
+  /** One yt-dlp, stopped after `timeoutMs`. Fails with a {@link YtDlpError}
+   * as {@link spawnYtdlp} does: for a timeout, for output past its cap, for
+   * a binary that is not there, and for an exit that is not 0, by what its
+   * stderr says. */
+  run(argv: string[], timeoutMs: number): Promise<YtDlpSpawnResult>;
+  /** The files in the directory, each with its size. */
+  list(): Promise<YtdlpEntry[]>;
+  /** A small file of the directory, whole. */
+  readFile(name: string, maxBytes: number): Promise<Uint8Array>;
+  /** A file of the directory as a stream of a known length, for a reader
+   * that passes it on and holds none of it. */
+  openFile(name: string, maxBytes: number): Promise<YtdlpFile>;
+  /** Write a small text file that only its owner reads, and answer its
+   * path as yt-dlp is given it. */
+  writeFile(name: string, content: string): Promise<string>;
+  /** The place is done with: its directory, or its session, goes. */
+  dispose(): Promise<void>;
+}
+
+export type { YtDlpSpawnResult };
+
+/** A file of a place by a name that names nothing but itself: one path
+ * segment, of the characters `--restrict-filenames` leaves. Mitigates the
+ * path-traversal class of CVE-2024-38519: even if yt-dlp's own sanitizer is
+ * bypassed, nothing is read that a name could lead out to. */
+export function isPlainOutputName(name: string): boolean {
+  return /^[A-Za-z0-9][A-Za-z0-9._-]{0,200}$/.test(name);
+}
+
+function tooLarge(name: string, maxBytes: number): YtDlpError {
+  return new YtDlpError(
+    'outputValidationFailed',
+    `yt-dlp left ${name} larger than the ${maxBytes} bytes it may be`,
+    '',
+  );
+}
+
+/**
+ * yt-dlp as a child of this process, in `dir`. `dispose` is what removes the
+ * directory, for a caller that made it.
+ */
+export function localYtdlpPlace(
+  dir: string,
+  dispose: () => Promise<void> = () => Promise.resolve(),
+): YtdlpPlace {
+  /** The real path of `name`, which must lie in the directory itself. */
+  const inside = async (name: string): Promise<string> => {
+    if (!isPlainOutputName(name)) {
+      throw new YtDlpError(
+        'outputValidationFailed',
+        `yt-dlp left a file under a name it was not told to write: ${name.slice(0, 80)}`,
+        '',
+      );
+    }
+    const realDir = await fs.realpath(dir);
+    const real = await fs.realpath(resolvePath(dir, name));
+    if (!real.startsWith(`${realDir}/`)) {
+      throw new YtDlpError(
+        'outputValidationFailed',
+        `yt-dlp wrote outside its directory: ${real}`,
+        '',
+      );
+    }
+    return real;
+  };
+  const sized = async (name: string, maxBytes: number) => {
+    const file = await inside(name);
+    const { size } = await fs.stat(file);
+    if (size > maxBytes) throw tooLarge(name, maxBytes);
+    return { file, size };
+  };
   return {
-    jobDir,
-    cleanup: async () => {
-      try {
-        await fs.rm(jobDir, { recursive: true, force: true });
-      } catch (err) {
-        // Non-fatal: dir may have been swept already. Log for forensics.
-        console.warn(
-          `[video_links/ytdlp] failed to cleanup ${jobDir}:`,
-          err instanceof Error ? err.message : err,
-        );
-      }
+    dir,
+    reach: {},
+    commonFlags: async () => {
+      // The flag set the yt-dlp on PATH accepts: probed with `--help` on
+      // the first call and kept. `ffmpegLocationFlags` is read from the
+      // environment each time, so a test's own toolchain takes effect after
+      // this module is loaded.
+      const flags = await resolveSupportedFlags();
+      await warnIfYtdlpBelowFloor();
+      return [...flags, ...ffmpegLocationFlags(process.env)];
     },
+    run: (argv, timeoutMs) => spawnYtdlp(argv, dir, timeoutMs),
+    list: async () => {
+      const entries: YtdlpEntry[] = [];
+      for (const entry of await fs.readdir(dir, { withFileTypes: true })) {
+        // Files alone, and never what a link points at.
+        if (!entry.isFile()) continue;
+        const { size } = await fs.lstat(join(dir, entry.name));
+        entries.push({ name: entry.name, size });
+      }
+      return entries;
+    },
+    readFile: async (name, maxBytes) =>
+      await fs.readFile((await sized(name, maxBytes)).file),
+    openFile: async (name, maxBytes) => {
+      const { file, size } = await sized(name, maxBytes);
+      return { body: fileBody(file), size };
+    },
+    writeFile: async (name, content) => {
+      const file = join(dir, name);
+      await fs.writeFile(file, content, { mode: 0o600 });
+      return file;
+    },
+    dispose,
   };
 }
 
-const SAFE_EXTENSIONS = new Set([
-  '.ogg',
-  '.opus',
-  '.m4a',
-  '.mp3',
-  '.vtt',
-  '.json',
-  '.json3',
-  '.srt',
-]);
-
 /**
- * Validate that a yt-dlp output file lives inside the sandbox and has a
- * whitelisted extension. Mitigates CVE-2024-38519 path-traversal residual:
- * even if yt-dlp's filename sanitizer is bypassed by a future bug, we
- * refuse to consume anything that escaped.
+ * A place of this machine in a directory of its own, removed when the place
+ * is disposed of.
  */
-async function assertOutputUnderSandbox(
-  filePath: string,
-  jobDir: string,
-): Promise<void> {
-  const realJobDir = await fs.realpath(jobDir);
-  const real = await fs.realpath(filePath);
-  if (!real.startsWith(realJobDir + '/') && real !== realJobDir) {
-    throw new YtDlpError(
-      'outputValidationFailed',
-      `yt-dlp wrote outside sandbox: ${real}`,
-      '',
-    );
-  }
-  const ext = real.slice(real.lastIndexOf('.')).toLowerCase();
-  if (!SAFE_EXTENSIONS.has(ext)) {
-    throw new YtDlpError(
-      'outputValidationFailed',
-      `Unexpected output extension: ${ext}`,
-      '',
-    );
-  }
+export async function createLocalYtdlpPlace(): Promise<YtdlpPlace> {
+  const dir = join(tmpdir(), `vlink-${randomUUID()}`);
+  await fs.mkdir(dir, { recursive: true, mode: 0o700 });
+  return localYtdlpPlace(dir, async () => {
+    try {
+      await fs.rm(dir, { recursive: true, force: true });
+    } catch (err) {
+      // Non-fatal: the directory may be gone already. Logged for whoever
+      // finds one left behind.
+      console.warn(
+        `[video_links/ytdlp] failed to cleanup ${dir}:`,
+        err instanceof Error ? err.message : err,
+      );
+    }
+  });
 }
 
 /**
@@ -1329,14 +1616,14 @@ function isYtDlpMetadata(value: unknown): value is YtDlpMetadata {
 
 export async function ytdlpJson(
   url: string,
-  jobDir: string,
+  place: YtdlpPlace,
   timeoutMs = 90_000,
   session?: YtdlpSession,
   route?: YtdlpRoute,
 ): Promise<YtDlpMetadata> {
   const { stdout } = await runYtdlp(
     ['-J', '--', url],
-    jobDir,
+    place,
     timeoutMs,
     session,
     route,
@@ -1363,11 +1650,34 @@ export async function ytdlpJson(
   return parsed;
 }
 
+/** The caption formats the platform reads: WebVTT, and SubRip, which is
+ * WebVTT but for its header and the comma in its timestamps
+ * (`captions_parser.ts`). */
+export type CaptionFormat = 'vtt' | 'srt';
+
+/** A caption track yt-dlp wrote, by its file's name in the place. */
+export interface YtdlpCaptionFile {
+  readonly name: string;
+  readonly format: CaptionFormat;
+}
+
+/** The most a caption file may weigh. yt-dlp is told the same
+ * (`--max-filesize 5M`); this is what a reader of the file holds to. 5 MiB
+ * is well past any legitimate transcript (about eight hours of
+ * auto-generated captions at a cue a second). */
+export const CAPTIONS_MAX_BYTES = 5 * 1024 * 1024;
+
 /**
- * Fetch subtitles in VTT form (yt-dlp converts via ffmpeg from whatever
- * the platform serves — JSON3, SRV3, TTML, native VTT, etc.). Returns
- * the path to the .vtt file under `jobDir`, or null if no subtitle
- * track was produced.
+ * Fetch a subtitle track as the platform serves it, in WebVTT where it has
+ * that (YouTube, Vimeo and Dailymotion do) and else in SubRip. Returns the
+ * file yt-dlp wrote, or null if it wrote none in a format the platform
+ * reads.
+ *
+ * Nothing is converted here. yt-dlp converts a track with ffmpeg, and a run
+ * has none: it happens in a sandbox session, whose image carries no ffmpeg
+ * (tale-project/tale#4942). A platform that serves a track in neither
+ * format has no captions as far as this lane goes, and its video is
+ * transcribed from its sound.
  *
  * Phase B of the orchestrator. `lang` should be a yt-dlp lang spec
  * (e.g. `en`, `en.*`, `zh-Hans`, or `en-orig` for the source-language
@@ -1387,7 +1697,7 @@ const LANG_TOKEN_RE = /^[A-Za-z0-9_.-]{1,32}$/;
 export async function ytdlpWriteSubs(
   url: string,
   lang: string,
-  jobDir: string,
+  place: YtdlpPlace,
   opts: {
     /** If true, include `--write-auto-subs` for ASR auto-generated tracks
      * (used when no manual track in the desired language exists). */
@@ -1396,7 +1706,7 @@ export async function ytdlpWriteSubs(
     session?: YtdlpSession;
     route?: YtdlpRoute;
   } = {},
-): Promise<string | null> {
+): Promise<YtdlpCaptionFile | null> {
   if (!LANG_TOKEN_RE.test(lang)) {
     throw new YtDlpError(
       'unsupported',
@@ -1408,15 +1718,9 @@ export async function ytdlpWriteSubs(
     '--write-subs',
     ...(opts.includeAutoGenerated ? ['--write-auto-subs'] : []),
     '--sub-format',
-    // Prefer native VTT: YouTube (and Vimeo/Dailymotion) serve it directly, so
-    // `--convert-subs vtt` is a no-op and no ffmpeg conversion runs. json3 is
-    // deliberately EXCLUDED — yt-dlp converts it to VTT via ffmpeg, which cannot
-    // read json3 and fails with "Invalid data found when processing input",
-    // dropping the whole transcript. srv3/ttml remain as ffmpeg-convertible
-    // fallbacks for the rare source without a native VTT track.
-    'vtt/srv3/ttml/best',
-    '--convert-subs',
-    'vtt',
+    // WebVTT first, SubRip else, and nothing else: json3, srv3 and TTML
+    // would need a conversion no run has the tool for.
+    'vtt/srt',
     '--sub-langs',
     // Exclude Bilibili-style noise + AI-translated tracks unless explicitly
     // asked for the auto-gen fallback.
@@ -1424,17 +1728,17 @@ export async function ytdlpWriteSubs(
     '--skip-download',
     // Hard cap on the on-disk subtitle file. yt-dlp will refuse to write
     // a track bigger than this — defends against a hostile uploader
-    // hosting a multi-GB JSON3-converted-to-VTT that would OOM both the
-    // download step and the in-memory parse step. 5 MB is well past any
-    // legitimate transcript (≈ 8h auto-generated VTT at ~1 cue/s).
+    // hosting a multi-GB track that would exhaust both the download step
+    // and the in-memory parse step.
     '--max-filesize',
     '5M',
     '--paths',
-    `home:${jobDir}`,
+    `home:${place.dir}`,
     '--paths',
-    `temp:${jobDir}`,
+    `temp:${place.dir}`,
+    // A name of ours, never one derived from the video's metadata.
     '-o',
-    '%(id)s.%(ext)s',
+    'subs.%(ext)s',
     // `--` separator: defense-in-depth against URL-starting-with-dash
     // being reinterpreted as a flag. `assertSafeUrl` already requires
     // `https:` so this is currently unreachable, but loosening URL
@@ -1444,81 +1748,216 @@ export async function ytdlpWriteSubs(
   ];
   await runYtdlp(
     args,
-    jobDir,
+    place,
     opts.timeoutMs ?? 90_000,
     opts.session,
     opts.route,
   );
 
-  // Find the .vtt file yt-dlp wrote. It uses the video id + lang code
-  // suffix, e.g. `<id>.en.vtt`.
-  const entries = await fs.readdir(jobDir);
-  const vtt = entries.find((e) => e.endsWith('.vtt'));
-  if (!vtt) return null;
-  const full = resolvePath(jobDir, vtt);
-  await assertOutputUnderSandbox(full, jobDir);
-  return full;
+  // yt-dlp names a track after the template and the language it wrote:
+  // `subs.<lang>.vtt`.
+  const written = (await place.list())
+    .map((entry) => entry.name)
+    .filter(
+      (entry) =>
+        isPlainOutputName(entry) && /^subs\..+\.(?:vtt|srt)$/.test(entry),
+    );
+  const name =
+    written.find((entry) => entry.endsWith('.vtt')) ??
+    written.find((entry) => entry.endsWith('.srt'));
+  if (name === undefined) return null;
+  return { name, format: name.endsWith('.vtt') ? 'vtt' : 'srt' };
 }
 
 /**
- * Download + extract audio to an `.mp3` file.
+ * The files a video's sound may arrive in, by their extension, and what
+ * each is stored as: the containers video platforms serve sound in, alone or
+ * with a picture. What yt-dlp writes under another extension is not taken
+ * for sound.
+ *
+ * The extension is the one yt-dlp names the platform's format by, which is
+ * not always what the bytes are: a stream a platform serves in MPEG-TS
+ * segments is written as they come, under the format's `.mp4`, because the
+ * fix-up that would make an MP4 of it is ffmpeg's and a run has none.
+ * Nothing here relabels it. The transcription lane's ffmpeg reads a
+ * recording by its content (the image's ffmpeg 5.1 read such a file from
+ * Dailymotion as `mpegts`, 2026-11-22).
+ */
+const MEDIA_TYPES: ReadonlyMap<string, string> = new Map([
+  ['webm', 'audio/webm'],
+  ['weba', 'audio/webm'],
+  ['m4a', 'audio/mp4'],
+  ['mp4', 'video/mp4'],
+  ['mp3', 'audio/mpeg'],
+  ['ogg', 'audio/ogg'],
+  ['oga', 'audio/ogg'],
+  ['opus', 'audio/ogg'],
+  ['aac', 'audio/aac'],
+  ['flac', 'audio/flac'],
+  ['wav', 'audio/wav'],
+  ['mka', 'audio/x-matroska'],
+  ['mkv', 'video/x-matroska'],
+  ['mov', 'video/quicktime'],
+  ['flv', 'video/x-flv'],
+  ['ts', 'video/mp2t'],
+  ['3gp', 'video/3gpp'],
+]);
+
+/** A video's sound as yt-dlp fetched it, by its file's name in the place. */
+export interface YtdlpMediaFile {
+  readonly name: string;
+  /** The file's extension, which the stored file keeps. */
+  readonly extension: string;
+  readonly contentType: string;
+  /** How many bytes yt-dlp left of it. */
+  readonly size: number;
+}
+
+/**
+ * The most a video's sound may weigh: 1 GiB, which four hours (the longest
+ * video the lane takes) come to at close to 600 kbps. Sound alone is a
+ * quarter of that at most; the room is for a platform that serves sound
+ * only with a picture, whose smallest one is taken.
+ *
+ * A video's session is created with this as the size one file may be
+ * (`maxFileBytes`, `session_place.ts`): a `default` session's own is 100 MiB,
+ * which two hours of sound pass on a platform that serves fragments of no
+ * declared length (Vimeo, Dailymotion, Twitch), where yt-dlp's
+ * `--max-filesize` stops nothing. Whatever is larger is the video's own
+ * answer, `videoTooLarge`, and is not retried.
+ */
+export const MEDIA_MAX_BYTES = 1024 * 1024 * 1024;
+
+/** {@link MEDIA_MAX_BYTES} as yt-dlp is told it, with room for a stream
+ * whose length the platform understates (yt-dlp's `M` is a mebibyte). */
+const MEDIA_MAX_FILESIZE = '1000M';
+
+/**
+ * What the sound should weigh at most where a platform leaves the choice:
+ * 200 MiB, which is four hours at about 115 kbps. Every stream is re-encoded to
+ * 32 kbps before a model hears it (`audio_preprocess.ts`), so a larger one
+ * buys nothing and is carried through the session, the spawner and the
+ * object store all the same.
+ */
+const MEDIA_PREFERRED_SIZE = '200M';
+
+/**
+ * Which stream of a video its sound is taken from: the streams yt-dlp is
+ * asked for, in the order it tries them, and how it tells the streams of a
+ * kind apart.
+ *
+ * `bestaudio` is a stream of sound alone, which the large platforms serve.
+ * A platform that serves sound only with a picture is asked for a small
+ * picture, which the transcription lane drops: one of at most 480 pixels in
+ * height, or in width, which is the side an upright picture is small on. A
+ * portrait clip's renditions run 360x640, 480x848, 720x1280 and 1080x1920;
+ * asked by height alone, a minute of one came at its full 36 MB, and a
+ * minute of one that is served at 20 Mbit/s too at 147 MB (measured against
+ * Dailymotion, 2026-11-22). Where no picture is that small, or none says
+ * its size, a stream of a modest bitrate is asked for, and whatever the
+ * platform has where it has none of those.
+ *
+ * `-S`: among the streams of a kind, the largest that stays under the
+ * preferred size, and the smallest there is where none does: by its
+ * declared size, else by its bitrate and the video's length. `lang` comes
+ * first, as it does in yt-dlp's own order: sorted by size alone, a dubbed
+ * track that happens to weigh more is taken for the original.
+ *
+ * What yt-dlp makes of it is yt-dlp's to say: `ytdlp_live.test.ts` asks the
+ * real one, offline, for ladders of each shape.
+ */
+export const MEDIA_SELECTION: readonly string[] = [
+  '-f',
+  [
+    'bestaudio',
+    'best[height<=480]',
+    'best[width<=480]',
+    'best[tbr<=1000]',
+    'best[tbr<=2500]',
+    'best',
+  ].join('/'),
+  '-S',
+  `lang,size:${MEDIA_PREFERRED_SIZE}`,
+];
+
+/** yt-dlp's words for a download it did not start because the platform
+ * declared more than `--max-filesize`. It exits 0 all the same. */
+const OVER_MAX_FILESIZE_STDOUT = /File is larger than max-filesize/;
+
+function videoTooLarge(detail: string, stderr = ''): YtDlpError {
+  return new YtDlpError(
+    'videoTooLarge',
+    `the video's sound is larger than the ${MEDIA_MAX_BYTES} bytes it may be: ${detail}`,
+    stderr,
+  );
+}
+
+/**
+ * Download a video's sound as the platform serves it, and do nothing to it.
  *
  * Phase C of the orchestrator — wall-clock 15min covers most 4h videos
  * on a reasonable network.
  *
- * mp3 (libmp3lame) — NOT `vorbis` (libvorbis) — because libvorbis is absent
- * from common ffmpeg builds (notably Homebrew's `ffmpeg` formula ships
- * `--enable-libmp3lame`/`--enable-libopus` but NOT `--enable-libvorbis`), so
- * `--audio-format vorbis` failed the whole ingest with "Encoder not found" on
- * every macOS dev/self-host box. libmp3lame is present in Homebrew AND Debian
- * ffmpeg. The exact intermediate codec barely matters: `audio_preprocess.ts`
- * re-encodes this file to 32 kbps Opus-in-OGG (libopus) before Whisper, so this
- * only has to be a compressed file ffmpeg can read back. We avoid a raw
- * `.opus`/`--audio-format opus` output because that path is what the re-encode
- * later standardizes anyway; a fixed, universally-decodable `.mp3` keeps the
- * extension deterministic for the store + the tmp round-trip.
+ * yt-dlp used to extract the sound to an `.mp3` with ffmpeg here. That was
+ * a conversion nothing needed: `audio_preprocess.ts` re-encodes whatever it
+ * is given to 32 kbps Opus before a model hears it, as it does an uploaded
+ * video, and an `.mp3` at the best quality weighs more than the stream it
+ * came from. Now the stream is stored as it is and converted once, by the
+ * transcription lane, and a run needs no ffmpeg (tale-project/tale#4942).
+ *
+ * Which of a video's streams that is: {@link MEDIA_SELECTION}.
  */
-export async function ytdlpExtractAudio(
+export async function ytdlpFetchAudio(
   url: string,
-  jobDir: string,
+  place: YtdlpPlace,
   timeoutMs = 15 * 60_000,
   session?: YtdlpSession,
   route?: YtdlpRoute,
-): Promise<string> {
+): Promise<YtdlpMediaFile> {
   const args = [
-    '-x',
-    '--audio-format',
-    'mp3',
-    '--audio-quality',
-    '0',
+    ...MEDIA_SELECTION,
+    // No fix-up of a container after the download: that is ffmpeg's work,
+    // and whatever would be fixed, ffmpeg reads as it is later.
+    '--fixup',
+    'never',
+    // Stops a stream of a declared length before its first byte. One served
+    // in fragments declares none: that one ends at the session's per-file
+    // limit, or is measured below once it is there.
     '--max-filesize',
-    // 100M cap pairs with Whisper's ~25MB compressed-input limit (with
-    // headroom for raw ogg + ffmpeg overhead). Previous 500M cap let
-    // peak RSS exceed 1GB when paired with the in-memory readFile→Blob
-    // double-buffer in the orchestrator (R2 review M1).
-    '100M',
+    MEDIA_MAX_FILESIZE,
     '--paths',
-    `home:${jobDir}`,
+    `home:${place.dir}`,
     '--paths',
-    `temp:${jobDir}`,
+    `temp:${place.dir}`,
+    // A name of ours, never one derived from the video's metadata.
     '-o',
-    '%(id)s.%(ext)s',
+    'media.%(ext)s',
     // `--` separator: defense-in-depth (see ytdlpWriteSubs comment).
     '--',
     url,
   ];
-  await runYtdlp(args, jobDir, timeoutMs, session, route);
+  const { stdout } = await runYtdlp(args, place, timeoutMs, session, route);
 
-  const entries = await fs.readdir(jobDir);
-  const audio = entries.find((e) => e.endsWith('.mp3'));
-  if (!audio) {
-    throw new YtDlpError(
-      'outputValidationFailed',
-      'yt-dlp did not produce expected .mp3 output',
-      '',
-    );
+  for (const entry of await place.list()) {
+    const extension = /^media\.([a-z0-9]{1,5})$/.exec(entry.name)?.[1];
+    const contentType =
+      extension === undefined ? undefined : MEDIA_TYPES.get(extension);
+    if (extension === undefined || contentType === undefined) continue;
+    // Where nothing stopped the download (a place of this machine, a
+    // Kubernetes session, which has no per-file limit), the file says so.
+    if (entry.size > MEDIA_MAX_BYTES) {
+      throw videoTooLarge(`yt-dlp left ${entry.size} bytes of it`);
+    }
+    return { name: entry.name, extension, contentType, size: entry.size };
   }
-  const full = resolvePath(jobDir, audio);
-  await assertOutputUnderSandbox(full, jobDir);
-  return full;
+  // A stream that declares more than the size limit is not started, and
+  // yt-dlp still exits 0.
+  if (OVER_MAX_FILESIZE_STDOUT.test(stdout)) {
+    throw videoTooLarge('the platform declares more');
+  }
+  throw new YtDlpError(
+    'outputValidationFailed',
+    'yt-dlp left no sound it was asked for: none in a container this lane takes',
+    '',
+  );
 }

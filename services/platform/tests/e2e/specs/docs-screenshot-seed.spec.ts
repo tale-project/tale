@@ -1,4 +1,7 @@
+import { readFileSync } from 'node:fs';
+
 import { expect, test } from '@playwright/test';
+import { parse as parseYaml } from 'yaml';
 
 import { CAPTURE_LOCALES } from '../../docs-screenshots/capture-options';
 import {
@@ -8,7 +11,9 @@ import {
 import { withCaptureLocale } from '../../docs-screenshots/i18n';
 import { SHOTS, type ShotContext } from '../../docs-screenshots/manifest';
 import {
+  chooseEmbeddingProvider,
   projectFileRow,
+  saveProjectOverview,
   settleList,
   settleListOrEmpty,
   settleProjectFiles,
@@ -200,4 +205,110 @@ test('a retired device does not satisfy the missing active WebDAV fixture', asyn
     body.append(row);
   });
   expect(await webdavPasswordRow(page, 'Design workstation').count()).toBe(1);
+});
+
+// The embedding form's Provider select as the seeder meets it once the
+// providers listing has answered: each option reads its provider's display
+// name, which the listing takes from the provider's definition — for the
+// mock, the docs-demo template the seeder copies into the organization.
+const MOCK_PROVIDER_DEFINITION = parseYaml(
+  readFileSync(
+    new URL(
+      '../fixtures/config/docs-demo/providers/e2e-mock.yml',
+      import.meta.url,
+    ),
+    'utf8',
+  ),
+) as { name: string; displayName: string };
+const EMBEDDING_PROVIDER_LABEL = t(
+  'settings.dataResidency.orgEmbedding.provider',
+);
+
+test('the embedding step chooses the mock provider by the name its option reads', async ({
+  page,
+}) => {
+  const { name, displayName } = MOCK_PROVIDER_DEFINITION;
+  await page.setContent(`
+    <button role="combobox" aria-label="${EMBEDDING_PROVIDER_LABEL}"
+      aria-expanded="false" aria-controls="providers" data-value="">Choose</button>
+    <div id="providers" role="listbox" hidden>
+      <div role="option" aria-selected="false" data-value="openrouter">OpenRouter</div>
+      <div role="option" aria-selected="false" data-value="${name}">${displayName}</div>
+    </div>
+    <script>
+      const select = document.querySelector('[role="combobox"]');
+      const list = document.getElementById('providers');
+      select.addEventListener('click', () => {
+        list.hidden = false;
+        select.setAttribute('aria-expanded', 'true');
+      });
+      for (const option of list.querySelectorAll('[role="option"]')) {
+        option.addEventListener('click', () => {
+          select.dataset.value = option.dataset.value;
+          list.hidden = true;
+          select.setAttribute('aria-expanded', 'false');
+        });
+      }
+    </script>
+  `);
+  // Asked for by its slug, the option never came and the step timed out.
+  await chooseEmbeddingProvider(page);
+  await expect(
+    page.getByRole('combobox', { name: EMBEDDING_PROVIDER_LABEL }),
+  ).toHaveAttribute('data-value', name);
+});
+
+// The project General tab's Save as the seeder meets it: the button turns
+// disabled the moment it is pressed, while the writes of the sections it
+// saves, one after the other, are still on their way.
+const SAVE_LABEL = t('common.actions.save');
+
+test('the project save waits for its writes before the seeder reloads', async ({
+  page,
+}) => {
+  const held: Array<() => void> = [];
+  await page.route(
+    'https://capture.example/api/app/projects/demo-project/*',
+    async (route) => {
+      await new Promise<void>((release) => held.push(release));
+      await route.fulfill({
+        contentType: 'application/json',
+        headers: { 'access-control-allow-origin': '*' },
+        body: '{}',
+      });
+    },
+  );
+  await page.setContent(`
+    <button>${SAVE_LABEL}</button>
+    <script>
+      const save = document.querySelector('button');
+      save.addEventListener('click', async () => {
+        save.disabled = true;
+        for (const section of ['instructions', 'identity']) {
+          await fetch(
+            'https://capture.example/api/app/projects/demo-project/' + section,
+            { method: 'POST', body: '{}' },
+          );
+        }
+      });
+    </script>
+  `);
+  let saved = false;
+  const saving = saveProjectOverview(page, 'demo-project', [
+    'identity',
+    'instructions',
+  ]).then(() => {
+    saved = true;
+  });
+  // Disabled at once, with both writes still to answer: the seeder read this
+  // as saved and reloaded, which cut them off.
+  await expect(page.getByRole('button', { name: SAVE_LABEL })).toBeDisabled();
+  await expect.poll(() => held.length).toBe(1);
+  expect(saved).toBe(false);
+  held[0]();
+  await expect.poll(() => held.length).toBe(2);
+  expect(saved).toBe(false);
+  held[1]();
+  await saving;
+  expect(saved).toBe(true);
 });

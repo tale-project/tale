@@ -39,6 +39,7 @@ prefix may shadow another.
 | Suite | Prefix | What it is | Resets | Rough cost |
 |---|---|---|---|---|
 | [incus-runtime](suites/incus-runtime.md) | `INC-` | a deployment on Incus instead of Docker Compose, on real hosts: bootstrap, certificates, reboot, migration between two hosts, `status` and `logs`, stopping before maintenance | a fresh host, where a group says so | per group |
+| [docker-app-tier](suites/docker-app-tier.md) | `APP-` | the application as `tale deploy` runs it on Docker Compose: the handover from three services to one `platform` process, an update in place, the job runners apart and together again | the host's snapshot before the first group | per group, about an hour in all |
 
 ## How a round runs
 
@@ -72,6 +73,7 @@ Change-scoped, by area:
 | What changed | Run |
 |---|---|
 | the Incus runtime: bootstrap, deploy, certificates, status, logs, stop and start, snapshots, migration | [incus-runtime](suites/incus-runtime.md) · [`automation.md`](reference/automation.md) first |
+| which services a colour runs on Docker Compose, how they are named, routed, sized or stopped, or how `tale deploy`, `rollback` and `logs` find the API | [docker-app-tier](suites/docker-app-tier.md) · [`automation.md`](reference/automation.md) first |
 
 ## How a box works
 

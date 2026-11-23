@@ -46,9 +46,6 @@ const SIZE_BUDGETS: Record<string, number> = {
   // Traefik's static binary (174 MiB) on nginx:alpine with njs (59 MiB),
   // measured from the pinned layers; ~11% headroom.
   proxy: 260,
-  // Docker .Size measured 255 MiB in Build37264873673; ~17% headroom.
-  // Registry gzip layers are 86.45 MiB, a different metric from this guard.
-  'sandbox-llm-gateway': 300,
   sandbox: 320,
   'sandbox-egress': 80,
   // Debian-slim + the verbatim BuildKit static binaries + redsocks/iptables —
@@ -58,15 +55,16 @@ const SIZE_BUDGETS: Record<string, number> = {
   // inspect.Size can count compressed OCI content on containerd and would
   // accept a ~5.8 GB runtime as ~1.9 GB. Retained bytes in lower layers count
   // even when a later layer deletes them. Includes every managed harness,
-  // Chromium, document libraries, Office/PDF tools, XeTeX and inner Docker.
-  'sandbox-runtime': 6000,
+  // Chromium, document libraries, Office/PDF tools, XeTeX and inner Docker,
+  // and the video tools: yt-dlp (40 MiB) and deno (109 MiB), which moved
+  // here from the platform image and raised the budget by 200.
+  'sandbox-runtime': 6200,
 };
 
 const SERVICES = [
   'platform',
   'db',
   'proxy',
-  'sandbox-llm-gateway',
   'sandbox',
   'sandbox-egress',
   'sandbox-buildkitd',
@@ -225,7 +223,6 @@ async function main(): Promise<number> {
           `${svc}: root (expected — buildkitd needs root + --privileged for build mount/namespace ops)`,
         );
         break;
-      case 'sandbox-llm-gateway':
       case 'sandbox-runtime':
         if (nonRoot) r.pass(`${svc}: runs as user '${user}' (non-root)`);
         else r.fail(`${svc}: image must not run as root`);

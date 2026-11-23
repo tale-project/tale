@@ -238,7 +238,7 @@ const responseHeaders: Record<string, Json> = {
   },
   ETag: {
     description:
-      'A validator: over the answer’s bytes on a JSON read, the stored object’s tag on a download. Send it back as `If-None-Match` — as received; the weak and edge-suffixed forms match too — to be told 304 when nothing changed.',
+      'A validator: over the answer’s bytes on a JSON read, the stored object’s tag on a download. Send it back as `If-None-Match` — as received; the weak form and a proxy-suffixed one match too — to be told 304 when nothing changed.',
     schema: { type: 'string' },
   },
   CacheControl: {
@@ -1267,7 +1267,7 @@ const documentIndexing: Json = {
         'skipped',
       ],
       description:
-        '`pending` — never queued; `skipped` — the file opts out of indexing; `unsupported` — TERMINAL: the platform cannot index these bytes and a retry reproduces the answer, `errorCode` says why (`unsupported_type`, `image_no_vision`, `empty`, `not_text`, `malformed`); `failed` — see `error` / `errorCode`: the job retries `embedding_upstream`, `indexer_error` and `index_rebuilding` by itself, `usage_limit` resumes by itself once the usage limit allows it, the rest wait for an admin (a provider account, the organization’s policy) and a `retry-indexing`; a `failed` with no `errorCode` is a failure the platform settled without classifying it, usually an indexing run that stopped before it finished (a lost job, a stopped worker) — request a `retry-indexing` rather than wait for one',
+        '`pending` — never queued; `skipped` — the file opts out of indexing; `unsupported` — TERMINAL: the platform cannot index these bytes and a retry reproduces the answer, `errorCode` says why (`unsupported_type`, `image_no_vision`, `empty`, `not_text`, `malformed`); `failed` — see `error` / `errorCode`: the job retries `embedding_upstream`, `indexer_error` and `index_rebuilding` by itself, `usage_limit` resumes by itself once the usage limit allows it, the rest wait for an admin (a provider account, the organization’s policy, the memory the deployment gives one file) and a `retry-indexing`; a `failed` with no `errorCode` is a failure the platform settled without classifying it, usually an indexing run that stopped before it finished (a lost job, a stopped worker) — request a `retry-indexing` rather than wait for one',
     },
     indexedAt: {
       ...epochMs,
@@ -1282,7 +1282,7 @@ const documentIndexing: Json = {
       type: 'string',
       enum: [...RAG_ERROR_CODES],
       description:
-        'The stable cause to branch on, present with `unsupported`, and with `failed` whenever the platform classified the cause — a `failed` without one was settled unclassified, usually after its indexing run stopped before it finished; request a `retry-indexing` for it. Terminal (`unsupported`): `unsupported_type` — no extractor for the type; `image_no_vision` — an image and no OCR lane; `empty` — no text to index; `not_text` — binary bytes behind a text extension, re-export as UTF-8; `malformed` — the bytes do not parse as the format the extension claims. Retried by the job (`failed`): `embedding_upstream` — the provider was unreachable, rate-limited or 5xx; `indexer_error` — a platform-side store fault; `index_rebuilding` — the search index is being rebuilt. Waits for a usage limit (`failed`): `usage_limit` — a limit that binds whoever the file is indexed for (its uploader, a synced drive’s owner, the organization for an emailed attachment) has too little room for its embeddings; indexing resumes by itself within the hour after the limit resets or is raised, after what it already embedded. Waits for an admin (`failed`): `embedding_not_configured`, `embedding_provider_refused` (the provider refused the account or credential, the model answers vectors of another width than the settings state, or the platform cannot use the embedding credential — none configured, deleted, disabled or unreadable), `index_repair_failed`, `secret_detected`, `pii_blocked`, `pii_scan_failed` (the organization’s PII policy, in any mode, could not scan the document — its protection could not be started, or part of the text could not be scanned whole — so it was not indexed). Saving corrected embedding settings, or adding or repairing the credential the embedding model uses, re-queues every document that failed on the embedding model. Saving the PII policy re-queues every document it could not scan; one refused because the protection could not be started is also re-queued on its own once the platform can start it.',
+        'The stable cause to branch on, present with `unsupported`, and with `failed` whenever the platform classified the cause — a `failed` without one was settled unclassified, usually after its indexing run stopped before it finished; request a `retry-indexing` for it. Terminal (`unsupported`): `unsupported_type` — no extractor for the type; `image_no_vision` — an image and no OCR lane; `empty` — no text to index; `not_text` — binary bytes behind a text extension, re-export as UTF-8; `malformed` — the bytes do not parse as the format the extension claims. Retried by the job (`failed`): `embedding_upstream` — the provider was unreachable, rate-limited or 5xx; `indexer_error` — a platform-side store fault; `index_rebuilding` — the search index is being rebuilt. Waits for a usage limit (`failed`): `usage_limit` — a limit that binds whoever the file is indexed for (its uploader, a synced drive’s owner, the organization for an emailed attachment) has too little room for its embeddings; indexing resumes by itself within the hour after the limit resets or is raised, after what it already embedded. Waits for an admin (`failed`): `embedding_not_configured`, `embedding_provider_refused` (the provider refused the account or credential, the model answers vectors of another width than the settings state, or the platform cannot use the embedding credential — none configured, deleted, disabled or unreadable), `index_repair_failed`, `secret_detected`, `pii_blocked`, `pii_scan_failed` (the organization’s PII policy, in any mode, could not scan the document — its protection could not be started, or part of the text could not be scanned whole — so it was not indexed). Waits for the deployment’s administrator (`failed`): `memory_limit` — reading the file needed more memory than the deployment gives one file; `error` names that limit in MiB and the setting that raises it (`HEAVY_SLOT_MEMORY_MB`), the job does not retry, and a `retry-indexing` once the limit is raised reads the file again. Saving corrected embedding settings, or adding or repairing the credential the embedding model uses, re-queues every document that failed on the embedding model. Saving the PII policy re-queues every document it could not scan; one refused because the protection could not be started is also re-queued on its own once the platform can start it.',
     },
   },
 };
@@ -1297,11 +1297,10 @@ const fileConditionalParams = [
     required: false,
     schema: { type: 'string' },
     description:
-      'The `ETag` a previous answer carried (as received — the ' +
-      'compressing edge suffixes the tag of a text file it ' +
-      'compressed, and that form matches too): unchanged bytes ' +
-      'answer 304 with no body. Takes precedence over ' +
-      '`If-Modified-Since`.',
+      'The `ETag` a previous answer carried (as received — a tag ' +
+      'that a compressing proxy suffixed, `"…-gzip"`, matches ' +
+      'too): unchanged bytes answer 304 with no body. Takes ' +
+      'precedence over `If-Modified-Since`.',
   },
   {
     name: 'If-Modified-Since',
@@ -7277,7 +7276,7 @@ export function buildSpec(): Json {
         },
         '304': {
           description:
-            'Not modified: `If-None-Match` named the current document (weakly — the `W/` and the edge-suffixed `"…-gzip"` forms match); `ETag` repeats the tag, `Cache-Control` says `private, no-cache` as the 200 does, no body',
+            'Not modified: `If-None-Match` named the current document (weakly — the `W/` form and a proxy-suffixed `"…-gzip"` form match); `ETag` repeats the tag, `Cache-Control` says `private, no-cache` as the 200 does, no body',
           headers: {
             ETag: headerRef('ETag'),
             'Cache-Control': headerRef('CacheControl'),
@@ -8596,14 +8595,16 @@ back as \`If-None-Match\` on the next read — an unchanged resource answers
 honours \`If-None-Match\` and \`If-Modified-Since\` against the \`ETag\` and
 \`Last-Modified\` it issues, the same way. A 304 still counts against the
 request budget; a read that only needs a few keys of a large resource should
-name them where the operation offers \`fields\` (run reads do). Responses are
-compressed with \`gzip\` or \`zstd\` when the request offers one in
-\`Accept-Encoding\` (\`curl --compressed\`), above a floor of about 512
-bytes; \`br\` is not served. A
-compressed answer's \`Content-Length\`, when present, is the compressed size
-(a large answer streams without one) and its \`ETag\` carries the
-\`-gzip\`/\`-zstd\` suffix; a HEAD is never compressed and reports the
-uncompressed length.
+name them where the operation offers \`fields\` (run reads do). JSON and
+text responses are compressed with \`gzip\` when the request offers it in
+\`Accept-Encoding\` (\`curl --compressed\`), above a floor of about 1 KiB;
+\`br\` and \`zstd\` are not served. A compressed answer's
+\`Content-Length\`, when present, is the compressed size (a large answer
+streams without one) and its \`ETag\` is the one the uncompressed answer
+carries; a tag that a compressing proxy suffixed (\`"…-gzip"\`,
+\`"…-zstd"\`) still matches. A HEAD is never compressed and reports the
+uncompressed length. Anything else, a PDF or an image or an archive, is sent
+as it is stored, with its \`Content-Length\` and \`Accept-Ranges\`.
 
 ## Authentication
 

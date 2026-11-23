@@ -90,6 +90,7 @@ import {
   isWorkflowAgentRetryable,
   planWorkflowAgentRetry,
   resourceExhaustedRekickAtMs,
+  resumeOnHarness,
   roomWaitSince,
   sandboxRoomRetryAtMs,
   workflowAgentRetryResume,
@@ -1878,7 +1879,14 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
     // still-running op exists for this run, ADOPT it — rebuild the cursor on
     // its exec and park — instead of kicking. The in-flight turn then settles
     // into the adopted cursor. Composes with the atomic claim (which already
-    // ensures a single walker re-enters at a time).
+    // ensures a single walker re-enters at a time). The adopted cursor names
+    // the harness the op runs on, as the kick that opened it resolved it: a
+    // step on the default resolves its harness at each kick, and what it
+    // would resolve to now (after an upgrade moved the default, or the
+    // model's credentials changed) is not where the turn in flight runs —
+    // its settle, a retry's resume and an answered question all follow the
+    // cursor. Only an op written before ops recorded their harness falls
+    // back to the request's.
     const liveOp = await run.ctx.runQuery(
       internal.automations.queries.loadLiveAgentOpForRun,
       { organizationId: run.organizationId, runId: run.runId },
@@ -1891,6 +1899,8 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
         deadlineAt: number;
         providerSlug: string;
         gatewayModel: string;
+        harness?: string;
+        harnessReason?: string;
       };
       const agent: AgentCursor = {
         execId: op.execId,
@@ -1898,7 +1908,11 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
         deadlineAt: op.deadlineAt,
         providerSlug: op.providerSlug,
         gatewayModel: op.gatewayModel,
-        harness: request.harness ?? DEFAULT_HARNESS,
+        harness: op.harness ?? request.harness ?? DEFAULT_HARNESS,
+        // Why it runs there, as the kick that opened the op recorded it.
+        ...(op.harnessReason !== undefined
+          ? { harnessReason: op.harnessReason }
+          : {}),
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the resolved request is plain JSON by construction
         input: request as unknown as Record<string, unknown>,
       };
@@ -1943,6 +1957,9 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
       providerSlug: kicked.providerSlug,
       gatewayModel: kicked.gatewayModel,
       harness: kicked.harness,
+      ...(kicked.harnessReason !== undefined
+        ? { harnessReason: kicked.harnessReason }
+        : {}),
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the resolved request is plain JSON by construction
       input: request as unknown as Record<string, unknown>,
     };
@@ -2112,8 +2129,11 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
       // means a fresh conversation over the preserved workspace, as before.
       // A start refused while the pool cooled down resumes what it was to.
       // A harness the platform never resumes (Gemini CLI) starts fresh
-      // whatever the settle left.
-      const resume = workflowAgentRetryResume(settled, reason, parked, {
+      // whatever the settle left. The conversation is the failed attempt's
+      // harness's: a re-kick that resolves another one starts fresh too
+      // (`resumeOnHarness`, applied by the host and below).
+      const offered = workflowAgentRetryResume(settled, reason, parked, {
+        slug: parked.harness,
         resumable: harnessResumesConversations(parked.harness),
       });
       // A node waiting for sandbox room comes back when its place in the
@@ -2140,13 +2160,16 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- recorded verbatim from an AgentTurnRequest at kick time
         request: parked.input as unknown as AgentTurnRequest,
         ...(burned.length > 0 ? { excludeBrokerTokenHashes: burned } : {}),
-        ...(resume !== undefined ? { resume } : {}),
+        ...(offered !== undefined ? { resume: offered } : {}),
         // A start refused while every broker account cooled down: the
         // re-kick's start waits for the first one back instead of meeting
         // the same refusal at once and spending the budget in seconds.
         ...(notBefore !== undefined ? { notBefore } : {}),
         claimEpoch: run.claimEpoch,
       });
+      // What the re-kick continues: the offered conversation where the
+      // harness it resolved holds it, nothing where it does not.
+      const resume = resumeOnHarness(offered, kicked.harness);
       const agent: AgentCursor = {
         execId: kicked.execId,
         sessionId: kicked.sessionId,
@@ -2154,6 +2177,9 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
         providerSlug: kicked.providerSlug,
         gatewayModel: kicked.gatewayModel,
         harness: kicked.harness,
+        ...(kicked.harnessReason !== undefined
+          ? { harnessReason: kicked.harnessReason }
+          : {}),
         input: parked.input,
         attempt: plan.attempt,
         ...(burned.length > 0 ? { burnedBrokerTokenHashes: burned } : {}),

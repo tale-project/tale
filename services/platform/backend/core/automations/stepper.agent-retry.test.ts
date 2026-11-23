@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AppError } from '../../../lib/shared/errors/app-error';
 import { functionRefName } from '../../../lib/shared/handlers/function-refs';
+import type { HarnessReason } from '../../../lib/shared/harness-reason';
 import {
   SANDBOX_WORKSPACE_DESTROYED_CODE,
   SANDBOX_WORKSPACE_DESTROYED_MESSAGE,
@@ -50,7 +51,14 @@ function parkedAttempt(overrides: Partial<AgentCursor>): AgentCursor {
   };
 }
 
-function harness(parked: AgentCursor, executions = 1) {
+/** `kickedHarness` is the harness the host resolves for the re-kick, and
+ * `kickedReason` why it put the re-kick there. */
+function harness(
+  parked: AgentCursor,
+  executions = 1,
+  kickedHarness = 'claude-code',
+  kickedReason?: HarnessReason,
+) {
   const kicks: KickArgs[] = [];
   const suspended: Array<Record<string, unknown>> = [];
   const finished: Array<Record<string, unknown>> = [];
@@ -63,7 +71,8 @@ function harness(parked: AgentCursor, executions = 1) {
         deadlineAt: Date.now() + 60 * 60_000,
         providerSlug: 'anthropic',
         gatewayModel: 'claude-sonnet',
-        harness: 'claude-code',
+        harness: kickedHarness,
+        ...(kickedReason !== undefined ? { harnessReason: kickedReason } : {}),
       };
     },
     poll: async () => null,
@@ -215,6 +224,64 @@ describe('the stepper re-kicking a failed agent attempt', () => {
       credentialRotations: 1,
       resumedFrom: 'conv-1',
     });
+  });
+
+  it('offers the re-kick the conversation with the harness that holds it', async () => {
+    const { ctx, kicks, suspended } = harness(
+      parkedAttempt({
+        result: {
+          errored: true,
+          reason: 'API Error: 502 upstream connect error',
+          failureCode: 'harness_error',
+          agentSessionId: 'conv-1',
+          text: '',
+          files: [],
+        },
+      }),
+    );
+
+    await stepRunImpl(ctx, RUN);
+
+    expect(kicks[0]?.resume).toEqual({
+      agentSessionId: 'conv-1',
+      reason: 'API Error: 502 upstream connect error',
+      harness: 'claude-code',
+    });
+    expect(parkedCursor(suspended)).toMatchObject({
+      harness: 'claude-code',
+      resumedFrom: 'conv-1',
+    });
+  });
+
+  it('starts fresh when the re-kick resolves another harness than the conversation ran on', async () => {
+    // A step on the default that began on Claude Code, retried after the
+    // default moved: the host resolves Pi, which cannot continue Claude
+    // Code's conversation, so the cursor records no resume — and the
+    // re-kick's own reason, not the failed attempt's.
+    const { ctx, kicks, suspended } = harness(
+      parkedAttempt({
+        harnessReason: 'subscription_bound',
+        result: {
+          errored: true,
+          reason: 'API Error: 502 upstream connect error',
+          failureCode: 'harness_error',
+          agentSessionId: 'conv-1',
+          text: '',
+          files: [],
+        },
+      }),
+      1,
+      'pi',
+      'default',
+    );
+
+    await stepRunImpl(ctx, RUN);
+
+    expect(kicks).toHaveLength(1);
+    const cursor = parkedCursor(suspended);
+    expect(cursor).toMatchObject({ harness: 'pi', harnessReason: 'default' });
+    expect(cursor).not.toHaveProperty('resumedFrom');
+    expect(cursor).not.toHaveProperty('resumeReason');
   });
 
   it('spends an attempt on an ordinary failure and burns its account', async () => {
@@ -674,6 +741,7 @@ describe('the stepper re-kicking a failed agent attempt', () => {
       agentSessionId: 'conv-ask',
       reason:
         "the agent turn is waiting for sandbox room: the organization's workflow sessions are all in use",
+      harness: 'claude-code',
       askId: 'ask-1',
     });
     expect(parkedCursor(suspended)).toMatchObject({

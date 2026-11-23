@@ -7,6 +7,10 @@ import {
 } from '../../../lib/harnesses/timeline';
 import type { AgentRunWaitingReason } from '../../../lib/shared/agent-run-waiting';
 import { AppError } from '../../../lib/shared/errors/app-error';
+import {
+  type HarnessReason,
+  isHarnessReason,
+} from '../../../lib/shared/harness-reason';
 import { readSkillBundleForViewer } from '../../core/skills/file_actions.ts';
 import type { MentionSource } from '../../core/tasks/mentions.ts';
 import { toJson } from '../../db/sql.ts';
@@ -145,6 +149,27 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
         FROM app.project_agent_runs WHERE id = ${args.runId} LIMIT 1
       `;
       return rows[0] ?? null;
+    },
+
+    /**
+     * Why the run's kick chose its harness (`harness_reason`, migration
+     * 0241), for the op each of its turns opens — the fresh start and a
+     * steer's restart alike record what the kick decided. Null for a run an
+     * earlier image kicked, and for one that is gone.
+     */
+    'tasks/agent_runs:getTaskAgentRunHarnessReason': async (
+      raw,
+    ): Promise<HarnessReason | null> => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
+      const args = raw as { organizationId: string; runId: string };
+      const rows = await sql<{ harnessReason: string | null }[]>`
+        SELECT harness_reason AS "harnessReason"
+        FROM app.project_agent_runs
+        WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+        LIMIT 1
+      `;
+      const reason = rows[0]?.harnessReason;
+      return isHarnessReason(reason) ? reason : null;
     },
 
     /**
@@ -541,6 +566,9 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
         /** The harness the turn runs on — stamped by the open, read by the
          * harness-turn metrics ahead of the session's create-time stamp. */
         harness?: string;
+        /** Why the turn runs on that harness — the rule its host applied,
+         * which the run's details tell (migration 0240). */
+        harnessReason?: HarnessReason;
         agentSlug?: string;
         deadlineMs?: number;
         heartbeatAt?: number;
@@ -574,9 +602,10 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
             org_id, session_id, thread_id, exec_id, kind, status,
             progress_text, live_timeline, agent_session_id, exit_code,
             agent_result_status, user_id, model_ref, vision_model_ref,
-            harness, agent_slug, deadline_ms, heartbeat_at_ms,
-            last_event_at_ms, last_seq, minted_key_id, spent_cents,
-            budget_cents, spend_settled_at_ms, started_at_ms, finished_at_ms
+            harness, harness_reason, agent_slug, deadline_ms,
+            heartbeat_at_ms, last_event_at_ms, last_seq, minted_key_id,
+            spent_cents, budget_cents, spend_settled_at_ms, started_at_ms,
+            finished_at_ms
           ) VALUES (
             ${args.organizationId}, ${args.sessionId}, ${args.threadId ?? null},
             ${args.execId}, ${args.kind}, ${args.status},
@@ -585,7 +614,7 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
             ${args.agentSessionId ?? null}, ${args.exitCode ?? null},
             ${args.agentResultStatus ?? null}, ${args.userId ?? null},
             ${args.modelRef ?? null}, ${args.visionModelRef ?? null},
-            ${args.harness ?? null},
+            ${args.harness ?? null}, ${args.harnessReason ?? null},
             ${args.agentSlug ?? null}, ${args.deadlineMs ?? null},
             ${args.heartbeatAt ?? now}, ${args.lastEventAt ?? null},
             ${args.lastSeq ?? null}, ${args.mintedKeyId ?? null},
@@ -618,6 +647,8 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
               app.sandbox_session_ops.vision_model_ref),
             harness = coalesce(EXCLUDED.harness,
               app.sandbox_session_ops.harness),
+            harness_reason = coalesce(EXCLUDED.harness_reason,
+              app.sandbox_session_ops.harness_reason),
             deadline_ms = coalesce(EXCLUDED.deadline_ms,
               app.sandbox_session_ops.deadline_ms),
             -- Delayed progress carries its callback time; it must not
@@ -880,6 +911,7 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
           spendSettledAt: number | null;
           keyRevokedAt: number | null;
           budgetCents: number | null;
+          relaySpentCents: number;
         }[]
       >`
         SELECT minted_key_id AS "mintedKeyId",
@@ -888,7 +920,8 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
                resumed_by AS "resumedBy",
                spend_settled_at_ms::float8 AS "spendSettledAt",
                key_revoked_at_ms::float8 AS "keyRevokedAt",
-               budget_cents::float8 AS "budgetCents"
+               budget_cents::float8 AS "budgetCents",
+               relay_spent_cents::float8 AS "relaySpentCents"
         FROM app.sandbox_session_ops
         WHERE session_id = ${args.sessionId} AND exec_id = ${args.execId}
         LIMIT 1
@@ -905,12 +938,14 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
         keyRevoked: row.keyRevokedAt !== null,
         // The hold the turn took: 0 for a subscription turn's request.
         ...(row.budgetCents !== null ? { budgetCents: row.budgetCents } : {}),
+        // What the model relay booked on a relay key (0 for a gateway key).
+        relaySpentCents: row.relaySpentCents,
       };
     },
 
     // Whom a turn acts for — the run's starter, the subject its spend cap
     // binds — so the host reads that person's context limit for the turn's
-    // model window (`resolveHarnessTurnContextWindow`).
+    // model window (`resolveHarnessTurnModelLimits`).
     'sandbox/session_queries:getSessionOpAttribution': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
       const args = raw as {

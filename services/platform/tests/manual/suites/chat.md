@@ -1034,7 +1034,8 @@ in chat (mode A: the mock's).
   `e2e:propose-agent {first project}` → the timeline shows **Drafting a new
   agent for {first project}** (`chat.thinking.proposing.createAgent`), and a
   card **New agent in {first project}** (`chat.proposal.title.createAgent`)
-  lists **Name** Proofreader, **Model**, **Agent runtime**, **Skills** (the
+  lists **Name** Proofreader, **Model**, **Agent runtime** Pi (the default
+  agent runtime, which runs the model), **Skills** (the
   document skills the project can equip, as **New agent** ticks them) and
   **Instructions**, marked **Proposed** with **Nothing changes until you apply
   it.** (`chat.proposal.nothingYet`). The project's **Agents** tab has no

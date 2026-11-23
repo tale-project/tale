@@ -122,6 +122,9 @@ export interface SessionSpec {
   profile: SandboxSessionProfile;
   /** Resolved capability for this incarnation; absent uses the deployment default. */
   docker?: boolean;
+  /** The most one file of a `default` session may weigh, where its creator
+   * asked for other than the profile's own (`sessionLimits`). */
+  maxFileBytes?: number;
   /** Clamped by the route layer to cfg.session.maxLifetimeMs / maxIdleMs. */
   ttlMs: number;
   idleTimeoutMs: number;

@@ -39,11 +39,10 @@ import { isIpv4Address, parseDindInnerPool } from '../../network-address.ts';
 import { transparentEgressSupported } from '../../runtime-tier.ts';
 import { RUNNERD_INCARNATION_ENV } from '../../session/runnerd-protocol.ts';
 import {
-  DEFAULT_SESSION_PROFILE,
   isAgentSessionProfile,
   SESSION_NO_PROXY,
-  sessionAgentProfile,
   sessionDindEnabled,
+  sessionLimits,
   sessionPinsEgressAddress,
 } from '../../session/session-profile.ts';
 import type {
@@ -121,11 +120,10 @@ export function sessionShape(
   cfg: SpawnerConfig,
   profile: SandboxSessionProfile,
   docker?: boolean,
+  maxFileBytes?: number,
 ): SessionShape {
   const dind = sessionDindEnabled(cfg, profile, docker);
-  const limits = isAgentSessionProfile(profile)
-    ? sessionAgentProfile(cfg, dind)
-    : DEFAULT_SESSION_PROFILE;
+  const limits = sessionLimits(cfg, profile, dind, maxFileBytes);
   const transparentEgress =
     cfg.transparentEgress && transparentEgressSupported(cfg.runtimeTier);
   const resizeShm = (incusSizeBytes(limits.shmSize) ?? 0) > IMAGE_SHM_BYTES;
@@ -314,6 +312,8 @@ export interface SessionInstanceInput {
   organizationId: string;
   profile: SandboxSessionProfile;
   docker?: boolean;
+  /** The per-file cap a `default` session's creator asked for. */
+  maxFileBytes?: number;
   createdAtMs: number;
   /** Random per create attempt; a failed create removes only its own. */
   createAttemptId: string;
@@ -373,7 +373,12 @@ export function buildSessionInstance(
 ): IncusInstanceCreate {
   assertInput(input);
   const incus = incusOf(cfg);
-  const shape = sessionShape(cfg, input.profile, input.docker);
+  const shape = sessionShape(
+    cfg,
+    input.profile,
+    input.docker,
+    input.maxFileBytes,
+  );
   const bootUser = shape.bootsAsRoot
     ? { uid: 0, gid: 0 }
     : { uid: shape.uid, gid: shape.gid };

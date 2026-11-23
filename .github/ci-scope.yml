@@ -172,7 +172,7 @@ sandbox-incus:
   - ".github/workflows/sandbox-incus-e2e.yml"
 
 # The CLI's Incus runtime against a real node (cli-incus-e2e.yml): what the
-# compiler, the planner and the managed path read, the eight stack images'
+# compiler, the planner and the managed path read, the seven stack images'
 # builds and the lab itself, with the sandbox lab's helpers its suites
 # import. tools/cli/scripts/ci-ready-workflows.test.ts holds it to the import
 # closure of tools/cli/src/lib/runtime/incus.
@@ -204,8 +204,6 @@ cli-incus:
   - "services/sandbox/entrypoint.sh"
   - "services/sandbox/e2e/incus/**"
   - "services/sandbox-egress/**"
-  - "services/sandbox-llm-gateway/Dockerfile"
-  - "services/sandbox-llm-gateway/docker-entrypoint.sh"
   - "services/sandbox-runtime/Dockerfile"
   - "services/sandbox-runtime/docker-entrypoint.sh"
   - "services/sandbox-runtime/entrypoint.sh"
@@ -277,9 +275,6 @@ build_db:
 
 build_proxy:
   - "services/proxy/**"
-
-build_sandbox-llm-gateway:
-  - "services/sandbox-llm-gateway/**"
 
 build_web:
   - "services/web/**"
@@ -357,7 +352,6 @@ build_ci_tests:
   - "services/db/**"
   - *platform_sources
   - "services/proxy/**"
-  - "services/sandbox-llm-gateway/**"
   - "services/sandbox/**"
   - "packages/incus/**"
   - "services/sandbox-egress/**"

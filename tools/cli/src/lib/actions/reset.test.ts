@@ -72,7 +72,8 @@ const PRUNED = { success: true, stdout: '', stderr: '', exitCode: 0 };
 /**
  * The volumes `tale deploy` creates for project `tale`: the eleven that
  * #4981 saw survive `reset --all`, without `tale_backups`, which holds the
- * snapshots `tale restore` lists.
+ * snapshots `tale restore` lists, and the model gateway's store, which an
+ * earlier release created and a deployment keeps until it is removed.
  */
 const DATA_VOLUMES = [
   'tale_static-assets',
@@ -84,6 +85,8 @@ const DATA_VOLUMES = [
   'tale_proxy-data',
   'tale_db-data',
   'tale_db-backup',
+  // The blob store's volume, and MinIO's from before it.
+  'tale_blob-data',
   'tale_object-store-data',
   'tale_llm-gateway-data',
 ];
@@ -207,6 +210,31 @@ describe('reset', () => {
     // CLI is gone and pins the project network against the prune.
     expect(removedContainers()).toContain('tale-db');
     expect(removedContainers()).toContain('tale-bgutil-provider');
+  });
+
+  // The model relay replaced the sandbox LLM gateway (tale-project/tale#4942),
+  // and a deploy keeps a gateway an earlier release left while keys it minted
+  // settle. A reset wipes on purpose: the gateway goes with the stateful tier,
+  // before its volume goes with the others.
+  test('--all removes a gateway an earlier release left, then its volume', async () => {
+    const order: string[] = [];
+    removeContainerMock.mockImplementation((name: string) => {
+      order.push(`container ${name}`);
+      return Promise.resolve(true);
+    });
+    const docker = dockerMock.getMockImplementation();
+    dockerMock.mockImplementation((...args: string[]) => {
+      if (args[0] === 'volume' && args[1] === 'rm')
+        order.push(`volume ${args[2]}`);
+      return docker?.(...args) ?? Promise.resolve(PRUNED);
+    });
+
+    await reset({ env, force: true, includeStateful: true, dryRun: false });
+
+    expect(order).toContain('container tale-sandbox-llm-gateway');
+    expect(order.indexOf('container tale-sandbox-llm-gateway')).toBeLessThan(
+      order.indexOf('volume tale_llm-gateway-data'),
+    );
   });
 
   test('--all deletes each data volume by name, never the snapshots or the dev stack', async () => {

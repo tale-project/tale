@@ -50,10 +50,51 @@ mount_shm() {
 mount_shm
 
 # ============================================================================
+# The profile: what the server is sized for
+# ============================================================================
+# `standard`, or no profile, is postgresql.conf as it is: a server with a
+# gigabyte or more to itself. `small` is a server that shares a host of half
+# a gigabyte with everything else `tale deploy` starts, and keeps BM25 search:
+#
+# - shared_buffers 32MB: the shared memory every page it holds stays resident
+#   in. Past it PostgreSQL reads through the host's page cache, which the host
+#   may take back.
+# - work_mem 4MB and maintenance_work_mem 32MB: what one sort, one hash and
+#   one index build or vacuum may take on top.
+# - max_connections 40: the one application process opens 15 at most.
+# - one autovacuum worker and no parallel query: each would be one more
+#   process with a work_mem of its own.
+# - pg_stat_statements.max 1000: a tenth of the entries, in shared memory.
+#
+# A DB_ variable the operator sets still wins over the profile's value.
+PROFILE_ARGS=()
+case "${DB_PROFILE:-standard}" in
+    standard) ;;
+    small)
+        : "${DB_MAX_CONNECTIONS:=40}"
+        : "${DB_SHARED_BUFFERS:=32MB}"
+        : "${DB_EFFECTIVE_CACHE_SIZE:=256MB}"
+        : "${DB_MAINTENANCE_WORK_MEM:=32MB}"
+        : "${DB_WORK_MEM:=4MB}"
+        PROFILE_ARGS=(
+            "-c" "autovacuum_max_workers=1"
+            "-c" "max_parallel_workers_per_gather=0"
+            "-c" "max_parallel_maintenance_workers=0"
+            "-c" "max_parallel_workers=0"
+            "-c" "pg_stat_statements.max=1000"
+        )
+        ;;
+    *)
+        echo "ERROR: DB_PROFILE must be small or standard; got: ${DB_PROFILE}" >&2
+        exit 1
+        ;;
+esac
+
+# ============================================================================
 # Build PostgreSQL command-line arguments from DB_ variables
 # ============================================================================
 
-POSTGRES_ARGS=()
+POSTGRES_ARGS=("${PROFILE_ARGS[@]}")
 
 # Connection settings
 if [ -n "$DB_MAX_CONNECTIONS" ]; then
@@ -99,9 +140,12 @@ echo "Tale DB Starting"
 echo "=================================================="
 echo "Database: ${POSTGRES_DB}"
 echo "User: ${POSTGRES_USER}"
+echo "Profile: ${DB_PROFILE:-standard}"
 echo "Max Connections: ${DB_MAX_CONNECTIONS:-100}"
 echo "Shared Buffers: ${DB_SHARED_BUFFERS:-256MB}"
 echo "Effective Cache Size: ${DB_EFFECTIVE_CACHE_SIZE:-1GB}"
+echo "Work Mem: ${DB_WORK_MEM:-32MB}"
+echo "Maintenance Work Mem: ${DB_MAINTENANCE_WORK_MEM:-128MB}"
 echo "=================================================="
 
 # ============================================================================

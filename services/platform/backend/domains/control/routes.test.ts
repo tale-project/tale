@@ -53,6 +53,31 @@ describe('the control door', () => {
     expect(await res.json()).toMatchObject({ code: 'UNAUTHORIZED' });
   });
 
+  it('refuses a count of the gateway’s keys without the token [CTRL-R2]', async () => {
+    vi.stubEnv('TALE_CONTROL_TOKEN', TOKEN);
+    const count = vi.fn(async () => 3);
+    const app = createControlRoutes({
+      sql: emptySql(),
+      openGatewayKeys: count,
+    });
+    const res = await app.request('/gateway-keys');
+    expect(res.status).toBe(401);
+    expect(count).not.toHaveBeenCalled();
+  });
+
+  it('answers how many keys the model gateway still has open, as `tale deploy` reads it [CTRL-R6]', async () => {
+    vi.stubEnv('TALE_CONTROL_TOKEN', TOKEN);
+    const sql = emptySql();
+    const count = vi.fn(async () => 3);
+    const app = createControlRoutes({ sql, openGatewayKeys: count });
+    const res = await app.request('/gateway-keys', {
+      headers: { authorization: `Bearer ${TOKEN}` },
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ open: 3 });
+    expect(count).toHaveBeenCalledWith(sql);
+  });
+
   it('answers a call that presents the token [CTRL-R2]', async () => {
     vi.stubEnv('TALE_CONTROL_TOKEN', TOKEN);
     vi.stubEnv('TALE_COLOR', '');

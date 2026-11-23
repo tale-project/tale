@@ -9,11 +9,13 @@ An agent runtime is the coding program that runs an agent’s session in a sandb
 
 In a project’s **Agents** tab, open an agent and choose **Agent runtime**. An automation’s agent node uses the same **Agent runtime** field. Then choose the model and provider. Under **Settings > AI providers**, **Agent runtimes** shows which execution paths the organization can currently serve.
 
+An agent node left on **Default (Pi)** runs on Pi. When only a subscription serves its model, it runs on the agent runtime that subscription is bound to instead, such as Claude Code for a Claude subscription. The organization's [standard agent](/platform/admin/governance/content-models#standard-agent) chooses its runtime the same way unless an admin chooses one for it. A run's agent log names the runtime each turn ran on and why. To keep a node on Claude Code, choose **Claude Code** for it.
+
 A runtime needs both compatible credentials and [sandbox capacity](/platform/admin/sandboxes). A working chat model is not enough. If a runtime is missing or has no models, inspect its status and provider credential before changing the task prompt. A model whose tool calls need OpenAI’s Responses API, such as GPT-6 Astra or GPT-6.1 Sol, runs only on Codex, so the model picker offers it for no other runtime. Qwen Code cannot run a model served through Anthropic’s Messages API: a Claude model, or any model of a provider whose **API format** is **Anthropic Messages API**. Its tools that take no arguments lose their schema on that API, so every call would fail. The model picker does not offer such a model for Qwen Code, and Tale refuses to start a Qwen Code run that names one.
 
 ## Compare supported runtimes
 
-“Managed” means the runtime calls through Tale’s model gateway. “Direct” means the session receives a credential for the provider’s own tooling. The built-in definitions support these combinations; your deployment and credentials determine what is available.
+“Managed” means the runtime calls its models through Tale, which calls the provider for it. “Direct” means the session receives a credential for the provider’s own tooling. The built-in definitions support these combinations; your deployment and credentials determine what is available.
 
 | Agent runtime | Credential path | Receives new instructions in the running process | Tale’s MCP channel |
 | --- | --- | --- | --- |
@@ -24,20 +26,20 @@ A runtime needs both compatible credentials and [sandbox capacity](/platform/adm
 | Hermes | Managed or direct | No | No |
 | OpenClaw | Managed or direct | No | Yes |
 | OpenCode | Managed only | No | Yes |
-| Pi | Managed or direct | No | Yes |
+| Pi | Managed or direct | Yes | Yes |
 | Qwen Code | Managed or direct | No | Yes |
 
 **Claude Code (compact prompt)** is an optional choice for focused workflows that already supply complete task instructions. It shortens the runtime’s built-in instructions and some tool descriptions while retaining tools, hooks, MCP and Tale’s added guidance. Check task results and elapsed time with your model before adopting it; a smaller prompt does not guarantee a faster run. Choose ordinary **Claude Code** to restore its full prompt on the next fresh run. A provider subscription restricted to Claude Code does not automatically support the compact choice.
 
-To guide project work, comment on the task and mention its agent. Claude Code receives that guidance at a tool boundary. For the other runtimes, Tale stops the current process and continues the conversation in a new process with the comment. This is why a running task may restart its process after you give it direction.
+To guide project work, comment on the task and mention its agent. Claude Code receives that guidance at a tool boundary, and Pi once the tools it is running have finished, before its next model call. For the other runtimes, Tale stops the current process and continues the conversation in a new process with the comment. This is why a running task may restart its process after you give it direction.
 
 Gemini CLI is the exception: Tale never continues one of its conversations. A later comment, an automatic retry, or an answer to a question it asked starts a fresh conversation over the same workspace, with the task brief and the earlier rounds restated, because the runtime cannot resume a conversation in which it ran a tool. Its files and output are preserved; only the conversation starts over.
 
 ## Understand credential exposure and cost
 
-With a stored API key or deployment-environment credential, Tale supplies a session-scoped gateway key. The original model-provider key stays at the platform. Calls through this gateway are metered and subject to the applicable spending rules, including allowance already assigned to other running turns.
+With a stored API key or deployment-environment credential, Tale gives each turn a key of its own, good for the turn's models and its spending allowance, images included. The original model-provider key stays at the platform: Tale calls the provider with it at the endpoint the provider's definition names, or, for Claude Code, at the coding-agent endpoint where the definition declares one. Each call is metered and subject to the applicable spending rules, including allowance already assigned to other running turns. A call that ends early is booked at what was sent and relayed by then: the prompt, where each image or document counts as one image, and the output.
 
-Vendor subscriptions use their supported agent runtime and receive the subscription credential in the session environment. Gemini is the exception: its Google sign-in is written to a file in the session’s home folder for the turn, and removed when the turn ends. They cannot be used as ordinary chat credentials or with an incompatible agent runtime, because the vendors permit subscription tokens only in their own runtime; [AI providers](/platform/admin/providers#use-subscriptions-in-tasks-not-in-chat) explains this. Their direct provider calls bypass Tale’s gateway metering and spending caps; review usage with the subscription provider.
+Vendor subscriptions use their supported agent runtime and receive the subscription credential in the session environment. Gemini is the exception: its Google sign-in is written to a file in the session’s home folder for the turn, and removed when the turn ends. They cannot be used as ordinary chat credentials or with an incompatible agent runtime, because the vendors permit subscription tokens only in their own runtime; [AI providers](/platform/admin/providers#use-subscriptions-in-tasks-not-in-chat) explains this. Their direct provider calls bypass Tale’s metering and spending caps; review usage with the subscription provider.
 
 These model-credential rules do not mean the sandbox contains no secrets. Explicitly granted **Secrets**, and the Git access of an equipped GitHub or Forgejo connection, can be available inside it. Grant only the access the task needs.
 

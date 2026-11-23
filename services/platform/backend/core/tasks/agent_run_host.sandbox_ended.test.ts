@@ -93,7 +93,7 @@ vi.mock('../lib/providers/resolve_vision_model', () => ({
   resolveTurnVisionModel: async () => null,
 }));
 vi.mock('../node_only/sandbox/gateway_provisioning', () => ({
-  provisionSessionGatewayKey: async () => ({
+  issueRelayKey: async () => ({
     token: 'test-token',
     keyId: 'key-new',
     keyHash: 'hash-new',

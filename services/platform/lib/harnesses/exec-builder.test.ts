@@ -19,7 +19,9 @@ import {
   isClaudeModelRef,
   PLAYWRIGHT_MCP_ARG_SETS,
   stagedInstructionsPathForExec,
+  steerLine,
 } from './exec-builder';
+import { buildStdinUserMessage } from './parsers/claude-stream-json';
 import { batteryFor, GOLDEN_BYO_ENV, GOLDEN_GATEWAY } from './test-helpers';
 import type { HarnessExec, HarnessRunSpec } from './types';
 
@@ -40,6 +42,14 @@ function fact(slug: string): HarnessDefinition {
   const found = loadHarnesses().find((f) => f.slug === slug);
   if (!found) throw new Error(`shipped facts miss "${slug}"`);
   return found;
+}
+
+/** Pi's staging envelope: the first line of its held RPC stdin. */
+function piEnvelope(exec: HarnessExec): Record<string, unknown> {
+  return JSON.parse((exec.stdin ?? '{}').split('\n')[0] ?? '{}') as Record<
+    string,
+    unknown
+  >;
 }
 
 function managedSpec(overrides?: Partial<HarnessRunSpec>): HarnessRunSpec {
@@ -283,6 +293,45 @@ describe('placeholder substitution safety', () => {
     }
   });
 
+  /** Hermes with one managed env var probing `${model.maxOutputTokens}`,
+   * under a window gate the output limit must not read. */
+  function outputLimitProbe(): HarnessDefinition {
+    const doctored = structuredClone(fact('hermes'));
+    doctored.exec.env = {
+      ...doctored.exec.env,
+      managed: {
+        ...doctored.exec.env?.managed,
+        LIMIT_PROBE: '${model.maxOutputTokens}',
+      },
+    };
+    doctored.exec.contextWindow = { below: 1_000 };
+    return doctored;
+  }
+
+  it('substitutes the model output limit, or empty when it is unknown', () => {
+    const probe = outputLimitProbe();
+    // The window's gate is the window's alone.
+    expect(
+      buildHarnessExec(
+        probe,
+        managedSpec({ contextWindow: 262_144, maxOutputTokens: 65_536 }),
+      ).env.LIMIT_PROBE,
+    ).toBe('65536');
+    // Unknown is not an error, as for the window: the template gets an empty
+    // value.
+    expect(
+      buildHarnessExec(probe, managedSpec({ contextWindow: 262_144 })).env
+        .LIMIT_PROBE,
+    ).toBe('');
+    // Only a whole, positive token count is a limit.
+    for (const invalid of [0, -1, 8_192.5, Number.NaN, Infinity]) {
+      expect(
+        buildHarnessExec(probe, managedSpec({ maxOutputTokens: invalid })).env
+          .LIMIT_PROBE,
+      ).toBe('');
+    }
+  });
+
   type DocFragment = NonNullable<
     HarnessDefinition['exec']['envDocs']
   >[string]['fragments'][number];
@@ -295,7 +344,7 @@ describe('placeholder substitution safety', () => {
     const doctored = structuredClone(fact('pi'));
     const stdin = doctored.exec.stdin;
     const models =
-      stdin.mode === 'json-envelope'
+      stdin.mode === 'json-envelope' || stdin.mode === 'json-envelope-rpc'
         ? stdin.envelope.find(
             (entry) => 'doc' in entry && entry.doc.key === 'models',
           )
@@ -307,8 +356,7 @@ describe('placeholder substitution safety', () => {
     return doctored;
   }
   const probeOf = (exec: HarnessExec): unknown =>
-    (JSON.parse(exec.stdin ?? '{}') as { models?: { probe?: unknown } }).models
-      ?.probe;
+    (piEnvelope(exec) as { models?: { probe?: unknown } }).models?.probe;
 
   it('resolves a number template to its number, and leaves an empty one out', () => {
     const probe = numberProbe({
@@ -325,6 +373,38 @@ describe('placeholder substitution safety', () => {
     expect(probeOf(buildHarnessExec(probe, managedSpec()))).toEqual({
       slots: [1],
     });
+  });
+
+  it('resolves an empty number template to its default instead of leaving it out', () => {
+    const probe = numberProbe({
+      probe: {
+        window: { $number: '${model.contextWindow}', default: 200_000 },
+        limit: { $number: '${model.maxOutputTokens}', default: 32_000 },
+        slots: [1, { $number: '${model.maxOutputTokens}', default: 0 }],
+      },
+    });
+    expect(
+      probeOf(
+        buildHarnessExec(
+          probe,
+          managedSpec({ contextWindow: 49_152, maxOutputTokens: 12_288 }),
+        ),
+      ),
+    ).toEqual({ window: 49_152, limit: 12_288, slots: [1, 12_288] });
+    expect(probeOf(buildHarnessExec(probe, managedSpec()))).toEqual({
+      window: 200_000,
+      limit: 32_000,
+      slots: [1, 0],
+    });
+  });
+
+  it('refuses other text even where a default stands by', () => {
+    const probe = numberProbe({
+      probe: { window: { $number: '${gateway.token}', default: 200_000 } },
+    });
+    expect(() => buildHarnessExec(probe, managedSpec())).toThrow(
+      /whole number/,
+    );
   });
 
   it('refuses a number template that resolves to other text, without repeating it', () => {
@@ -438,8 +518,7 @@ describe('Pi offers the mounted servers to the model', () => {
   const BRIDGE = 'http://platform.internal/api/connectors';
   /** The `mcpServers` of the mcp.json tale-pi-run stages, if any. */
   const servers = (exec: HarnessExec): unknown =>
-    (JSON.parse(exec.stdin ?? '{}') as { mcp?: { mcpServers?: unknown } }).mcp
-      ?.mcpServers;
+    (piEnvelope(exec) as { mcp?: { mcpServers?: unknown } }).mcp?.mcpServers;
 
   it('stages the browser and the bridge, each exposed directly', () => {
     const exec = buildHarnessExec(
@@ -455,18 +534,17 @@ describe('Pi offers the mounted servers to the model', () => {
         args: [...(PLAYWRIGHT_MCP_ARG_SETS[0] ?? [])],
         exposure: 'direct',
       },
+      // The platform's MCP server over HTTP: no relay process starts.
       connectors: {
-        command: 'tale-connectors-mcp',
-        env: {
-          TALE_CONNECTORS_URL: BRIDGE,
-          TALE_CONNECTORS_TOKEN: '${TALE_GATEWAY_TOKEN}',
-        },
+        url: `${BRIDGE}/mcp`,
+        headers: { Authorization: 'Bearer ${TALE_GATEWAY_TOKEN}' },
         exposure: 'direct',
       },
     });
-    // The session key reaches the bridge through Pi's environment, never the
-    // staged file.
+    // The session key reaches the bridge through Pi's environment, which it
+    // reads into the header, never the staged file.
     expect(exec.stdin).not.toContain(GOLDEN_GATEWAY.token);
+    expect(exec.stdin).not.toContain('tale-connectors-mcp');
     expect(exec.env.TALE_GATEWAY_TOKEN).toBe(GOLDEN_GATEWAY.token);
   });
 
@@ -488,7 +566,7 @@ describe("Pi sizes the conversation to the model's window", () => {
   /** The model entries of the models.json tale-pi-run stages. */
   const models = (exec: HarnessExec): unknown =>
     (
-      JSON.parse(exec.stdin ?? '{}') as {
+      piEnvelope(exec) as {
         models?: { providers?: Record<string, { models?: unknown }> };
       }
     ).models?.providers?.['tale-gateway']?.models;
@@ -502,7 +580,7 @@ describe("Pi sizes the conversation to the model's window", () => {
       managedSpec({ model: 'claude-opus-4-6', contextWindow: 196_608 }),
     );
     expect(models(exec)).toEqual([
-      { id: 'claude-opus-4-6', contextWindow: 196_608 },
+      { id: 'claude-opus-4-6', contextWindow: 196_608, input: ['text'] },
     ]);
   });
 
@@ -511,7 +589,140 @@ describe("Pi sizes the conversation to the model's window", () => {
       fact('pi'),
       managedSpec({ model: 'claude-opus-4-6' }),
     );
-    expect(models(exec)).toEqual([{ id: 'claude-opus-4-6' }]);
+    expect(models(exec)).toEqual([{ id: 'claude-opus-4-6', input: ['text'] }]);
+  });
+
+  it('hands its model the catalog output limit', () => {
+    // Pi asks every request of a model without one for at most 16,384
+    // output tokens, however much more the model may write.
+    const exec = buildHarnessExec(
+      fact('pi'),
+      managedSpec({
+        model: 'claude-opus-4-6',
+        contextWindow: 196_608,
+        maxOutputTokens: 65_536,
+      }),
+    );
+    expect(models(exec)).toEqual([
+      {
+        id: 'claude-opus-4-6',
+        contextWindow: 196_608,
+        maxTokens: 65_536,
+        input: ['text'],
+      },
+    ]);
+  });
+
+  it('leaves an unknown output limit to Pi, and takes each limit on its own', () => {
+    const windowOnly = buildHarnessExec(
+      fact('pi'),
+      managedSpec({ model: 'claude-opus-4-6', contextWindow: 196_608 }),
+    );
+    expect(models(windowOnly)).toEqual([
+      { id: 'claude-opus-4-6', contextWindow: 196_608, input: ['text'] },
+    ]);
+    const limitOnly = buildHarnessExec(
+      fact('pi'),
+      managedSpec({ model: 'claude-opus-4-6', maxOutputTokens: 65_536 }),
+    );
+    expect(models(limitOnly)).toEqual([
+      { id: 'claude-opus-4-6', maxTokens: 65_536, input: ['text'] },
+    ]);
+  });
+
+  it('stages no model limits on a bring-your-own run', () => {
+    // byo resolves the model against Pi's own registry, which knows it.
+    const byo = buildHarnessExec(fact('pi'), {
+      prompt: 'p',
+      credential: { mode: 'byo', env: GOLDEN_BYO_ENV },
+      workdir: '/agent/workspace',
+      model: 'anthropic/claude-opus-4-6',
+      contextWindow: 196_608,
+      maxOutputTokens: 65_536,
+    });
+    expect(piEnvelope(byo)).not.toHaveProperty('models');
+  });
+});
+
+describe('Pi reads images, thinks and waits as the relay does', () => {
+  /** The one model entry of the models.json tale-pi-run stages. */
+  const model = (exec: HarnessExec): Record<string, unknown> | undefined =>
+    (
+      piEnvelope(exec) as {
+        models?: {
+          providers?: Record<string, { models?: Record<string, unknown>[] }>;
+        };
+      }
+    ).models?.providers?.['tale-gateway']?.models?.[0];
+  const settings = (exec: HarnessExec): unknown => piEnvelope(exec).settings;
+
+  it('lists images among the inputs of a model that reads them itself', () => {
+    // Pi replaces every image with a placeholder for a model whose input
+    // lists text alone; no polyfill reads them for a model that sees.
+    const sees = buildHarnessExec(
+      fact('pi'),
+      managedSpec({
+        model: 'claude-opus-4-6',
+        vision: { model: 'claude-opus-4-6', polyfillReads: false },
+      }),
+    );
+    expect(model(sees)?.input).toEqual(['text', 'image']);
+  });
+
+  it('keeps a text-only model on text, polyfilled or without a vision lane', () => {
+    const polyfilled = buildHarnessExec(
+      fact('pi'),
+      managedSpec({
+        model: 'deepseek-chat',
+        vision: { model: 'qwen3-vl', polyfillReads: true },
+      }),
+    );
+    expect(model(polyfilled)?.input).toEqual(['text']);
+    const noLane = buildHarnessExec(
+      fact('pi'),
+      managedSpec({ model: 'deepseek-chat' }),
+    );
+    expect(model(noLane)?.input).toEqual(['text']);
+  });
+
+  it('marks a model it may tell how hard to think, and only that one', () => {
+    const reasons = buildHarnessExec(
+      fact('pi'),
+      managedSpec({ model: 'claude-opus-4-6', reasoning: true }),
+    );
+    expect(model(reasons)?.reasoning).toBe(true);
+    const plain = buildHarnessExec(
+      fact('pi'),
+      managedSpec({ model: 'claude-opus-4-6' }),
+    );
+    expect(model(plain)).not.toHaveProperty('reasoning');
+  });
+
+  it('thinks at its high level, on a managed run and on a bring-your-own one', () => {
+    const managed = buildHarnessExec(fact('pi'), managedSpec());
+    expect(settings(managed)).toMatchObject({ defaultThinkingLevel: 'high' });
+    const byo = buildHarnessExec(fact('pi'), {
+      prompt: 'p',
+      credential: { mode: 'byo', env: GOLDEN_BYO_ENV },
+      workdir: '/agent/workspace',
+      model: 'anthropic/claude-opus-4-6',
+    });
+    expect(settings(byo)).toMatchObject({ defaultThinkingLevel: 'high' });
+  });
+
+  it('waits for a silent stream as long as the relay does, on a managed run alone', () => {
+    // Pi gives up on a response idle past 300 s by default and asks again
+    // while the relay still serves the first request.
+    const managed = buildHarnessExec(fact('pi'), managedSpec());
+    expect(settings(managed)).toMatchObject({
+      httpIdleTimeoutMs: GOLDEN_GATEWAY.streamIdleTimeoutMs,
+    });
+    const byo = buildHarnessExec(fact('pi'), {
+      prompt: 'p',
+      credential: { mode: 'byo', env: GOLDEN_BYO_ENV },
+      workdir: '/agent/workspace',
+    });
+    expect(settings(byo)).not.toHaveProperty('httpIdleTimeoutMs');
   });
 });
 
@@ -524,7 +735,7 @@ describe("a CLI reaches the bridge as the platform's MCP server", () => {
   // A CLI that mounts the platform's MCP server ([CONN-R34]) starts no relay
   // process; its bearer token stays where the relay's env put it before:
   // claude's argv JSON, codex's exec env, an env reference in the gemini
-  // family's settings and in OpenCode's config.
+  // family's settings, in Pi's mcp.json and in OpenCode's config.
   it('claude-code posts to it with the session key in its --mcp-config', () => {
     const { argv } = exec('claude-code');
     const config = JSON.parse(argv[argv.indexOf('--mcp-config') + 1]);
@@ -569,7 +780,20 @@ describe("a CLI reaches the bridge as the platform's MCP server", () => {
     },
   );
 
-  it.each(['claude-code', 'codex', 'gemini', 'qwen-code', 'opencode'])(
+  // Pi reads a `url` as Streamable HTTP and resolves `${VAR}` in a header
+  // value from its environment.
+  it('pi reads it from its mcp.json with the env key as a reference', () => {
+    const { mcp } = JSON.parse(
+      (exec('pi').stdin ?? '{}').split('\n')[0] ?? '{}',
+    );
+    expect(mcp.mcpServers.connectors).toEqual({
+      url: SERVER,
+      headers: { Authorization: 'Bearer ${TALE_GATEWAY_TOKEN}' },
+      exposure: 'direct',
+    });
+  });
+
+  it.each(['claude-code', 'codex', 'gemini', 'qwen-code', 'pi', 'opencode'])(
     '%s starts no relay process',
     (slug) => {
       expect(execCarries(exec(slug), 'tale-connectors-mcp')).toBe(false);
@@ -1009,8 +1233,26 @@ describe('a managed CLI waits for a silent stream as long as the gateway', () =>
     ).toBe(false);
   });
 
+  // Pi gives up on a response idle past its httpIdleTimeoutMs (300 s by
+  // default, its provider request timeout too) and asks again; its knob is
+  // a key of the settings.json it is staged.
+  it('pi pins the same budget in its settings', () => {
+    const raised = buildHarnessExec(
+      fact('pi'),
+      managedSpec({
+        credential: {
+          mode: 'managed',
+          gateway: { ...GOLDEN_GATEWAY, streamIdleTimeoutMs: 1_800_000 },
+        },
+      }),
+    );
+    expect(piEnvelope(raised).settings).toMatchObject({
+      httpIdleTimeoutMs: 1_800_000,
+    });
+  });
+
   const others = loadHarnesses().filter(
-    (h) => h.exec.bin !== 'claude' && h.slug !== 'codex',
+    (h) => h.exec.bin !== 'claude' && h.slug !== 'codex' && h.slug !== 'pi',
   );
   it.each(others.map((h) => [h.slug, h] as const))(
     '%s builds the same execs whatever the budget',
@@ -1185,4 +1427,53 @@ describe('operator reasoning effort', () => {
       expect(foreign.env.CLAUDE_CODE_EFFORT_LEVEL).toBeUndefined();
     },
   );
+});
+
+describe('a held RPC stdin the platform steers over', () => {
+  /** Pi on the held RPC stdin: the envelope without its prompt entry. */
+  function rpcPi(): HarnessDefinition {
+    const doctored = structuredClone(fact('pi'));
+    const stdin = doctored.exec.stdin;
+    if (stdin.mode !== 'json-envelope' && stdin.mode !== 'json-envelope-rpc') {
+      throw new Error('pi stages a JSON envelope');
+    }
+    doctored.exec.stdin = {
+      mode: 'json-envelope-rpc',
+      envelope: stdin.envelope.filter((entry) => !('prompt' in entry)),
+      rpc: 'pi',
+    };
+    doctored.capabilities.steering = true;
+    return doctored;
+  }
+
+  it("writes the envelope as one line, then the prompt as Pi's prompt command, and holds stdin open", () => {
+    const exec = buildHarnessExec(
+      rpcPi(),
+      managedSpec({
+        prompt: 'Write the report.\nThen say done.',
+        instructions: 'Be brief.',
+      }),
+    );
+    expect(exec.stdinMode).toBe('hold');
+    const lines = (exec.stdin ?? '').split('\n');
+    expect(lines).toHaveLength(3);
+    expect(lines[2]).toBe('');
+    const envelope = JSON.parse(lines[0] ?? '') as Record<string, unknown>;
+    expect(envelope).toMatchObject({ system_prompt: 'Be brief.' });
+    expect(envelope).not.toHaveProperty('prompt');
+    expect(JSON.parse(lines[1] ?? '')).toEqual({
+      type: 'prompt',
+      message: 'Write the report.\nThen say done.',
+    });
+  });
+
+  it('steers each harness in the dialect of its held stdin, and none that holds none', () => {
+    expect(steerLine(rpcPi(), 'Use the new figures.')).toBe(
+      '{"type":"steer","message":"Use the new figures."}\n',
+    );
+    expect(steerLine(fact('claude-code'), 'Use the new figures.')).toBe(
+      buildStdinUserMessage('Use the new figures.'),
+    );
+    expect(steerLine(fact('codex'), 'Use the new figures.')).toBeNull();
+  });
 });

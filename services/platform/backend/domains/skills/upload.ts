@@ -14,6 +14,7 @@ import {
 } from '../../core/lib/storage/blob_ref.ts';
 import {
   s3DeleteObject,
+  ObjectTooLargeError,
   s3GetObjectBytes,
 } from '../../core/lib/storage/object_store.ts';
 import { parseSkillBundleZip } from '../../core/skills/bundle_zip.ts';
@@ -110,22 +111,28 @@ export async function uploadSkillBundlePg(
     }
   };
 
-  let bytes: Uint8Array;
-  try {
-    bytes = await s3GetObjectBytes(store, stagedKey);
-  } catch {
-    throw new AppError({
-      code: 'STORAGE_NOT_FOUND',
-      message: 'Uploaded bundle is missing from storage',
-    });
-  }
-  if (bytes.byteLength > MAX_SKILL_BUNDLE_TOTAL_BYTES) {
+  const tooLarge = async (): Promise<never> => {
     await cleanup();
     throw new AppError({
       code: 'BUNDLE_TOO_LARGE',
       message: `Bundle exceeds ${MAX_SKILL_BUNDLE_TOTAL_BYTES} bytes`,
     });
+  };
+  let bytes: Uint8Array;
+  try {
+    // The limit is the store's to apply, before the bundle is in memory:
+    // the upload door stages files of up to 512 MiB.
+    bytes = await s3GetObjectBytes(store, stagedKey, {
+      maxBytes: MAX_SKILL_BUNDLE_TOTAL_BYTES,
+    });
+  } catch (error) {
+    if (error instanceof ObjectTooLargeError) return tooLarge();
+    throw new AppError({
+      code: 'STORAGE_NOT_FOUND',
+      message: 'Uploaded bundle is missing from storage',
+    });
   }
+  if (bytes.byteLength > MAX_SKILL_BUNDLE_TOTAL_BYTES) return tooLarge();
 
   let parsed: Awaited<ReturnType<typeof parseSkillBundleZip>>;
   try {

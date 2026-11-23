@@ -46,7 +46,7 @@ const SESSION_USE_SLACK_MS = 1_000;
  * the cookie cache, which defers it. A single sign-on row fails the first
  * test (its slide is weeks away), a "don't remember me" row the second (Better
  * Auth never refreshes it), and a regular row passes both. */
-export function betterAuthRecordsUseInTime(
+function betterAuthRecordsUseInTime(
   row: SessionUseRow,
   now: number,
   {

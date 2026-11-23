@@ -456,10 +456,10 @@ describe('auto-selection under the EU/EEA rule [GOV-R17]', () => {
     });
   });
 
-  it('reaches OpenRouter only through a record pointed at eu.openrouter.ai', async () => {
-    // The gateway's built-in OpenRouter connection calls openrouter.ai
-    // whatever the standard record's base URL says; a custom record calls
-    // its own, and openrouter.ai itself may process anywhere.
+  it('reaches OpenRouter only where it is pointed at eu.openrouter.ai', async () => {
+    // The model relay calls every provider at the base URL it names, the
+    // OpenRouter provider's as much as a custom one's; openrouter.ai itself
+    // may process anywhere.
     mockProviders([
       at('openrouter', 'https://eu.openrouter.ai/api/v1'),
       at('openrouter-global', 'https://openrouter.ai/api/v1'),
@@ -481,8 +481,8 @@ describe('auto-selection under the EU/EEA rule [GOV-R17]', () => {
       euRule(),
     );
     await expect(resolveOrgVisionModel(ctx, 'org_1')).resolves.toEqual({
-      providerSlug: 'openrouter-eu',
-      modelId: 'openrouter-eu-vl',
+      providerSlug: 'openrouter',
+      modelId: 'openrouter-vl',
       source: 'cheapest',
     });
   });
@@ -496,7 +496,7 @@ describe('auto-selection under the EU/EEA rule [GOV-R17]', () => {
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
       const rows = cheapAndDear(
         at('outside', 'https://llm.example.com/v1'),
-        at('openrouter', 'https://eu.openrouter.ai/api/v1'),
+        at('openrouter', 'https://openrouter.ai/api/v1'),
       );
       const ctx = fakeCtx(rows, null, endpointPolicy);
       await expect(resolveOrgVisionModel(ctx, 'org_1')).resolves.toBeNull();

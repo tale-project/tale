@@ -2,16 +2,13 @@ import type { Sql } from 'postgres';
 
 import { estimateCostCents } from '../../../lib/chat/turn.ts';
 import { DIRECT_API_AGENT_SLUG } from '../../../lib/shared/constants/usage.ts';
+import { resolveGatewayRouting } from '../../../lib/shared/providers/gateway_routing.ts';
 import { ModelEndpointRefusal } from '../../core/governance/model_endpoint_gate.ts';
 import type { ActionCtx } from '../../core/lib/ctx.ts';
 import {
   gatewayProvisioningFailureStage,
-  provisionSessionGatewayKey,
+  issueRelayKey,
 } from '../../core/node_only/sandbox/gateway_provisioning.ts';
-import {
-  resolveGatewayRouting,
-  revokeVirtualKey,
-} from '../../core/node_only/sandbox/llm_gateway_admin.ts';
 import {
   MODEL_API_OP_KIND,
   modelApiOpSessionId,
@@ -31,6 +28,8 @@ import {
 } from '../governance/budget-gate.ts';
 import { budgetCapPhrase } from '../governance/budget-refusal.ts';
 import { readInFlightReservations } from '../governance/budget-reservations.ts';
+import type { RelayModel } from '../llm_relay/models.ts';
+import { relayLifetime } from '../llm_relay/passthrough.ts';
 import { credentialShimHandlers } from '../provider_credentials/service.ts';
 import {
   reconcileSessionOpKey,
@@ -38,7 +37,7 @@ import {
 } from '../sandbox/spend-settlement.ts';
 import { reserveTurnBudget } from '../sandbox/turn-budget.ts';
 import { type ModelApiModel, ridesModelApiAnthropicLane } from './models.ts';
-import { relayLifetime, type RelayOutcome } from './relay.ts';
+import type { RelayOutcome } from './relay.ts';
 import { ModelApiRefusal, type ModelApiWire } from './wire.ts';
 
 /**
@@ -58,31 +57,24 @@ import { ModelApiRefusal, type ModelApiWire } from './wire.ts';
  *     fit), never minted a smaller allowance it could spend past. A person
  *     or a key with {@link MODEL_API_CONCURRENCY_LIMIT} requests already
  *     running is refused first (429 `MODEL_API_CONCURRENCY_EXCEEDED`).
- *  2. MINT — `provisionSessionGatewayKey` pushes the connector's credential
- *     into the sandbox LLM gateway (fail-closed, as for a session) and mints
- *     a virtual key for this request alone: bound to this organization's
- *     upstream key, allowed this one model, capped by the hold.
- *  3. SETTLE — once the answer is over, the key's cumulative spend is read
- *     from the gateway, booked on the op row and into `app.usage_ledger`
- *     under the person, `__direct_api__` and the key, with the token counts
- *     the relay read, and the key is deleted — the shared `settleGatewayKey`
- *     choreography. The gateway's figure is not the whole story for every
- *     ending, so the request records what the relay saw on its op row when
- *     it ends ({@link spendFactsOf}), and every attempt that settles it —
- *     this one, the reconcile job, the sandbox watchdog's sweep — books it
- *     the same way (`adjustSpendReading`):
- *       - an answer that ended early — the caller hung up, the vendor broke
- *         off, its lifetime ran out, whole answer or stream — is booked at
- *         least at its prompt and the output the relay counted, at the
- *         catalog price: the gateway cancels the vendor call and books only
- *         the usage the vendor had reported by then;
- *       - a request the caller left before it was sent — while its
- *         guardrails judged it or its key was minted — never reached the
- *         gateway: only the gateway's figure for its unused key is booked;
- *       - a finished answer whose usage the vendor reported but whose key
- *         reads 0 has not been booked by the gateway yet: the settlement
- *         waits and retries, and past its grace books the reported usage at
- *         the catalog price.
+ *  2. MINT — `issueRelayKey` mints the request's key for the model relay
+ *     (fail-closed, as for a session: the EU/EEA rule judges the model, and
+ *     the connector's credential must resolve now to one the relay can
+ *     serve). The op row names the key, and the relay books the request's
+ *     call against it. The relay runs in this process and nothing outside
+ *     it presents the key, so no token row is written.
+ *  3. SETTLE — the relay books the call's cost at the catalog price on the
+ *     op row when it ends (`relay.ts`), before the request is closed: a
+ *     call that ended early at least at the prompt the provider read and
+ *     the output it reported or the relay counted by then; a call that
+ *     never reached a provider, or that the provider refused, at nothing.
+ *     The close records the call's counts ({@link spendFactsOf}), and the
+ *     settlement books the op's figure into `app.usage_ledger` under the
+ *     person, `__direct_api__` and the key, and closes the key — the shared
+ *     `settleGatewayKey` choreography, which the reconcile job and the
+ *     sandbox watchdog's sweep run too. A booking the relay could not write
+ *     rides the close as the op's floor, so the settlement books it all the
+ *     same.
  */
 
 /** The most model-endpoint requests one person — and, separately, one API
@@ -90,28 +82,22 @@ import { ModelApiRefusal, type ModelApiWire } from './wire.ts';
 export const MODEL_API_CONCURRENCY_LIMIT = 8;
 /** What a refusal over the concurrency limit tells the caller to wait. */
 const CONCURRENCY_RETRY_AFTER_SECONDS = 2;
-/** How long the gateway gets to book a finished request's cost before the
- * spend is read: its budget accounting runs after the answer has left, off
- * the request's own path. */
-const SETTLE_DELAY_MS = 2_000;
 /** How often a request in flight tells the sweep it is alive. */
 const HEARTBEAT_MS = 60_000;
 /** A request silent this long (no heartbeat) was lost with its process: the
  * sandbox watchdog closes its op, and the settlement sweep books what the
- * gateway metered and deletes its key. */
+ * relay booked on it. */
 export const MODEL_API_OP_STALE_MS = 5 * HEARTBEAT_MS;
 /** The output cap a request that names none holds, when the catalog names
  * no maximum for the model either — and sends upstream, so the hold stays a
  * bound. */
 const DEFAULT_OUTPUT_RESERVE_TOKENS = 4_096;
 
-/** The token counts the relayed answer reported, booked beside the
- * gateway's figure. */
+/** The token counts a relayed call was booked at, which the ledger keeps
+ * beside its cost: the whole prompt, cached or not, and the output. */
 export interface ModelApiUsage {
   inputTokens: number;
   outputTokens: number;
-  /** The share of the prompt served from the vendor's cache. */
-  cachedInputTokens?: number;
 }
 
 /** A request's worst case, which its hold claims. */
@@ -124,7 +110,7 @@ export interface ModelApiWorstCase {
   choiceCount: number;
   /** The prompt plus the output cap once per answer, at the catalog price,
    * rounded up; one cent when the catalog names no price (the figure the
-   * gateway books is the spend either way). */
+   * relay books is the spend either way). */
   cents: number;
   /** The prompt plus the output cap once per answer. */
   tokens: number;
@@ -154,20 +140,21 @@ export function modelApiWorstCase(
   };
 }
 
-/** One request's gateway access: the op it is booked on and the virtual key
- * it may spend through. */
+/** One request's access to its model: the op it is booked on, and the key
+ * the relay serves and books its call under. */
 export interface ModelApiLease {
   organizationId: string;
   sessionId: string;
   execId: string;
-  /** The plaintext `sk-bf-*` — sent to the gateway, never stored or
-   * returned to the caller. */
-  token: string;
+  /** The request's relay key (`tr_…`): the op row names it, and the relay
+   * books the call on the op that names it. */
   keyId: string;
-  /** The model as the gateway routes it (`<record>/<modelId>`). */
-  gatewayModel: string;
-  /** When the request was admitted — where its lifetime starts. */
-  startedAtMs: number;
+  /** The model as the relay serves it: its connector, its id there, and
+   * whether it rides the connector's native Anthropic endpoint. */
+  relayModel: RelayModel;
+  /** The credential each connector serves the request with, as the mint
+   * resolved it; a connector absent here is served with its default. */
+  servingCredentials: Readonly<Record<string, string>>;
 }
 
 /** The ctx the provisioning reads through: credentials and the org slug. */
@@ -181,15 +168,15 @@ function provisioningCtx(sql: Sql): ActionCtx {
 
 /** What the op row records about a request's spend when it ends. */
 export interface ModelApiSpendFacts {
+  /** The least the settlement books: the cost of a call the relay could not
+   * book on the op row itself. */
   floorCents: number | null;
-  expectedCents: number | null;
   inputTokens: number | null;
   outputTokens: number | null;
 }
 
 const NO_FACTS: ModelApiSpendFacts = {
   floorCents: null,
-  expectedCents: null,
   inputTokens: null,
   outputTokens: null,
 };
@@ -207,7 +194,6 @@ async function finalizeModelApiOp(
       status = ${status}, finished_at_ms = ${now},
       finalized_at_ms = coalesce(finalized_at_ms, ${now}),
       floor_cents = ${facts.floorCents},
-      expected_cents = ${facts.expectedCents},
       input_tokens = ${facts.inputTokens},
       output_tokens = ${facts.outputTokens}
     WHERE session_id = ${op.sessionId} AND exec_id = ${op.execId}
@@ -215,7 +201,7 @@ async function finalizeModelApiOp(
   `;
 }
 
-/** A request that never minted a key: close its op and free its hold now —
+/** A request whose op names no key: close its op and free its hold now —
  * nothing can have been spent. */
 async function releaseUnmintedOp(
   sql: Sql,
@@ -312,8 +298,8 @@ function budgetRefusal(
   return new ModelApiRefusal(429, 'BUDGET_EXCEEDED', message, { headers });
 }
 
-/** A provisioning failure in the caller's words: the EU/EEA rule's refusal
- * as the door answers it, the credential when it is the cause, the gateway
+/** A mint failure in the caller's words: the EU/EEA rule's refusal as the
+ * door answers it, the credential when it is the cause, the platform
  * otherwise. */
 function provisioningRefusal(
   error: unknown,
@@ -338,18 +324,18 @@ function provisioningRefusal(
   return new ModelApiRefusal(
     503,
     'MODEL_API_UNAVAILABLE',
-    `The model gateway cannot serve ${model.id} right now; try again shortly.`,
+    `The model endpoints cannot serve ${model.id} right now; try again shortly.`,
     { headers: { 'retry-after': '10' } },
   );
 }
 
 /**
- * Reserve, provision and mint for one request. Throws the coded refusal the
- * caller answers: 429 `MODEL_API_CONCURRENCY_EXCEEDED` or `BUDGET_EXCEEDED`
+ * Reserve and mint for one request. Throws the coded refusal the caller
+ * answers: 429 `MODEL_API_CONCURRENCY_EXCEEDED` or `BUDGET_EXCEEDED`
  * (nothing held), 403 `MODEL_API_MODEL_FORBIDDEN` when the EU/EEA rule
- * refuses the record the key would bind, 503 `MODEL_API_UNAVAILABLE` when
- * the gateway cannot serve the model (the hold released at once, any key
- * minted revoked).
+ * refuses the endpoint the model would be called at, 503
+ * `MODEL_API_UNAVAILABLE` when its credential cannot serve it or no key can
+ * be minted (the hold released at once).
  */
 export async function openModelApiLease(
   sql: Sql,
@@ -364,17 +350,21 @@ export async function openModelApiLease(
     worstCase: ModelApiWorstCase;
   },
 ): Promise<ModelApiLease> {
-  const startedAtMs = Date.now();
-  const anthropicHarnessLane = ridesModelApiAnthropicLane(
-    args.wire,
-    args.model,
-  );
-  const routing = resolveGatewayRouting(
-    args.organizationId,
-    args.model.providerSlug,
-    args.model.modelId,
-    { anthropicHarnessLane },
-  );
+  const anthropicLane = ridesModelApiAnthropicLane(args.wire, args.model);
+  const relayModel: RelayModel = {
+    providerSlug: args.model.providerSlug,
+    modelId: args.model.modelId,
+    anthropicLane,
+    // The name a harness calls the model by: the op row files the call
+    // under it, the provider and the model read back off it for the
+    // ledger, as for an agent turn's call.
+    ref: resolveGatewayRouting(
+      args.organizationId,
+      args.model.providerSlug,
+      args.model.modelId,
+      { anthropicHarnessLane: anthropicLane },
+    ).gatewayModel,
+  };
   const sessionId = modelApiOpSessionId(args.apiKeyId);
   const op = { sessionId, execId: args.requestId };
   const allowance = await reserveTurnBudget(sql, {
@@ -383,7 +373,7 @@ export async function openModelApiLease(
     execId: args.requestId,
     kind: MODEL_API_OP_KIND,
     defaultBudgetCents: args.worstCase.cents,
-    modelRef: `${args.model.providerSlug}/${routing.gatewayModel}`,
+    modelRef: `${relayModel.providerSlug}/${relayModel.ref}`,
     subject: {
       userId: args.userId,
       agentSlug: DIRECT_API_AGENT_SLUG,
@@ -395,27 +385,23 @@ export async function openModelApiLease(
   if (!allowance.allowed) {
     throw budgetRefusal(allowance, args.wire, args.model, args.worstCase);
   }
-  let key: Awaited<ReturnType<typeof provisionSessionGatewayKey>>;
+  let key: Awaited<ReturnType<typeof issueRelayKey>>;
   try {
-    key = await provisionSessionGatewayKey(provisioningCtx(sql), {
+    key = await issueRelayKey(provisioningCtx(sql), {
       organizationId: args.organizationId,
-      sessionId,
       allowedModels: [
         {
-          providerSlug: args.model.providerSlug,
-          modelId: args.model.modelId,
-          anthropicHarnessLane,
+          providerSlug: relayModel.providerSlug,
+          modelId: relayModel.modelId,
+          anthropicHarnessLane: anthropicLane,
         },
       ],
       surface: 'model-api',
       actor: { id: args.userId, type: 'api' },
-      budgetCents: allowance.budgetCents,
-      requestScoped: true,
-      requestId: args.requestId,
     });
   } catch (error) {
     console.error(
-      `[model-api] ${args.organizationId}: the gateway could not serve ${args.model.id} for request ${args.requestId}:`,
+      `[model-api] ${args.organizationId}: no key could be minted to serve ${args.model.id} for request ${args.requestId}:`,
       error,
     );
     await releaseUnmintedOp(sql, op);
@@ -427,18 +413,13 @@ export async function openModelApiLease(
       WHERE session_id = ${sessionId} AND exec_id = ${args.requestId}
     `;
   } catch (error) {
-    // A key the op row does not name is one no settlement can find: revoke
-    // it now rather than leave a live, unaccounted key in the gateway.
+    // The relay books a call only on the op that names its key: without the
+    // name, the request is not relayed. The key itself lives nowhere else,
+    // so nothing is left to revoke.
     console.error(
-      `[model-api] ${args.organizationId}: request ${args.requestId} could not record its gateway key; revoking it:`,
+      `[model-api] ${args.organizationId}: request ${args.requestId} could not record its key:`,
       error,
     );
-    await revokeVirtualKey(key.keyId).catch((revokeError: unknown) => {
-      console.error(
-        `[model-api] revoking the unrecorded key ${key.keyId} of request ${args.requestId} failed:`,
-        revokeError,
-      );
-    });
     await releaseUnmintedOp(sql, op).catch((releaseError: unknown) => {
       console.error(
         `[model-api] releasing the hold of request ${args.requestId} failed; the watchdog closes it once it is stale:`,
@@ -456,10 +437,9 @@ export async function openModelApiLease(
     organizationId: args.organizationId,
     sessionId,
     execId: args.requestId,
-    token: key.token,
     keyId: key.keyId,
-    gatewayModel: routing.gatewayModel,
-    startedAtMs,
+    relayModel,
+    servingCredentials: key.servingCredentials,
   };
 }
 
@@ -485,69 +465,19 @@ export function heartbeatModelApiOp(
   return () => clearInterval(timer);
 }
 
-/** How a request ended, with what its settlement books by. */
-export interface ModelApiEnding {
-  outcome: RelayOutcome;
-  model: ModelApiModel;
-  /** The prompt estimate the hold was sized with. */
-  promptTokens: number;
-}
-
 /**
- * What the op row records about a request's spend when it ends — the facts
- * every settlement attempt books by, beside the gateway's figure:
- *  - a finished answer: the usage it reported, and that usage at the
- *    catalog price (a zero gateway reading is then not final);
- *  - an answer that ended early: its prompt (the vendor's count, else the
- *    estimate) and the output the relay counted, at the catalog price —
- *    the floor of what is booked;
- *  - a request that never left this process (the caller hung up before it
- *    was sent, or the gateway connection was never made; the relay counted
- *    nothing): no facts, so only the gateway's figure is booked.
+ * What the op row records about a request's spend when it ends: the counts
+ * the relay booked its call at, which the ledger keeps beside the cost, and
+ * — only for a call whose booking failed — its cost as the floor the
+ * settlement books at least. Every other figure is on the op row already:
+ * the relay booked it before the request was closed.
  */
-export function spendFactsOf(ending: ModelApiEnding): ModelApiSpendFacts {
-  const { outcome, model } = ending;
-  if (outcome.status === 'completed') {
-    const usage = outcome.usage;
-    if (usage === undefined || usage.inputTokens + usage.outputTokens === 0) {
-      return NO_FACTS;
-    }
-    const cents = estimateCostCents(
-      usage.inputTokens,
-      usage.outputTokens,
-      model.pricing,
-      usage.cachedInputTokens ?? 0,
-    );
-    return {
-      ...NO_FACTS,
-      expectedCents: cents > 0 ? cents : null,
-      inputTokens: usage.inputTokens,
-      outputTokens: usage.outputTokens,
-    };
-  }
-  if (outcome.countedOutputTokens === undefined) return NO_FACTS;
-  const reported = outcome.usage;
-  // The vendor's own prompt count, with the share it served from its cache
-  // (priced at the cache rate); else the estimate, all at the input rate.
-  const vendorCounted = reported !== undefined && reported.inputTokens > 0;
-  const inputTokens = vendorCounted
-    ? reported.inputTokens
-    : ending.promptTokens;
-  const outputTokens = Math.max(
-    reported?.outputTokens ?? 0,
-    outcome.countedOutputTokens,
-  );
-  const cents = estimateCostCents(
-    inputTokens,
-    outputTokens,
-    model.pricing,
-    vendorCounted ? (reported.cachedInputTokens ?? 0) : 0,
-  );
+export function spendFactsOf(outcome: RelayOutcome): ModelApiSpendFacts {
+  if (outcome.usage === undefined) return NO_FACTS;
   return {
-    ...NO_FACTS,
-    floorCents: cents > 0 ? cents : null,
-    inputTokens,
-    outputTokens,
+    floorCents: outcome.unbookedCents ?? null,
+    inputTokens: outcome.usage.inputTokens,
+    outputTokens: outcome.usage.outputTokens,
   };
 }
 
@@ -573,50 +503,46 @@ export async function settleModelApiOp(
   });
 }
 
-/** End a request: close its op with the facts its settlement books by, then
- * settle it shortly, once the gateway has booked the cost. Never throws —
- * the settlement's own backstops own a failure. */
+/** End a request once its call is booked: close its op with the facts its
+ * settlement books by, then settle it — the relay's figure is final by
+ * now. Never throws: the settlement's own backstops own a failure. */
 export function closeModelApiLease(
   sql: Sql,
   lease: ModelApiLease,
-  ending: ModelApiEnding,
+  outcome: RelayOutcome,
 ): void {
-  const facts = spendFactsOf(ending);
   const op = {
     organizationId: lease.organizationId,
     sessionId: lease.sessionId,
     execId: lease.execId,
   };
-  void finalizeModelApiOp(sql, op, ending.outcome.status, facts)
-    .then(() => {
-      const timer = setTimeout(() => {
-        settleModelApiOp(sql, op).catch((error: unknown) => {
-          console.error(
-            `[model-api] settlement of request ${op.execId} failed; the sandbox watchdog's sweep settles it:`,
-            error,
-          );
-        });
-      }, SETTLE_DELAY_MS);
-      timer.unref();
-    })
-    .catch((error: unknown) => {
+  void finalizeModelApiOp(sql, op, outcome.status, spendFactsOf(outcome)).then(
+    () =>
+      settleModelApiOp(sql, op).catch((error: unknown) => {
+        console.error(
+          `[model-api] settlement of request ${op.execId} failed; the sandbox watchdog's sweep settles it:`,
+          error,
+        );
+      }),
+    (error: unknown) => {
       console.error(
         `[model-api] could not close request ${op.execId}; the watchdog closes and settles it once it is stale:`,
         error,
       );
-    });
+    },
+  );
 }
 
 /**
  * The sandbox watchdog's pass over model-endpoint requests whose process died
  * mid-answer: an op still `running` with no heartbeat for
  * {@link MODEL_API_OP_STALE_MS} is closed as failed, which hands it to the
- * settlement sweep — the gateway's figure is booked and the key deleted,
- * though not before a whole answer it may have been waiting for could have
- * been booked (its lifetime since it started). The gateway cancels a call
- * only once its caller's connection closes, and a process that stopped
- * beating may be hung rather than gone, its connection still open while the
- * vendor answers.
+ * settlement sweep — what the relay booked on the op is booked into the
+ * ledger, though not before a whole answer the process may still be
+ * relaying could have been booked (its lifetime since it started): a
+ * process that stopped beating may be hung rather than gone, its call still
+ * open while the provider answers, and the relay books a call only once it
+ * ends.
  */
 export async function closeStaleModelApiOps(
   sql: Sql,

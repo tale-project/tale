@@ -1433,6 +1433,11 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         .object({
           jobId: z.string().min(1),
           userLocale: z.string().optional(),
+          waitingSince: z.number().int().positive().optional(),
+          waitingAs: z
+            .string()
+            .regex(/^[0-9a-f-]{36}$/)
+            .optional(),
         })
         .parse(payload);
       await runVideoIngestJob(deps.sql, input);
@@ -1453,7 +1458,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
     'browser.sweep': async () => {
       await sweepBrowserSessions(deps.sql);
     },
-    'files.transcribe': async (payload) => {
+    'files.transcribe': async (payload, context) => {
       const input = z
         .object({
           storageId: z.string().min(1),
@@ -1463,7 +1468,9 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           attempt: z.number().int().min(0).optional(),
         })
         .parse(payload);
-      await runTranscribeJob(deps.sql, input);
+      // A job pg-boss gives up on leaves the heavy slot's line, where its
+      // recording may still be waiting to be converted.
+      await runTranscribeJob(deps.sql, input, { signal: context?.signal });
     },
     'task.start_workflow': async (payload) => {
       const input = startWorkflowSchema.parse(payload);

@@ -31,9 +31,10 @@ describe('sizing from the host', () => {
     );
   });
 
-  test('the default reserve covers what the database and application tier reserve', () => {
-    // The CLI's defaults: db 512m, platform 128m, backend-api and
-    // backend-worker 256m each (SANDBOX_RESERVED_MEMORY).
+  test("the default reserve covers what the stack's services reserve", () => {
+    // A stack whose reservations add up to more than 1 GiB
+    // (SANDBOX_RESERVED_MEMORY): the CLI's defaults come to 476 MiB, and
+    // replicas or larger reservations reach this.
     const reservedMemoryBytes = 1152 * 1024 ** 2;
     expect(memoryReserveBytes(8 * GIB, { reservedMemoryBytes })).toBe(
       reservedMemoryBytes,

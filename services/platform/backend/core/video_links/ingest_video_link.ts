@@ -7,8 +7,9 @@
  * reactive-join).
  *
  * Design (after 30 + 15 sub-agent reviews):
- *   - Top-level `try { ... } finally { rm jobDir }` guarantees /tmp/vlink-
- *     <uuid>/ cleanup even on action timeout / OOM / kill -9.
+ *   - yt-dlp runs in a place opened for the video and closed after it
+ *     (`session_place.ts`): a sandbox session, in a deployment. The job
+ *     waits when there is no session to be had, and that is no attempt.
  *   - Phase-boundary status re-check: cancel mutations flip `status` to
  *     `'skipped'`, this action's `assertNotCancelled()` peeks the row
  *     between expensive operations and bails out gracefully (mirrors
@@ -28,8 +29,7 @@
  *     botDetection/rateLimited bypass short-retry (long-jitter or fail).
  */
 
-import { promises as fs } from 'node:fs';
-import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 
 import { sanitizeUntrustedField } from '../../../lib/chat/untrusted-content';
 import { CHAT_AUDIO_MAX_DURATION_SEC } from '../../../lib/shared/file-types';
@@ -44,23 +44,28 @@ import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import type { Id } from '../lib/rows';
-import { deleteBlob, putBlob } from '../lib/storage/blob_access';
+import { deleteBlob, putBlob, putBlobStream } from '../lib/storage/blob_access';
 import type { BlobRef } from '../lib/storage/blob_ref';
+import { SandboxLaneCapacityError } from '../node_only/sandbox/throwaway_session';
 import {
   captionsToParagraphSegments,
   parseVtt,
   rollingWindowDedup,
 } from './captions_parser';
 import type { VideoLinkErrorReason } from './internal_mutations';
+import { inYtdlpPlace } from './session_place';
 import { assertSafeUrl, UrlSafetyError } from './url_safety';
 import {
+  CAPTIONS_MAX_BYTES,
   YtDlpError,
   YtdlpRoute,
-  createJobDir,
-  ytdlpExtractAudio,
+  botWallReason,
+  ytdlpFetchAudio,
   ytdlpJson,
   ytdlpWriteSubs,
   type YtDlpMetadata,
+  type YtdlpMediaFile,
+  type YtdlpPlace,
   type YtdlpSession,
 } from './ytdlp';
 
@@ -81,6 +86,8 @@ const NEVER_RETRY: ReadonlySet<string> = new Set([
   'jsRuntimeMissing',
   'binaryNotInstalled',
   'outputValidationFailed',
+  // The video's own size: a retry fetches the same bytes up to the limit.
+  'videoTooLarge',
   // botDetection + rateLimited would benefit from a long-jitter retry
   // but short retries make YouTube's rate-limit worse. Treat as
   // never-retry for v1; user can manually retry after waiting.
@@ -208,7 +215,17 @@ export function selectCaptionLanguage(
  * shim (the wrapper above keeps the 0.4 wiring). */
 export async function ingestVideoLinkImpl(
   ctx: ActionCtx,
-  args: { jobId: Id<'videoLinkJobs'>; userLocale?: string },
+  args: {
+    jobId: Id<'videoLinkJobs'>;
+    userLocale?: string;
+    /** When the video began waiting for a sandbox session, on a job that
+     * came back because there was none to be had. */
+    waitingSince?: number;
+    /** The key of the run that began that wait: the job asks for its
+     * session under the same id each time it comes back, and so keeps its
+     * place in the sandbox host's line. */
+    waitingAs?: string;
+  },
 ): Promise<void> {
   {
     const job = await ctx.runQuery(
@@ -298,83 +315,23 @@ export async function ingestVideoLinkImpl(
       }
     };
 
-    const { jobDir, cleanup } = await createJobDir();
-
-    // Draw a pre-warmed browser session for THIS job's platform from the pool
-    // (if any) so the job reuses a browser that already cleared that site's
-    // bot wall. The cookie jar is decrypted here (node action) and written
-    // into the per-job sandbox; yt-dlp reads it via argv. Best-effort: on any
-    // error we proceed without a session (an env proxy / PO provider still
-    // applies), and a platform with no domain never claims one.
-    const sessionDomain = sessionDomainForPlatform(job.sourcePlatform);
-    let session: YtdlpSession | undefined;
-    let sessionId: Id<'browserSessions'> | undefined;
-    try {
-      const claimed =
-        sessionDomain === undefined
-          ? null
-          : await ctx.runMutation(
-              internal.browser_sessions.sessions.claimBrowserSession,
-              {
-                organizationId: job.organizationId,
-                domain: sessionDomain,
-              },
-            );
-      if (claimed) {
-        const jar = await decryptString(claimed.cookiesEncrypted);
-        const cookiesFile = join(jobDir, 'cookies.txt');
-        await fs.writeFile(cookiesFile, jar, { mode: 0o600 });
-        session = {
-          cookiesFile,
-          ...(claimed.visitorData !== undefined && {
-            visitorData: claimed.visitorData,
-          }),
-          ...(claimed.poToken !== undefined && { poToken: claimed.poToken }),
-        };
-        sessionId = claimed.sessionId;
-      }
-    } catch (sessionErr) {
-      console.warn(
-        '[video_link] browser-session claim/decrypt failed; proceeding without one:',
-        sessionErr instanceof Error ? sessionErr.message : sessionErr,
-      );
-    }
-
-    /** Report the pooled session's fate so a burned one stops being handed out
-     *  and a working one keeps its health. No-op when no session was used. */
-    const reportSession = async (outcome: 'ok' | 'blocked'): Promise<void> => {
-      if (sessionId === undefined) return;
-      try {
-        await ctx.runMutation(
-          internal.browser_sessions.sessions.reportBrowserSessionResult,
-          { sessionId, outcome },
-        );
-      } catch (err) {
-        // Best-effort (the sweep self-heals a missed report), but never
-        // silent: a lost 'blocked' report keeps a burned cookie jar in
-        // rotation for the next job.
-        console.warn(
-          JSON.stringify({
-            event: 'video_link.session_report_failed',
-            jobId: args.jobId,
-            sessionId,
-            outcome,
-            error: err instanceof Error ? err.message : String(err),
-          }),
-        );
-      }
-    };
-
     /** Terminal failure, written as a CAS on the phase this instance owns
      * (`expectedStatus`). A cancel (`skipped`) or watchdog flip (`failed`)
      * that landed while yt-dlp was running must not come back as a fresh
      * `failed` with a Retry button: a lost CAS is logged and nothing else
      * is written. */
     const fail = async (
-      reasonCode: VideoLinkErrorReason,
+      ytdlpReason: VideoLinkErrorReason,
       message: string,
       expectedStatus: string,
     ): Promise<void> => {
+      // A bot check that ended the video is told apart here, once, for what
+      // the member reads and the log says: YouTube's on a deployment with no
+      // PO tokens is a setting to change, not a wall to wait out.
+      const reasonCode: VideoLinkErrorReason =
+        ytdlpReason === 'botDetection'
+          ? botWallReason(job.sourcePlatform, process.env)
+          : ytdlpReason;
       console.error(
         JSON.stringify({
           event: 'video_link.failed',
@@ -403,7 +360,117 @@ export async function ingestVideoLinkImpl(
       }
     };
 
-    try {
+    /** Whether the work began: a place was opened for it. */
+    let opened = false;
+
+    /** A video's work, in the place its yt-dlp runs. */
+    const inPlace = async (place: YtdlpPlace): Promise<void> => {
+      opened = true;
+
+      /** Pass a file yt-dlp left in the place on to the org's bucket, as it is
+       * read: nothing here holds it, whatever it weighs
+       * (tale-project/tale#4942). */
+      const storeJobFile = async (
+        media: YtdlpMediaFile,
+      ): Promise<{ ref: BlobRef; size: number }> => {
+        if (orgSlug === null) {
+          throw new Error(
+            `video ingest for job ${args.jobId} has no blob store: organization ${job.organizationId} does not resolve to a slug`,
+          );
+        }
+        // Told before the file is asked for: a session opens no file of
+        // nothing, and would refuse the asking instead.
+        if (media.size === 0) {
+          throw new YtDlpError(
+            'outputValidationFailed',
+            'yt-dlp left an empty file for the sound',
+            '',
+          );
+        }
+        // The file as it was measured: a read is given the time its size
+        // takes, and one that grew since is refused.
+        const file = await place.openFile(media.name, media.size);
+        if (file.size === 0) {
+          await file.body.cancel();
+          throw new YtDlpError(
+            'outputValidationFailed',
+            'yt-dlp left an empty file for the sound',
+            '',
+          );
+        }
+        const ref = await putBlobStream(orgSlug, file.body, {
+          contentLength: file.size,
+          contentType: media.contentType,
+        });
+        return { ref, size: file.size };
+      };
+
+      // Draw a pre-warmed browser session for THIS job's platform from the pool
+      // (if any) so the job reuses a browser that already cleared that site's
+      // bot wall. The cookie jar is decrypted here (node action) and written
+      // into the per-job sandbox; yt-dlp reads it via argv. Best-effort: on any
+      // error we proceed without a session (an env proxy / PO provider still
+      // applies), and a platform with no domain never claims one.
+      const sessionDomain = sessionDomainForPlatform(job.sourcePlatform);
+      let session: YtdlpSession | undefined;
+      let sessionId: Id<'browserSessions'> | undefined;
+      try {
+        const claimed =
+          sessionDomain === undefined
+            ? null
+            : await ctx.runMutation(
+                internal.browser_sessions.sessions.claimBrowserSession,
+                {
+                  organizationId: job.organizationId,
+                  domain: sessionDomain,
+                },
+              );
+        if (claimed) {
+          const jar = await decryptString(claimed.cookiesEncrypted);
+          const cookiesFile = await place.writeFile('cookies.txt', jar);
+          session = {
+            cookiesFile,
+            ...(claimed.visitorData !== undefined && {
+              visitorData: claimed.visitorData,
+            }),
+            ...(claimed.poToken !== undefined && { poToken: claimed.poToken }),
+          };
+          sessionId = claimed.sessionId;
+        }
+      } catch (sessionErr) {
+        console.warn(
+          '[video_link] browser-session claim/decrypt failed; proceeding without one:',
+          sessionErr instanceof Error ? sessionErr.message : sessionErr,
+        );
+      }
+
+      /** Report the pooled session's fate so a burned one stops being handed out
+       *  and a working one keeps its health. No-op when no session was used. */
+      const reportSession = async (
+        outcome: 'ok' | 'blocked',
+      ): Promise<void> => {
+        if (sessionId === undefined) return;
+        try {
+          await ctx.runMutation(
+            internal.browser_sessions.sessions.reportBrowserSessionResult,
+            { sessionId, outcome },
+          );
+        } catch (err) {
+          // Best-effort (the sweep self-heals a missed report), but never
+          // silent: a lost 'blocked' report keeps a burned cookie jar in
+          // rotation for the next job.
+          console.warn(
+            JSON.stringify({
+              event: 'video_link.session_report_failed',
+              jobId: args.jobId,
+              sessionId,
+              outcome,
+              error: err instanceof Error ? err.message : String(err),
+            }),
+          );
+        }
+      };
+
       // -----------------------------------------------------------------
       // Phase A: yt-dlp -j metadata
       // -----------------------------------------------------------------
@@ -445,7 +512,7 @@ export async function ingestVideoLinkImpl(
       try {
         metadata = await ytdlpJson(
           extractionUrl,
-          jobDir,
+          place,
           undefined,
           session,
           route,
@@ -454,7 +521,7 @@ export async function ingestVideoLinkImpl(
         const fallback = await tryEmbedFallback(
           err,
           job.sourceUrl,
-          jobDir,
+          place,
           session,
           route,
           args.jobId,
@@ -579,19 +646,25 @@ export async function ingestVideoLinkImpl(
           throw err;
         }
 
-        let vttPath: string | null = null;
+        let captions: Uint8Array | null = null;
         route.nextStep();
         try {
-          vttPath = await ytdlpWriteSubs(
+          const track = await ytdlpWriteSubs(
             extractionUrl,
             selection.lang,
-            jobDir,
+            place,
             {
               includeAutoGenerated: selection.includeAutoGenerated,
               session,
               route,
             },
           );
+          // A track that cannot be read back is a miss like one that was
+          // never written.
+          captions =
+            track === null
+              ? null
+              : await place.readFile(track.name, CAPTIONS_MAX_BYTES);
         } catch (err) {
           // Caption fetch failure ≠ feature failure — fall through to
           // Whisper. Log + continue.
@@ -602,12 +675,11 @@ export async function ingestVideoLinkImpl(
               reason: err instanceof YtDlpError ? err.reason : 'parse_failed',
             }),
           );
-          vttPath = null;
+          captions = null;
         }
 
-        if (vttPath) {
-          const buf = await fs.readFile(vttPath);
-          const segments = rollingWindowDedup(parseVtt(buf));
+        if (captions) {
+          const segments = rollingWindowDedup(parseVtt(Buffer.from(captions)));
           if (segments.length > 0) {
             const transcriptBody = joinSegmentsWithParagraphs(
               captionsToParagraphSegments(segments),
@@ -771,12 +843,12 @@ export async function ingestVideoLinkImpl(
         throw err;
       }
 
-      let audioPath: string;
+      let audio: YtdlpMediaFile;
       route.nextStep();
       try {
-        audioPath = await ytdlpExtractAudio(
+        audio = await ytdlpFetchAudio(
           extractionUrl,
-          jobDir,
+          place,
           undefined,
           session,
           route,
@@ -796,13 +868,23 @@ export async function ingestVideoLinkImpl(
 
       if (!(await assertNotCancelled())) return;
 
-      const audioBuf = await fs.readFile(audioPath);
-      const audioBytes = new Uint8Array(
-        audioBuf.buffer,
-        audioBuf.byteOffset,
-        audioBuf.byteLength,
-      );
-      const audioStorageId = await storeJobBlob(audioBytes, 'audio/mpeg');
+      // The sound as the platform served it, stored as it is: the
+      // transcription lane converts it once, as it does an uploaded video.
+      let stored: { ref: BlobRef; size: number };
+      try {
+        stored = await storeJobFile(audio);
+      } catch (err) {
+        await handleYtDlpError(
+          ctx,
+          args.jobId,
+          job,
+          err,
+          fail,
+          'extracting_audio',
+        );
+        return;
+      }
+      const audioStorageId = stored.ref;
 
       // GDPR / cascade race window: between storage.store and the
       // saveFileMetadata cross-table write below, erasure can delete
@@ -849,9 +931,9 @@ export async function ingestVideoLinkImpl(
         {
           organizationId: job.organizationId,
           storageId: audioStorageId,
-          fileName: `${safeTitle ?? 'video'}.mp3`,
-          contentType: 'audio/mpeg',
-          size: audioBytes.byteLength,
+          fileName: `${safeTitle ?? 'video'}.${audio.extension}`,
+          contentType: audio.contentType,
+          size: stored.size,
           // 'video_link' instead of 'user' so prompt-injection-aware
           // downstream code can differentiate third-party content.
           source: 'video_link',
@@ -881,7 +963,7 @@ export async function ingestVideoLinkImpl(
           jobId: args.jobId,
           orgId: job.organizationId,
           audioStorageId,
-          audioBytes: audioBytes.byteLength,
+          audioBytes: stored.size,
         }),
       );
 
@@ -889,10 +971,147 @@ export async function ingestVideoLinkImpl(
       // transcriptionStatus and projects it as displayStatus. We don't
       // wait for Whisper to complete — when transcribe_audio.ts finishes,
       // the chip flips to 'completed' purely through Convex reactivity.
-    } finally {
-      await cleanup();
+      // The place is closed by whoever opened it (`inYtdlpPlace`).
+    };
+
+    // The watchdog reads a row that has been queued for five minutes as
+    // one nobody is working on, and a session may take minutes of those to
+    // start: the row is stamped as this run takes it up. A row that is no
+    // longer queued was cancelled, or failed, since the run read it.
+    const taken = await ctx.runMutation(
+      internal.video_links.internal_mutations.updateJob,
+      { jobId: args.jobId, status: 'queued', expectedStatus: 'queued' },
+    );
+    if (taken !== 'ok') {
+      logStateLost(args.jobId, 'queued', 'queued', taken);
+      return;
+    }
+
+    // This run among the job's: a new one, unless it comes back from a wait
+    // for a session, which it then asks for under the id it waited under.
+    const runKey = args.waitingAs ?? randomUUID();
+    try {
+      await inYtdlpPlace(
+        ctx,
+        { organizationId: job.organizationId, jobId: args.jobId, runKey },
+        inPlace,
+      );
+    } catch (error) {
+      if (error instanceof SandboxLaneCapacityError) {
+        await waitForSandbox(ctx, { ...args, waitingAs: runKey }, error, fail);
+        return;
+      }
+      // What the work itself throws is its own to tell, as it always was.
+      if (opened) throw error;
+      // There was no place to do the work in: the sandbox could not be
+      // reached, or would not start a session. Nothing of the video was
+      // tried, and the row is still `queued`; left there, it would sit
+      // until the watchdog failed it five minutes on. A sandbox that is
+      // restarting is back within the retries a temporary problem gets.
+      // What it failed with is the log's: it names addresses of the
+      // deployment's own network, and the row is read by a member.
+      console.warn(
+        JSON.stringify({
+          event: 'video_link.no_place',
+          jobId: args.jobId,
+          cause: error instanceof Error ? error.message : String(error),
+        }),
+      );
+      await handleYtDlpError(
+        ctx,
+        args.jobId,
+        job,
+        new YtDlpError(
+          'transient',
+          'no sandbox session could be opened to fetch the video in',
+          '',
+        ),
+        fail,
+        'queued',
+      );
     }
   }
+}
+
+/** How long a video waits for a sandbox session before its job gives up. */
+export const SANDBOX_WAIT_MAX_MS = 15 * 60_000;
+/** How soon a waiting video asks again: when the sandbox host said its
+ * place comes up, within these bounds, and else after the default. */
+const SANDBOX_WAIT_POLL_MIN_MS = 5_000;
+const SANDBOX_WAIT_POLL_MAX_MS = 60_000;
+const SANDBOX_WAIT_POLL_DEFAULT_MS = 20_000;
+
+/**
+ * There is no sandbox session to be had for now: the organization's render
+ * sessions are all in use, or the sandbox host has no room for one more.
+ * The video keeps its place in the queue and its job comes back. That is a
+ * wait, and none of the video's attempts: nothing of it was tried.
+ *
+ * The row is written `queued` again each time, because the watchdog reads a
+ * row that has been queued for five minutes as one nobody is working on. A
+ * video that has waited {@link SANDBOX_WAIT_MAX_MS} fails as a temporary
+ * problem, with what it waited for in its message.
+ */
+async function waitForSandbox(
+  ctx: ActionCtx,
+  args: {
+    jobId: Id<'videoLinkJobs'>;
+    userLocale?: string;
+    waitingSince?: number;
+    waitingAs: string;
+  },
+  refusal: SandboxLaneCapacityError,
+  fail: (
+    reasonCode: VideoLinkErrorReason,
+    message: string,
+    expectedStatus: string,
+  ) => Promise<void>,
+): Promise<void> {
+  const now = Date.now();
+  const since = args.waitingSince ?? now;
+  if (now - since >= SANDBOX_WAIT_MAX_MS) {
+    await fail(
+      'transient',
+      `no sandbox session could be had for ${Math.round((now - since) / 60_000)} minutes: ${refusal.message}`,
+      'queued',
+    );
+    return;
+  }
+  const waiting = await ctx.runMutation(
+    internal.video_links.internal_mutations.updateJob,
+    { jobId: args.jobId, status: 'queued', expectedStatus: 'queued' },
+  );
+  if (waiting !== 'ok') {
+    // Cancelled, or failed by another writer, while it waited.
+    logStateLost(args.jobId, 'queued', 'queued', waiting);
+    return;
+  }
+  const delayMs =
+    refusal.retryAfterMs === undefined
+      ? SANDBOX_WAIT_POLL_DEFAULT_MS
+      : Math.min(
+          Math.max(refusal.retryAfterMs, SANDBOX_WAIT_POLL_MIN_MS),
+          SANDBOX_WAIT_POLL_MAX_MS,
+        );
+  await ctx.scheduler.runAfter(
+    delayMs,
+    internal.video_links.ingest_video_link.ingestVideoLink,
+    {
+      jobId: args.jobId,
+      ...(args.userLocale !== undefined && { userLocale: args.userLocale }),
+      waitingSince: since,
+      waitingAs: args.waitingAs,
+    },
+  );
+  console.warn(
+    JSON.stringify({
+      event: 'video_link.waiting_for_sandbox',
+      jobId: args.jobId,
+      why: refusal.why,
+      delayMs,
+      waitedMs: now - since,
+    }),
+  );
 }
 
 /** Whether a yt-dlp failure is the site actively blocking us (bot wall / 403 /
@@ -928,7 +1147,7 @@ const NO_EMBED_FALLBACK: ReadonlySet<string> = new Set([
 async function tryEmbedFallback(
   err: unknown,
   sourceUrl: string,
-  jobDir: string,
+  place: YtdlpPlace,
   session: YtdlpSession | undefined,
   route: YtdlpRoute,
   jobId: Id<'videoLinkJobs'>,
@@ -944,7 +1163,7 @@ async function tryEmbedFallback(
     await assertSafeUrl(embedUrl);
     const metadata = await ytdlpJson(
       embedUrl,
-      jobDir,
+      place,
       undefined,
       session,
       route,

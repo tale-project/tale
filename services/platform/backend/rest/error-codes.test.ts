@@ -581,10 +581,12 @@ describe('the REST error-code registry', () => {
     );
     // Backticked SHOUTING identifiers in descriptions are codes — bar the
     // environment variables a description names: the deployment editor
-    // allowlist, and the Claude Code / Anthropic SDK variables the model
+    // allowlist, the memory one file is given, which an indexing failure
+    // names, and the Claude Code / Anthropic SDK variables the model
     // endpoints' section tells a client to set.
     const ENVIRONMENT_VARIABLES = new Set([
       'TALE_DEPLOYMENT_CONFIG_ADMINS',
+      'HEAVY_SLOT_MEMORY_MB',
       'ANTHROPIC_API_KEY',
       'ANTHROPIC_AUTH_TOKEN',
       'ANTHROPIC_BASE_URL',

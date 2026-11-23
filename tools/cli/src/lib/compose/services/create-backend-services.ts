@@ -6,7 +6,7 @@ import {
 import type { ComposeService, DeploymentColor, ServiceConfig } from '../types';
 import { DEFAULT_LOGGING, imageRef } from '../types';
 import { BACKEND_MEMORY_LIMIT_GIB, memoryReservation } from './memory-env';
-import { backendApiLabels } from './traefik-labels';
+import { backendApiLabels, platformLabels } from './traefik-labels';
 
 /** The api's container port — the target its Traefik labels route to. */
 const BACKEND_API_PORT = 3005;
@@ -25,12 +25,24 @@ export interface BackendServiceOptions {
   colour?: DeploymentColor;
 }
 
+/** The api's drain when SHUTDOWN_DRAIN_MS is unset, in seconds. */
+const BACKEND_API_DRAIN_S = 15;
+/** The drain of a process that runs jobs when SHUTDOWN_DRAIN_MS is unset. */
+const BACKEND_WORKER_DRAIN_S = 90;
 /** The api's stop grace, in seconds, under its default 15 s drain. */
 const BACKEND_API_STOP_GRACE_S = 30;
 /** The worker's stop grace, in seconds, under its default 90 s drain. */
 export const BACKEND_WORKER_STOP_GRACE_S = 120;
 /** How far a role's stop grace stays above its drain budget. */
 const STOP_GRACE_ABOVE_DRAIN_S = 15;
+/** The stop grace of `platform` where it answers the API and the pages but
+ *  runs no jobs: the web tier's own 45 s, which holds its wait for the edge
+ *  (6 s), the api's 15 s drain and the same room above it. */
+const PLATFORM_API_STOP_GRACE_S = 45;
+/** How long a stopping replica that serves the web tier keeps answering
+ *  before its drain starts, unless SHUTDOWN_DRAIN_SECONDS says otherwise
+ *  (`webDrainMs` in services/platform/server.ts). */
+const WEB_DRAIN_S = 6;
 
 /**
  * How long `docker stop` waits for a backend role before SIGKILL: the role's
@@ -39,20 +51,50 @@ const STOP_GRACE_ABOVE_DRAIN_S = 15;
  * of it, with nothing in its log saying why. Read from `process.env`, where
  * `loadEnv` has folded the project's `.env`; a value the backend would
  * refuse at boot keeps the default.
+ *
+ * A replica that serves the web tier waits for the edge before its drain
+ * starts (`SHUTDOWN_DRAIN_SECONDS`), so its grace holds that wait as well;
+ * `webBeforeDrainOf` names the drain its role runs when `SHUTDOWN_DRAIN_MS`
+ * is unset.
  */
-export function backendStopGraceSeconds(defaultSeconds: number): number {
+export function backendStopGraceSeconds(
+  defaultSeconds: number,
+  options: { webBeforeDrainOf?: number } = {},
+): number {
   const raw = process.env.SHUTDOWN_DRAIN_MS?.trim() ?? '';
   const drainMs = /^\d+$/.test(raw) ? Number(raw) : Number.NaN;
-  if (!Number.isSafeInteger(drainMs) || drainMs <= 0) return defaultSeconds;
+  const set = Number.isSafeInteger(drainMs) && drainMs > 0;
+  if (options.webBeforeDrainOf === undefined) {
+    return set
+      ? Math.max(
+          defaultSeconds,
+          Math.ceil(drainMs / 1000) + STOP_GRACE_ABOVE_DRAIN_S,
+        )
+      : defaultSeconds;
+  }
+  const drainSeconds = set
+    ? Math.ceil(drainMs / 1000)
+    : options.webBeforeDrainOf;
   return Math.max(
     defaultSeconds,
-    Math.ceil(drainMs / 1000) + STOP_GRACE_ABOVE_DRAIN_S,
+    webDrainSeconds() + drainSeconds + STOP_GRACE_ABOVE_DRAIN_S,
   );
+}
+
+/** The wait a replica that serves the web tier grants the edge before its
+ *  drain, in whole seconds: SHUTDOWN_DRAIN_SECONDS where the platform would
+ *  take it (0 to 300), else its default. */
+function webDrainSeconds(): number {
+  const raw = process.env.SHUTDOWN_DRAIN_SECONDS?.trim() ?? '';
+  const seconds = raw === '' ? Number.NaN : Number(raw);
+  return Number.isFinite(seconds) && seconds >= 0 && seconds <= 300
+    ? Math.ceil(seconds)
+    : WEB_DRAIN_S;
 }
 
 function backendBase(
   config: ServiceConfig,
-  service: 'backend-api' | 'backend-worker',
+  service: 'platform' | 'backend-api' | 'backend-worker',
   options: BackendServiceOptions,
 ): ComposeService {
   return {
@@ -62,13 +104,15 @@ function backendBase(
     image: imageRef(config, service),
     // NET_ADMIN: the entrypoint installs the SSRF egress firewall (iptables
     // REJECT for IMDS + link-local + RFC1918) before dropping privileges.
-    // This tier opens sockets outside the pinned-IP fetch path (yt-dlp,
-    // ffmpeg, the crawler's fetch/render lane), so a DNS rebind would
-    // otherwise be an SSRF vector against the host's metadata service.
+    // This tier opens sockets outside the pinned-IP fetch path (ffmpeg, the
+    // crawler's fetch lane), so a DNS rebind would otherwise be an SSRF
+    // vector against the host's metadata service. A video link's yt-dlp is
+    // not among them: it runs in a sandbox session.
     cap_add: ['NET_ADMIN'],
-    // yt-dlp + ffmpeg subprocesses peak ~300-500 MB each and ingest runs
-    // concurrently; the cap bounds the blast radius, pids_limit defends
-    // against a fork-bomb regression, nofile covers concurrent sockets.
+    // The cap bounds the blast radius of what this tier starts beside
+    // itself (ffmpeg, the capped child that reads a file), pids_limit
+    // defends against a fork-bomb regression, nofile covers concurrent
+    // sockets.
     mem_limit: `${BACKEND_MEMORY_LIMIT_GIB}g`,
     // Spared by reclaim while sandbox sessions press on host memory, per
     // replica, where the engine runs cgroup v2. Mirrored in compose.yml.
@@ -100,9 +144,99 @@ function backendBase(
   };
 }
 
+/**
+ * The database connections one process of the whole application opens at
+ * most, where `.env` names no size of its own.
+ *
+ * Every connection is a PostgreSQL process of a few megabytes on the other
+ * side, held open by the polls of an idle deployment, and the backend's own
+ * defaults (ten, ten, five and ten) are those of a replica among many. One
+ * process that is the API, the web tier and the job runner on one host needs
+ * far less: its queries last milliseconds, and six people chatting do not
+ * make four of them wait.
+ *
+ * The job queue's pool follows `DATABASE_POOL_MAX` when `.env` sets that and
+ * no size for the queue, as it did before it had a variable of its own
+ * (`jobsPoolMax` in services/platform/backend/db/sql.ts). The knowledge pool
+ * stays at the worker's concurrency, which the backend warns about below it.
+ */
+export const ONE_PROCESS_POOLS = {
+  DATABASE_POOL_MAX: 4,
+  JOBS_DATABASE_POOL_MAX: 3,
+  AUTH_DATABASE_POOL_MAX: 2,
+  KNOWLEDGE_DB_POOL_MAX: 5,
+} as const;
+
+/**
+ * {@link ONE_PROCESS_POOLS} as the environment of the one process, each a
+ * default that a value in `.env` replaces, and with them the other thing a
+ * connection costs the database: the statements it keeps prepared.
+ *
+ * The backend prepares every statement it runs, on every connection, and the
+ * database keeps them all for as long as the connection lives. After the load
+ * tool's two-minute smoke run each PostgreSQL process of the application pool
+ * held 14 MiB with its statements prepared and 7 MiB without, and prepared
+ * it would go on growing with every statement it had not seen yet.
+ * Unprepared, a statement costs one more round trip: the mean request of
+ * that run took 13 ms where it had taken 11 to 12. A small host can spare
+ * that, and cannot spare 7 MiB for each of four connections.
+ */
+function onePoolEnvironment(): Record<string, string> {
+  const pools = ONE_PROCESS_POOLS;
+  return {
+    DATABASE_PREPARED_STATEMENTS: '${DATABASE_PREPARED_STATEMENTS:-false}',
+    DATABASE_POOL_MAX: `\${DATABASE_POOL_MAX:-${pools.DATABASE_POOL_MAX}}`,
+    JOBS_DATABASE_POOL_MAX: `\${JOBS_DATABASE_POOL_MAX:-\${DATABASE_POOL_MAX:-${pools.JOBS_DATABASE_POOL_MAX}}}`,
+    AUTH_DATABASE_POOL_MAX: `\${AUTH_DATABASE_POOL_MAX:-${pools.AUTH_DATABASE_POOL_MAX}}`,
+    KNOWLEDGE_DB_POOL_MAX: `\${KNOWLEDGE_DB_POOL_MAX:-${pools.KNOWLEDGE_DB_POOL_MAX}}`,
+  };
+}
+
+/**
+ * The memory one file may take while it is read, in MiB, where one process
+ * is the whole application and `.env` names no cap of its own.
+ *
+ * The backend reads a document, cuts it into passages and converts a
+ * recording in a process of its own, one file at a time, and stops a file
+ * that takes more than its cap (HEAVY_SLOT_MEMORY_MB, in
+ * services/platform/backend/lib/heavy-slot). Its own cap, 512 MiB, is that
+ * of a replica with gigabytes to itself. On a small host that process
+ * shares 256 MiB with the application: under this cap a spreadsheet of
+ * 60,000 rows by 10 columns peaked at 47 MiB and a 142 MB PDF of ten
+ * scanned pages at 80, and 20 MB of plain text fits. A file that needs more
+ * fails with a sentence that names the cap and the variable, which `.env`
+ * then raises.
+ */
+export const ONE_PROCESS_HEAVY_SLOT_MEMORY_MB = 96;
+
+/** {@link ONE_PROCESS_HEAVY_SLOT_MEMORY_MB} as the environment of the one
+ *  process: a default that a value in `.env` replaces. */
+function oneHeavySlotEnvironment(): Record<string, string> {
+  return {
+    HEAVY_SLOT_MEMORY_MB: `\${HEAVY_SLOT_MEMORY_MB:-${ONE_PROCESS_HEAVY_SLOT_MEMORY_MB}}`,
+  };
+}
+
+/** Where the model relay of a process that serves HTTP listens: the
+ * sandbox network's subnet the deploy read, else what `.env` says. */
+function relayEnvironment(config: ServiceConfig): Record<string, string> {
+  return {
+    SANDBOX_NETWORK_SUBNET:
+      config.sandboxNetworkSubnet ?? '${SANDBOX_NETWORK_SUBNET:-}',
+  };
+}
+
+/** What a backend role is told of the sandbox LLM gateway an earlier release
+ * ran: that it is retired, once its container is gone
+ * (`ServiceConfig.gatewayRetired`). Nothing while it runs, so that `.env`'s
+ * address or the gateway's own applies. */
+function gatewayEnvironment(config: ServiceConfig): Record<string, string> {
+  return config.gatewayRetired === true ? { SANDBOX_LLM_GATEWAY_URL: '' } : {};
+}
+
 /** Env every backend role shares, plus the colour when it has one. */
 function roleEnvironment(
-  role: 'api' | 'worker',
+  role: 'api' | 'worker' | 'all',
   options: BackendServiceOptions,
 ): Record<string, string> {
   return {
@@ -124,6 +258,11 @@ function roleEnvironment(
     SANDBOX_URL: '${SANDBOX_URL:-http://sandbox:8003}',
     SANDBOX_AGENT_PROFILE: '${SANDBOX_AGENT_PROFILE:-agent}',
     TALE_SANDBOX_CLAUDE_EFFORT: '${TALE_SANDBOX_CLAUDE_EFFORT:-}',
+    // Whether to ask the bundled PO-token provider, which a deployment
+    // starts only where its .env says so (create-bgutil-provider-service.ts).
+    // Empty is off. compose.yml, whose stack always starts the provider,
+    // defaults the same key to `true`.
+    VIDEO_INGEST_POT_PROVIDER: '${VIDEO_INGEST_POT_PROVIDER:-}',
     SANDBOX_HTTP_API_BASE_URL: `http://backend-api:${BACKEND_API_PORT}`,
     // Where the backend reaches the blob store. Defaults to the bundled
     // one at its internal address — presigned URLs are signed here and
@@ -175,6 +314,8 @@ export function createBackendApiService(
     labels: backendApiLabels(options.colour),
     environment: {
       ...roleEnvironment('api', options),
+      ...relayEnvironment(config),
+      ...gatewayEnvironment(config),
       PORT: String(BACKEND_API_PORT),
     },
     // `docker stop` waits this long before SIGKILL: the api closes HTTP/SSE
@@ -213,6 +354,80 @@ export function createBackendApiService(
 }
 
 /**
+ * `platform` where it answers the API too (app-tier.ts): the `all` role, the
+ * whole application in one process per replica, or the `api` role, the same
+ * without the jobs, which then run in `backend-worker`.
+ *
+ * It is the api service above with the web tier's doors added, because that
+ * is what the process is: the API on 3005 and the built app on 3000
+ * (services/platform/backend/main.ts). So it carries both sets of routes and
+ * answers both serving names, `platform` and `backend-api`, the second on
+ * the sandbox network as well, where a session reaches the bridges. Both
+ * colours declare their routers under their own names, so a colour of this
+ * shape and one of three services overlap in a flip like any two colours.
+ *
+ * Health is the web tier's: `/api/health` on 3000 and the ready marker,
+ * which the process writes once both listeners are up. The edge checks the
+ * same door, so a replica takes traffic when it can serve the app and
+ * answer what the app then asks.
+ */
+export function createPlatformBackendService(
+  config: ServiceConfig,
+  colour: DeploymentColor,
+  role: 'api' | 'all',
+): ComposeService {
+  const names = (service: string) => [service, `${service}-${colour}`];
+  return {
+    ...backendBase(config, 'platform', { colour }),
+    labels: { ...platformLabels(colour), ...backendApiLabels(colour) },
+    // The org config store, which this process writes, and the bundles of
+    // the app both colours publish for each other's pages.
+    volumes: ['config-data:/app/data', 'static-assets:/app/static-assets'],
+    environment: {
+      ...roleEnvironment(role, { colour }),
+      ...relayEnvironment(config),
+      ...gatewayEnvironment(config),
+      // The whole application in one process is the deployment a small host
+      // runs. With the jobs apart it is a replica among others, on the
+      // backend's own pool sizes and its own cap for one file.
+      ...(role === 'all'
+        ? { ...onePoolEnvironment(), ...oneHeavySlotEnvironment() }
+        : {}),
+      PORT: String(BACKEND_API_PORT),
+    },
+    // `docker stop` waits this long before SIGKILL. A replica that runs the
+    // jobs hands its automation runs on inside the worker's 90 s drain; one
+    // that does not needs the api's 15 s. Both first keep answering for the
+    // edge (SHUTDOWN_DRAIN_SECONDS), and the grace stays 15 s above the sum.
+    stop_grace_period: `${
+      role === 'all'
+        ? backendStopGraceSeconds(BACKEND_WORKER_STOP_GRACE_S, {
+            webBeforeDrainOf: BACKEND_WORKER_DRAIN_S,
+          })
+        : backendStopGraceSeconds(PLATFORM_API_STOP_GRACE_S, {
+            webBeforeDrainOf: BACKEND_API_DRAIN_S,
+          })
+    }s`,
+    healthcheck: {
+      test: [
+        'CMD-SHELL',
+        'curl -sf http://localhost:3000/api/health && [ -f /tmp/platform-ready ]',
+      ],
+      interval: '5s',
+      timeout: '3s',
+      retries: 3,
+      start_period: '180s',
+    },
+    networks: {
+      internal: {
+        aliases: [...names('platform'), ...names('backend-api')],
+      },
+      sandbox: { aliases: names('backend-api') },
+    },
+  };
+}
+
+/**
  * The worker role: the job runner (schedules, watchdogs, agent turns). It
  * exposes no HTTP, so the image's baked web healthcheck would read
  * permanently unhealthy — liveness is pg-boss's job heartbeat plus
@@ -227,7 +442,10 @@ export function createBackendWorkerService(
     ...(options.colour === undefined
       ? { container_name: `${getProjectId()}-backend-worker` }
       : {}),
-    environment: roleEnvironment('worker', options),
+    environment: {
+      ...roleEnvironment('worker', options),
+      ...gatewayEnvironment(config),
+    },
     healthcheck: { disable: true },
     // `docker stop` waits this long before SIGKILL: a stopping worker hands
     // its automation runs to another one and waits out its other jobs inside

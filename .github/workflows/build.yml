@@ -193,11 +193,11 @@ jobs:
             # Candidates, conservative scope and shared build inputs run every
             # service and test. A skipped candidate check never passed; shared
             # dependencies can alter every Dockerfile.
-            CHANGES='["platform","db","proxy","sandbox-llm-gateway","web","docs","ui-docs","session-manager","storybook","sandbox","sandbox-egress","sandbox-buildkitd","sandbox-runtime","ci_tests","image_inputs"]'
+            CHANGES='["platform","db","proxy","web","docs","ui-docs","session-manager","storybook","sandbox","sandbox-egress","sandbox-buildkitd","sandbox-runtime","ci_tests","image_inputs"]'
             CI_TESTS=true
             STORYBOOK=true
           elif [ "${IMAGE_INPUTS:-false}" = true ]; then
-            CHANGES=$(jq -c '. + ["platform","db","proxy","sandbox-llm-gateway","web","docs","ui-docs","session-manager","storybook","sandbox","sandbox-egress","sandbox-buildkitd","sandbox-runtime"] | unique' <<< "$CHANGES")
+            CHANGES=$(jq -c '. + ["platform","db","proxy","web","docs","ui-docs","session-manager","storybook","sandbox","sandbox-egress","sandbox-buildkitd","sandbox-runtime"] | unique' <<< "$CHANGES")
             CI_TESTS=true
             STORYBOOK=true
           fi
@@ -206,7 +206,7 @@ jobs:
           echo "list=${SERVICES}" >> "$GITHUB_OUTPUT"
           echo "Services to build: ${SERVICES}"
           # Standalone sites have their own tests and need no platform stack.
-          STACK=$(jq -r 'any(.[]; . == "db" or . == "platform" or . == "proxy" or . == "sandbox-llm-gateway" or . == "sandbox" or . == "sandbox-egress" or . == "sandbox-buildkitd" or . == "sandbox-runtime")' <<< "$SERVICES")
+          STACK=$(jq -r 'any(.[]; . == "db" or . == "platform" or . == "proxy" or . == "sandbox" or . == "sandbox-egress" or . == "sandbox-buildkitd" or . == "sandbox-runtime")' <<< "$SERVICES")
           if [ "$CI_TESTS" = true ]; then STACK=true; fi
 
           # Vulnerability scan covers the compose-stack services + sandbox
@@ -215,7 +215,7 @@ jobs:
           # security.yml's filesystem scan. A release candidate is not scanned
           # here: the scan is advisory, and its SARIF would be filed against
           # main's head, not against the candidate.
-          SCANNABLE=$(jq -c '[.[] | select(. == "db" or . == "platform" or . == "proxy" or . == "sandbox-llm-gateway" or . == "sandbox" or . == "sandbox-egress" or . == "sandbox-buildkitd" or . == "sandbox-runtime")]' <<< "$SERVICES")
+          SCANNABLE=$(jq -c '[.[] | select(. == "db" or . == "platform" or . == "proxy" or . == "sandbox" or . == "sandbox-egress" or . == "sandbox-buildkitd" or . == "sandbox-runtime")]' <<< "$SERVICES")
           if [ -n "$CANDIDATE_SHA" ]; then SCANNABLE='[]'; fi
           {
             echo "scannable=${SCANNABLE}"
@@ -271,7 +271,7 @@ jobs:
   #
   # Fork PRs cannot push to upstream GHCR. Their smoke-test-fork and
   # image-validate-fork jobs build locally on the runners that use the images;
-  # loading eight additional matrix images into unrelated runners wastes work.
+  # loading seven additional matrix images into unrelated runners wastes work.
   #
   # Draft PRs skip to save minutes.
   # ---------------------------------------------------------------------------
@@ -298,7 +298,6 @@ jobs:
             db,
             platform,
             proxy,
-            sandbox-llm-gateway,
             sandbox,
             sandbox-egress,
             sandbox-buildkitd,
@@ -385,9 +384,10 @@ jobs:
           echo "automation-protocol=${AUTOMATION_PROTOCOL}" >> "$GITHUB_OUTPUT"
 
       # A service's title, description and links are written once, by the final
-      # stage of its Dockerfile. The annotations repeat them so the manifest
+      # stage of its Dockerfile, and so is a capability the image always has
+      # (`io.tale.app-in-backend`). The annotations repeat them so the manifest
       # says what the image config says; this step reads them from there, and
-      # the job fails when the Dockerfile does not declare all of them.
+      # the job fails when the Dockerfile does not declare all of the OCI ones.
       - name: Resolve image annotations
         id: annotations
         env:
@@ -397,9 +397,12 @@ jobs:
           DOCKERFILE="services/${SERVICE}/Dockerfile"
           KEYS="title description url documentation vendor licenses"
           read -ra WANTED <<< "$KEYS"
-          STATIC=$(
+          FINAL=$(
             awk 'toupper($1) == "FROM" { stage = "" } { stage = stage $0 "\n" } END { printf "%s", stage }' "$DOCKERFILE" \
-              | grep -v '^[[:space:]]*#' \
+              | grep -v '^[[:space:]]*#'
+          )
+          STATIC=$(
+            printf '%s\n' "$FINAL" \
               | grep -oE "org\.opencontainers\.image\.(${KEYS// /|})=\"[^\"]*\"" \
               | sed -E 's/="(.*)"$/=\1/' || true
           )
@@ -408,9 +411,18 @@ jobs:
             echo "::error::The final stage of ${DOCKERFILE} declares ${FOUND} of its OCI labels ${KEYS}"
             exit 1
           fi
+          # What the image says it can do (`io.tale.*`), where the Dockerfile
+          # writes the value itself. One it takes from a build argument is the
+          # build's to repeat, in `labels:` and `annotations:` below.
+          CAPABILITIES=$(
+            printf '%s\n' "$FINAL" \
+              | grep -oE "io\.tale\.[a-z0-9.-]+=\"[^\"\$]*\"" \
+              | sed -E 's/="(.*)"$/=\1/' || true
+          )
           {
             echo 'static<<OCI_ANNOTATIONS_EOF'
             printf '%s\n' "$STATIC"
+            if [ -n "$CAPABILITIES" ]; then printf '%s\n' "$CAPABILITIES"; fi
             echo 'OCI_ANNOTATIONS_EOF'
           } >> "$GITHUB_OUTPUT"
 
@@ -651,7 +663,7 @@ jobs:
           RECEIPTS: ${{ runner.temp }}/image-receipts
         run: &pull-ci-images |
           bash "$PULL_HELPER" \
-            db platform proxy sandbox-llm-gateway sandbox sandbox-egress sandbox-buildkitd sandbox-runtime
+            db platform proxy sandbox sandbox-egress sandbox-buildkitd sandbox-runtime
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
@@ -1466,7 +1478,7 @@ jobs:
           done < <(jq -r 'to_entries[] | "\(.key)\t\(.value)"' <<< "$JOBS")
           # The build matrix; keep in sync with it (deployment-ci.test.ts).
           IMAGES='[]'
-          for svc in db platform proxy sandbox-llm-gateway sandbox sandbox-egress sandbox-buildkitd sandbox-runtime; do
+          for svc in db platform proxy sandbox sandbox-egress sandbox-buildkitd sandbox-runtime; do
             if ! ENTRY=$(jq -ce --arg service "$svc" --arg revision "$CANDIDATE_SHA" --arg tag "$IMAGE_TAG" \
               'select(.service == $service and .revision == $revision and .tag == $tag and (.digest | test("^sha256:[a-f0-9]{64}$")))' \
               "${RECEIPTS}/${svc}.json" 2> /dev/null); then

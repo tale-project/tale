@@ -3,7 +3,10 @@ import type { Sql, TransactionSql } from 'postgres';
 import { parseYamlMap } from '../../core/documents/parse_yaml_map.ts';
 import { serializeYamlMap } from '../../core/documents/serialize_yaml_map.ts';
 import { parseBlobRef } from '../../core/lib/storage/blob_ref.ts';
-import { s3GetObjectBytesIfExists } from '../../core/lib/storage/object_store.ts';
+import {
+  ObjectTooLargeError,
+  s3GetObjectBytesIfExists,
+} from '../../core/lib/storage/object_store.ts';
 import { locateOrgObjectStore } from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import {
@@ -49,6 +52,15 @@ import {
  * The YAML parse/serialize pair is REUSED from 0.4 — one dialect, one
  * escaping story, whichever lane wrote the file.
  */
+
+/**
+ * The largest settings file the panel reads. The panel writes at most a
+ * million characters, which is under 4 MiB however they are encoded; the
+ * file it reads back is whichever document carries its name, and a document
+ * may be 100 MiB. A larger one is not read into memory to be parsed as a
+ * form's values.
+ */
+const PROJECT_TEXT_MAX_BYTES = 4 * 1024 * 1024;
 
 /** The 0.4 bound: a file name, never a path. */
 function validateFileName(fileName: string): string {
@@ -403,8 +415,19 @@ export async function readProjectTextValues(
   let bytes: Uint8Array | null;
   try {
     const store = await locateOrgObjectStore(orgSlug, parsed.key);
-    bytes = await s3GetObjectBytesIfExists(store, parsed.key);
+    bytes = await s3GetObjectBytesIfExists(store, parsed.key, {
+      maxBytes: PROJECT_TEXT_MAX_BYTES,
+    });
   } catch (error) {
+    // Not absence, and no fault of the store's: the panel shows that it
+    // could not load, instead of defaults a save would write over the file.
+    if (error instanceof ObjectTooLargeError) {
+      throw new DocumentError(
+        'PROJECT_TEXT_TOO_LARGE',
+        'The settings file is larger than 4 MiB and cannot be read here. Replace it with a smaller one.',
+        409,
+      );
+    }
     console.warn(
       `[documents] project text read failed for ${fileName}:`,
       error,

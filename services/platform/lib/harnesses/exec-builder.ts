@@ -20,6 +20,7 @@ import type {
 } from '@tale/shared/schemas/providers';
 
 import { buildStdinUserMessage } from './parsers/claude-stream-json';
+import { buildPiRpcCommand } from './parsers/pi-jsonl';
 import type { HarnessExec, HarnessRunSpec } from './types';
 import { DEFAULT_MAX_TURNS } from './types';
 
@@ -227,11 +228,16 @@ const BRIDGE_MCP_PATH = '/mcp';
 /** A CLI's remote mount of the platform's MCP server: the request headers it
  * sends with each call, and the dialect its config reads a remote server in
  * (`claude-flag`: claude's `--mcp-config` argv; `command-args`: the gemini
- * family's settings; `opencode-local`: OpenCode's config). A channel mounts
- * the bridge one way: this remote form, or the stdio relay (`bridgeEnv`). */
+ * family's settings; `mcp-json`: the common mcp.json format Pi reads;
+ * `opencode-local`: OpenCode's config). A channel mounts the bridge one way:
+ * this remote form, or the stdio relay (`bridgeEnv`). */
 interface BridgeRemote {
   readonly headers: Readonly<Record<string, string>>;
-  readonly dialect: 'claude-flag' | 'command-args' | 'opencode-local';
+  readonly dialect:
+    | 'claude-flag'
+    | 'command-args'
+    | 'mcp-json'
+    | 'opencode-local';
 }
 
 // ---------------------------------------------------------------------------
@@ -245,25 +251,24 @@ interface Substitutions {
   readonly [key: string]: string | undefined;
 }
 
-/** The closed placeholder set. `model.raw` and `model.contextWindow` are
- * listed before `model` so the longer name wins the alternation; unknown
- * `${…}` sequences fall outside the pattern and pass through
- * byte-identically (several CLIs resolve their own `${VAR}`/`{env:VAR}`/
- * `$VAR` templates from staged config). */
+/** The closed placeholder set. `model.raw`, `model.contextWindow` and
+ * `model.maxOutputTokens` are listed before `model` so the longer name wins
+ * the alternation; unknown `${…}` sequences fall outside the pattern and
+ * pass through byte-identically (several CLIs resolve their own
+ * `${VAR}`/`{env:VAR}`/`$VAR` templates from staged config). */
 const PLACEHOLDER_PATTERN =
-  /\$\{(gateway\.baseUrl|gateway\.token|gateway\.streamIdleTimeoutMs|gateway\.requestTimeoutMs|subscription\.baseUrlToml|model\.raw|model\.contextWindow|model|workdir|execId|prompt|vision\.model|vision\.polyfill|bridgeUrl)\}/g;
+  /\$\{(gateway\.baseUrl|gateway\.token|gateway\.streamIdleTimeoutMs|gateway\.requestTimeoutMs|subscription\.baseUrlToml|model\.raw|model\.contextWindow|model\.maxOutputTokens|model|workdir|execId|prompt|vision\.model|vision\.polyfill|bridgeUrl)\}/g;
 
-/** `${model.contextWindow}`: the spec's window as a whole, positive token
- * count — below the exec's declared gate, when it declares one — else ''. */
-function contextWindowText(
-  window: number | undefined,
-  below: number | undefined,
-): string {
-  if (window === undefined || !Number.isSafeInteger(window) || window <= 0) {
+/** A token count of the spec as placeholder text: a whole, positive count —
+ * below `below`, when given — else ''. `${model.contextWindow}` passes the
+ * window through the exec's declared gate; `${model.maxOutputTokens}` takes
+ * the output limit without one. */
+function tokenCountText(tokens: number | undefined, below?: number): string {
+  if (tokens === undefined || !Number.isSafeInteger(tokens) || tokens <= 0) {
     return '';
   }
-  if (below !== undefined && window >= below) return '';
-  return String(window);
+  if (below !== undefined && tokens >= below) return '';
+  return String(tokens);
 }
 
 /** SINGLE-PASS substitution: `String.replace` never rescans replacement
@@ -291,6 +296,26 @@ function instructionsPathFor(
   return exec.stagedInstructions === undefined
     ? undefined
     : substitute(exec.stagedInstructions.pathTemplate, subs);
+}
+
+/**
+ * The line a live turn reads for a steer, in the dialect of its harness's
+ * held stdin: Claude Code's stream-json user message, or Pi's RPC steer
+ * command. Null for a harness whose stdin is not held open: it is steered by
+ * a restart instead. Newline-terminated, one JSON line, as runnerd requires.
+ */
+export function steerLine(
+  fact: Pick<HarnessDefinition, 'exec'>,
+  text: string,
+): string | null {
+  switch (fact.exec.stdin.mode) {
+    case 'ndjson-user-message':
+      return buildStdinUserMessage(text);
+    case 'json-envelope-rpc':
+      return buildPiRpcCommand('steer', text);
+    default:
+      return null;
+  }
 }
 
 /** Where the builder stages one exec's instructions addendum (OpenCode's
@@ -332,29 +357,37 @@ function isTree(v: unknown): v is DocTree {
 }
 
 /** A number template of a `set` tree (`{ $number: '${model.contextWindow}' }`):
- * an object whose one key is `$number`, holding the template. */
-function isNumberTemplate(value: unknown): value is { $number: string } {
+ * an object holding the template under `$number`, and beside it at most the
+ * number its `default` stands for. */
+interface NumberTemplate {
+  readonly $number: string;
+  readonly default?: number;
+}
+
+function isNumberTemplate(value: unknown): value is NumberTemplate {
   return (
     isTree(value) &&
-    Object.keys(value).length === 1 &&
-    typeof value.$number === 'string'
+    typeof value.$number === 'string' &&
+    Object.keys(value).every((key) => key === '$number' || key === 'default') &&
+    (value.default === undefined || typeof value.default === 'number')
   );
 }
 
-/** What a number template that resolves to nothing becomes: its key, or its
- * array slot, is left out of the document. */
+/** What a number template that resolves to nothing becomes without a
+ * default: its key, or its array slot, is left out of the document. */
 const LEFT_OUT = Symbol('left out');
 
-/** The whole number a number template resolves to, or {@link LEFT_OUT} when
- * it resolves to nothing (`${model.contextWindow}` for an unknown window).
- * Any other text is a config defect, refused without repeating it: the
- * template may have pulled it from a secret. */
+/** The whole number a number template resolves to. When it resolves to
+ * nothing (`${model.contextWindow}` for an unknown window), its `default`,
+ * or {@link LEFT_OUT} without one. Any other text is a config defect,
+ * refused without repeating it: the template may have pulled it from a
+ * secret. */
 function substituteNumber(
-  template: string,
+  template: NumberTemplate,
   subs: Substitutions,
 ): number | typeof LEFT_OUT {
-  const text = substitute(template, subs);
-  if (text === '') return LEFT_OUT;
+  const text = substitute(template.$number, subs);
+  if (text === '') return template.default ?? LEFT_OUT;
   const value = Number(text);
   if (!/^(?:0|[1-9][0-9]*)$/.test(text) || !Number.isSafeInteger(value)) {
     throw new Error(
@@ -364,18 +397,60 @@ function substituteNumber(
   return value;
 }
 
+/** The condition atoms a `when` list ANDs over (schema-derived). */
+type ExecCondition = NonNullable<
+  Extract<DocFragments[number], { set: unknown }>['when']
+>[number];
+
+/** Whether every atom of a `when` list holds for this build. */
+type Holds = (when: readonly ExecCondition[] | undefined) => boolean;
+
+/** A conditional value of a `set` tree
+ * (`{ $when: [model-images], value: [text, image], else: [text] }`): an
+ * object holding its condition atoms under `$when`, the value they pick
+ * under `value`, and at most the value a failed condition picks under
+ * `else`. */
+interface WhenValue {
+  readonly $when: readonly ExecCondition[];
+  readonly value: unknown;
+  readonly else?: unknown;
+}
+
+function isWhenValue(value: unknown): value is WhenValue {
+  return (
+    isTree(value) &&
+    Array.isArray(value.$when) &&
+    'value' in value &&
+    Object.keys(value).every(
+      (key) => key === '$when' || key === 'value' || key === 'else',
+    )
+  );
+}
+
 /** Clone a literal fragment tree, substituting placeholders in every string
  * — map KEYS included (opencode keys its per-model entry by `${model}`) —
- * and resolving its number templates. */
-function substituteTree(value: unknown, subs: Substitutions): unknown {
+ * resolving its number templates, and choosing the branch of each
+ * conditional value that this build's conditions pick (a failed condition
+ * without an `else` leaves its key, or its array slot, out). */
+function substituteTree(
+  value: unknown,
+  subs: Substitutions,
+  holds: Holds,
+): unknown {
   if (typeof value === 'string') return substitute(value, subs);
   if (Array.isArray(value)) {
     return value
-      .map((v) => substituteTree(v, subs))
+      .map((v) => substituteTree(v, subs, holds))
       .filter((v) => v !== LEFT_OUT);
   }
-  if (isNumberTemplate(value)) return substituteNumber(value.$number, subs);
-  if (isTree(value)) return substituteRecord(value, subs);
+  if (isNumberTemplate(value)) return substituteNumber(value, subs);
+  if (isWhenValue(value)) {
+    const chosen = holds(value.$when) ? value.value : value.else;
+    return chosen === undefined
+      ? LEFT_OUT
+      : substituteTree(chosen, subs, holds);
+  }
+  if (isTree(value)) return substituteRecord(value, subs, holds);
   return value;
 }
 
@@ -384,10 +459,11 @@ function substituteTree(value: unknown, subs: Substitutions): unknown {
 function substituteRecord(
   value: Readonly<Record<string, unknown>>,
   subs: Substitutions,
+  holds: Holds,
 ): DocTree {
   const out: DocTree = {};
   for (const [key, v] of Object.entries(value)) {
-    const resolved = substituteTree(v, subs);
+    const resolved = substituteTree(v, subs, holds);
     if (resolved === LEFT_OUT) continue;
     out[substitute(key, subs)] = resolved;
   }
@@ -478,16 +554,18 @@ export function buildHarnessExec(
   }
 
   // The condition atoms a `when` list ANDs over.
-  const conditions: Record<'managed' | 'byo' | 'model' | 'no-model', boolean> =
-    {
-      managed,
-      byo: spec.credential.mode === 'byo',
-      model: spec.model !== undefined,
-      'no-model': spec.model === undefined,
-    };
-  const holds = (
-    when: ReadonlyArray<keyof typeof conditions> | undefined,
-  ): boolean => (when ?? []).every((atom) => conditions[atom]);
+  const conditions: Record<ExecCondition, boolean> = {
+    managed,
+    byo: spec.credential.mode === 'byo',
+    model: spec.model !== undefined,
+    'no-model': spec.model === undefined,
+    // The serving model reads images itself: the vision lane armed no
+    // polyfill for its reads (a text-only model's are routed through the
+    // vision model; a turn with no vision lane at all is text-only).
+    'model-images': spec.vision?.polyfillReads === false,
+    'model-reasoning': spec.reasoning === true,
+  };
+  const holds: Holds = (when) => (when ?? []).every((atom) => conditions[atom]);
 
   const subs: Substitutions = {
     'gateway.baseUrl': gateway?.baseUrl,
@@ -503,10 +581,12 @@ export function buildHarnessExec(
     // Tokens as text, or '' — never absent, unlike the values above: an
     // unknown window is an ordinary state, not a config defect, and the
     // empty value leaves the CLI to size the conversation on its own.
-    'model.contextWindow': contextWindowText(
+    'model.contextWindow': tokenCountText(
       spec.contextWindow,
       exec.contextWindow?.below,
     ),
+    // The output limit the same way: '' leaves the CLI to cap its answers.
+    'model.maxOutputTokens': tokenCountText(spec.maxOutputTokens),
     workdir: spec.workdir,
     execId: spec.execId,
     prompt: spec.prompt,
@@ -545,12 +625,13 @@ export function buildHarnessExec(
    * every server's entry (Pi's `exposure`). A channel that declares the
    * remote mount takes the platform's MCP server in its CLI's remote form:
    * claude's `--mcp-config` an `http` server, the gemini family's settings
-   * an `httpUrl` (qwen-code reads a `url` as SSE), OpenCode a `remote` one
-   * without its OAuth discovery (the bridge takes the session's bearer
-   * token). Any other channel mounts the stdio relay with `bridgeEnv` as its
-   * child env under `bridgeEnvField`. */
+   * an `httpUrl` (qwen-code reads a `url` as SSE), Pi's mcp.json a `url`
+   * (Pi reads a `url` as Streamable HTTP), OpenCode a `remote` one without
+   * its OAuth discovery (the bridge takes the session's bearer token). Any
+   * other channel mounts the stdio relay with `bridgeEnv` as its child env
+   * under `bridgeEnvField`. */
   const buildMcpServers = (
-    serverShape: 'command-args' | 'opencode-local',
+    serverShape: 'command-args' | 'mcp-json' | 'opencode-local',
     bridgeEnvField: string | undefined,
     bridgeEnv: Readonly<Record<string, string>> | undefined,
     visionOmitsImages: boolean,
@@ -567,7 +648,7 @@ export function buildHarnessExec(
           : []),
       ];
       servers.playwright =
-        serverShape === 'command-args'
+        serverShape !== 'opencode-local'
           ? { command: PLAYWRIGHT_MCP_COMMAND, args, ...serverFields }
           : {
               type: 'local',
@@ -594,20 +675,22 @@ export function buildHarnessExec(
             ? { type: 'http', url, headers, ...timeout, ...serverFields }
             : bridgeRemote.dialect === 'command-args'
               ? { httpUrl: url, headers, ...timeout, ...serverFields }
-              : {
-                  type: 'remote',
-                  url,
-                  headers,
-                  oauth: false,
-                  enabled: true,
-                  ...timeout,
-                  ...serverFields,
-                };
+              : bridgeRemote.dialect === 'mcp-json'
+                ? { url, headers, ...timeout, ...serverFields }
+                : {
+                    type: 'remote',
+                    url,
+                    headers,
+                    oauth: false,
+                    enabled: true,
+                    ...timeout,
+                    ...serverFields,
+                  };
       } else {
         const env = substituteMap(bridgeEnv ?? {}, subs);
         const envField = bridgeEnvField ?? 'env';
         servers.connectors =
-          serverShape === 'command-args'
+          serverShape !== 'opencode-local'
             ? {
                 command: BRIDGE_MCP_COMMAND,
                 [envField]: env,
@@ -633,7 +716,7 @@ export function buildHarnessExec(
     for (const fragment of fragments) {
       if ('set' in fragment) {
         if (!holds(fragment.when)) continue;
-        mergeTree(doc, substituteRecord(fragment.set, subs));
+        mergeTree(doc, substituteRecord(fragment.set, subs, holds));
       } else if ('maxTurns' in fragment) {
         setPath(doc, fragment.maxTurns.path, DEFAULT_MAX_TURNS);
       } else if ('mcpServers' in fragment) {
@@ -824,7 +907,10 @@ export function buildHarnessExec(
     // while the process lingers; the runner sends EOF once the turn's
     // terminal event arrived and no background tasks remain.
     stdinMode = 'hold';
-  } else if (exec.stdin.mode === 'json-envelope') {
+  } else if (
+    exec.stdin.mode === 'json-envelope' ||
+    exec.stdin.mode === 'json-envelope-rpc'
+  ) {
     const envelope: DocTree = {};
     for (const entry of exec.stdin.envelope) {
       if ('prompt' in entry) {
@@ -838,7 +924,15 @@ export function buildHarnessExec(
         envelope[entry.doc.key] = buildDoc(entry.doc.fragments);
       }
     }
-    stdin = JSON.stringify(envelope);
+    if (exec.stdin.mode === 'json-envelope') {
+      stdin = JSON.stringify(envelope);
+    } else {
+      // The envelope as one line (the wrapper reads it alone and stages it),
+      // then the prompt as the CLI's own RPC prompt command, held open: the
+      // platform's steer lines follow it (steerLine).
+      stdin = `${JSON.stringify(envelope)}\n${buildPiRpcCommand('prompt', spec.prompt)}`;
+      stdinMode = 'hold';
+    }
   }
 
   // -------------------------------------------------------------------------

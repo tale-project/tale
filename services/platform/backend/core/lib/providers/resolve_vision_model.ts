@@ -29,8 +29,8 @@
  * credential is a user act, never something a background capability does.
  *
  * Under the EU/EEA processing rule (GOV-R17) auto-selection also passes over
- * a provider whose gateway record the rule refuses
- * ({@link gatewayModelRefusal}): the session key's provision refuses every
+ * a provider whose endpoint the rule refuses where the model relay calls it
+ * ({@link relayModelRefusal}): the turn key's mint refuses every
  * model the key may call, so a refused pick would cost the whole turn, not
  * just the lane. A pin the rule refuses stays the admin's word; the
  * provision refuses the turn with the rule's reason, audited.
@@ -50,7 +50,7 @@ import {
 } from '@tale/shared/utils/model-ref';
 
 import {
-  gatewayModelRefusal,
+  relayModelRefusal,
   readModelEndpointPolicy,
 } from '../../governance/model_endpoint_gate';
 import type { ActionCtx } from '../ctx';
@@ -386,7 +386,7 @@ async function resolveVisionModel(
   // Anthropic harness lane.
   const endpointPolicy = await readModelEndpointPolicy(ctx, organizationId);
   for (const provider of providers) {
-    if (gatewayModelRefusal(endpointPolicy, provider) !== undefined) continue;
+    if (relayModelRefusal(endpointPolicy, provider) !== undefined) continue;
     const entries = await eligibleEntriesFor(ctx, organizationId, provider);
     if (entries === null) continue;
 

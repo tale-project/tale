@@ -27,6 +27,7 @@ import {
   type TimelinePart,
 } from '@/lib/harnesses/timeline';
 import { useT } from '@/lib/i18n/client';
+import type { HarnessReason } from '@/lib/shared/harness-reason';
 
 /** Compact one-line rendering of a tool call's input — enough to tell WHICH
  * file/command the step touched without unfolding it. */
@@ -154,7 +155,22 @@ export interface AgentSandboxOpView {
    * reads them itself. Recorded per turn, so this is the model that actually
    * ran, not whatever the org would resolve to today. */
   visionModelRef?: string;
+  /** The agent runtime (harness) the turn ran on, its display name, and why
+   * it ran there — recorded by the host that opened the turn, so a step on
+   * the default says where the default took it. */
+  harness?: string;
+  harnessLabel?: string;
+  harnessReason?: HarnessReason;
 }
+
+/** The sentence each recorded reason is told in. */
+const HARNESS_REASON_KEYS: Readonly<Record<HarnessReason, string>> = {
+  pinned: 'runs.agentLog.harnessReason.pinned',
+  default: 'runs.agentLog.harnessReason.default',
+  subscription_bound: 'runs.agentLog.harnessReason.subscriptionBound',
+  policy: 'runs.agentLog.harnessReason.policy',
+  model_bound: 'runs.agentLog.harnessReason.modelBound',
+};
 
 /** A stamped ref is `provider/model`, and on the gateway lane the model half
  * is itself a gateway ref that starts with the same provider slug — collapse
@@ -185,6 +201,7 @@ export function ExecutionLogView({
   op,
   waitingForRoom = false,
   hideHeader = false,
+  runtimeOwner = 'step',
   className,
 }: {
   op: AgentSandboxOpView | null;
@@ -194,6 +211,9 @@ export function ExecutionLogView({
   /** Drops the "Agent log" heading and its live spinner — for hosts whose own
    * title already names the transcript; the host then owns the liveness cue. */
   hideHeader?: boolean;
+  /** Who names a turn's runtime where this transcript is read: the agent of
+   * a task run, or the step of an automation run. */
+  runtimeOwner?: 'agent' | 'step';
   /** Sizes the scroll pane — the run dialog stretches it, the run page caps
    * it. The pane must have a bounded height for the pinning to mean anything. */
   className?: string;
@@ -386,6 +406,18 @@ export function ExecutionLogView({
         <Text as="p" variant="muted" className="text-xs">
           {t('runs.agentLog.servedBy', {
             model: displayModelRef(op.modelRef),
+          })}
+        </Text>
+      )}
+      {/* Which agent runtime ran the turn, and why there — the rule the host
+          applied when nobody named one (the default, a subscription bound to
+          one runtime, the standard agent's policy) is otherwise invisible.
+          A turn recorded before hosts kept the reason says nothing. */}
+      {op.harness !== undefined && op.harnessReason !== undefined && (
+        <Text as="p" variant="muted" className="text-xs">
+          {t(HARNESS_REASON_KEYS[op.harnessReason], {
+            runtime: op.harnessLabel ?? op.harness,
+            owner: runtimeOwner,
           })}
         </Text>
       )}

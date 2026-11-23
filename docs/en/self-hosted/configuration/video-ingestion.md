@@ -5,7 +5,7 @@ description: Diagnose transcript retrieval, configure the token provider or prox
 
 Tale uses `yt-dlp` to retrieve content for video-link ingestion. Availability depends on the video, supported captions or extraction path, and the source platform's access checks. A video that plays on your laptop may still reject the server's network or session.
 
-This operator guide covers transcript retrieval configuration. Start with a public video you can access and inspect its ingestion error before adding credentials or changing egress.
+This operator guide covers transcript retrieval configuration. Tale runs each retrieval in a sandbox session of its own, apart from the backend; [Where retrieval runs](#where-retrieval-runs) says what that asks of a deployment. Start with a public video you can access and inspect its ingestion error before adding credentials or changing egress.
 
 ## Identify the failing stage
 
@@ -13,23 +13,57 @@ This operator guide covers transcript retrieval configuration. Start with a publ
 | --- | --- |
 | One video fails | Whether the URL is supported, the content is still available, and a usable transcript or audio path exists. |
 | Many videos fail from one host | Worker extractor errors, source-platform responses, and that host's network path. |
+| A YouTube link says the server was asked to prove it isn't a bot | The token provider, which is off until you [turn it on](#token-provider). |
 | Videos meet a bot check through your proxies | The worker's `[ytdlp] outbound proxy entry` lines, and whether each listed proxy keeps one address ([egress proxy](#egress-proxy)). |
+| A link stays **Queued** for minutes, then fails as a temporary issue | The organization's **Render sessions** limit and the sandbox host's capacity ([where retrieval runs](#where-retrieval-runs)). |
+| Every link says video processing is not enabled yet | The sandbox runtime image: one from before this release carries no `yt-dlp`. |
+| A link says the video is too large to process | The [limits on length and size](#limits). |
 | Retrieval works but knowledge search does not | The organization's embedding configuration and indexing status. |
 | Failures begin after a session worked | Session expiry, source-account state, and cooling or retirement in the pool. |
 
 Read `tale logs backend-worker --tail 200` and the item's failure reason. Keep the URL and error category, but remove account cookies, signed URLs, and credentials before sharing diagnostics. Retries may help a transient failure; repeated identical refusals need investigation.
 
-## Check the built-in token provider
+## Where retrieval runs {#where-retrieval-runs}
 
-The platform image includes the token plugin, and the packaged deployment starts `bgutil-provider` on the internal network. The default endpoint is `http://bgutil-provider:4416`. It supplies proof-of-origin tokens used by supported extractor requests; it does not grant access to private content or guarantee that a source accepts the request.
+For each video link, the worker starts a sandbox session, runs `yt-dlp` in it, and removes the session when the link is ready or has failed. `yt-dlp` fetches pages from whatever address a member pastes and runs the platform's own JavaScript to reach its streams. In a session it does so as an unprivileged user on a read-only root filesystem, and the sandbox host admits its memory instead of the backend carrying it.
 
-Check `tale logs bgutil-provider` and whether the worker can reach the service. The sidecar is best-effort: its failure does not prevent the core deployment from starting, though transcript retrieval may degrade.
+A deployment has to provide three things for that:
 
-`VIDEO_INGEST_POT_PROVIDER_URL` selects another provider endpoint. `VIDEO_INGEST_PO_TOKEN` supplies a manually obtained token. Keep token material in your secret configuration. The [environment reference](/self-hosted/configuration/environment-reference) also lists extractor-client and plugin options; change them only when the observed error calls for it.
+- **A running sandbox.** Packaged deployments always start one. Its session image carries `yt-dlp`, the JavaScript runtime `yt-dlp` needs, and the token provider's plugin. A link that fails with "Video processing is not enabled yet — contact your administrator" ran in a session image from before this release: run the sandbox runtime image of the same release as the backend.
+- **A free render session.** Each link in progress holds one of the organization's **Render sessions**, the limit under **Settings > Sandboxes** that website crawling draws on too. When none is free, or the sandbox host has no room for another session, the link stays **Queued** and asks again every 5 to 60 seconds. Waiting does not count as one of the link's attempts. A link that has waited 15 minutes fails with "Temporary issue — try again". [Manage sandbox capacity](/platform/admin/sandboxes) describes the limit and the host's capacity.
+- **A way out for the session.** Without a [proxy for video](#egress-proxy), requests leave through the sandbox's egress proxy, which opens tunnels to ports 443 and 80 only. If `SANDBOX_EGRESS_ALLOWLIST` restricts sandbox destinations, add the video platforms your members use and the hosts those platforms serve media from; otherwise every link fails at its first request. [Limit sandbox destinations](/self-hosted/operate/security/hardening#limit-sandbox-destinations) explains the setting.
+
+## Limits on length and size {#limits}
+
+Tale reads captions that a platform serves as WebVTT or SubRip. When a video has none in either format, the worker downloads its audio for the transcription model. It stores the audio as the platform serves it, typically as a WebM, M4A or MP4 file, and prefers a stream of up to 200 MiB: the best audio-only stream that fits, or the smallest one where none does. From a platform that serves audio only together with a picture, it takes a small picture: at most 480 pixels high, or 480 pixels wide for a portrait video.
+
+| Limit | Value | Beyond it |
+| --- | --- | --- |
+| Video length | 4 hours | The link fails with "Video exceeds the 4h length limit" once its metadata is read, before anything is downloaded. |
+| Audio as the platform serves it | 1 GiB | The link fails with "Video is too large to process" and is not retried. Attach the recording itself, or its transcript, instead. |
+| One caption track | 5 MiB | The track is passed over and the audio is transcribed. |
+
+## Turn on the token provider {#token-provider}
+
+YouTube asks some addresses, data-center addresses above all, to prove that a request does not come from a bot. A link then fails, and the member reads that YouTube asked this server to prove it isn't a bot and that an administrator can turn on the token provider.
+
+The provider is `bgutil-provider`, a service on the internal network that supplies the proof-of-origin tokens such a request needs. The sandbox runtime image includes its plugin. A packaged deployment does not start it unless asked: it is one more container, about 60 MiB at rest, and only a deployment that YouTube challenges has a use for it. To turn it on, add this line to the workspace's `.env` and run `tale deploy`:
+
+```dotenv
+VIDEO_INGEST_POT_PROVIDER=true
+```
+
+The deploy starts the provider. From then on a video's session asks it through the backend, which reaches it at `http://bgutil-provider:4416`. Remove the line, or set it to `false`, and the next deploy removes the provider again. A token does not grant access to private content or guarantee that a source accepts the request.
+
+Check `tale logs bgutil-provider` and whether the backend can reach the service. The provider is best-effort: its failure does not prevent the core deployment from starting, though transcript retrieval may degrade.
+
+`VIDEO_INGEST_POT_PROVIDER_URL` names a provider of your own instead, and needs no other setting; the backend must be able to reach it, a session need not. `VIDEO_INGEST_PO_TOKEN` supplies a manually obtained token. Keep token material in your secret configuration. The [environment reference](/self-hosted/configuration/environment-reference) also lists extractor-client and plugin options; change them only when the observed error calls for it.
 
 ## Configure an egress proxy {#egress-proxy}
 
 Video retrieval goes through the deployment's [outbound proxies](/self-hosted/configuration/environment-reference#outbound-proxies) when `OUTBOUND_PROXY_URLS` lists any. A video keeps one proxy for its metadata, captions, and audio. It starts on the proxy through which its platform last served a video, or else on the next one in turn, because a proxy the platform has just served is the likeliest to serve it again.
+
+A video's session never connects to a proxy itself. It sends its requests to the backend, which opens the connection to the proxy the video is on and passes the traffic both ways. A proxy must therefore be reachable from the backend, and its credentials never enter a session. Where the API and the worker run as separate services, give both the same proxy settings: the worker chooses a video's proxy, and the API process only connects to a proxy that its own settings list.
 
 When the platform turns the video away through that proxy, with a bot check, a rate limit, or a refused request, or when the proxy cannot carry the request, the worker moves the video to the next proxy in turn that has not failed it. Fetching the metadata, the captions, or the audio makes at most five attempts, and retries only within the first 90 seconds of that step. When fetching a Vimeo video from its page fails, the metadata step also tries Vimeo's embedded player, which makes up to five attempts of its own. The worker log names each move by the proxy's position in the list, never by its credentials:
 
@@ -67,7 +101,7 @@ A different route is not a promise of access. Confirm that your proxy and the so
 
 ## Import an authorized browser session
 
-The server can draw cookies from a session pool keyed by **organization and domain**. It encrypts cookie jars using `ENCRYPTION_SECRET_HEX` and does not return those cookies in list responses. Pool access is part of server-side video ingestion, not a cookie export to agent scripts.
+The server can draw cookies from a session pool keyed by **organization and domain**. It encrypts cookie jars using `ENCRYPTION_SECRET_HEX` and does not return those cookies in list responses. Pool access is part of server-side video ingestion, not a cookie export to agent scripts. For a video, the worker writes the jar it drew into that video's sandbox session, which runs nothing but `yt-dlp` and is removed when the link is done.
 
 There is no in-app import form. The REST write requires a key whose user is an organization administrator and is on `TALE_DEPLOYMENT_CONFIG_ADMINS`; the key must also resolve the target organization. `GET /api/v1/me` reports `capabilities.deploymentEditor` for the key. Name the organization explicitly with `X-Organization-Slug`, especially when the user belongs to several organizations.
 

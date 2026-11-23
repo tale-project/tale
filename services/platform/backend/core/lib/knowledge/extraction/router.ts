@@ -31,6 +31,33 @@ export const ALL_SUPPORTED_EXTENSIONS = new Set<string>([
   ...SUPPORTED_TEXT_EXTENSIONS,
 ]);
 
+/** The readers a file's name routes it to. */
+export type DocumentKind =
+  | 'pdf'
+  | 'docx'
+  | 'pptx'
+  | 'xlsx'
+  | 'odt'
+  | 'image'
+  | 'text';
+
+/**
+ * Which reader a file's name routes it to, or null for a name no reader
+ * takes. The one rule both routers decide by: this one, for bytes, and the
+ * one for a file on disk (`file_extraction/router.ts`).
+ */
+export function documentKind(filename: string): DocumentKind | null {
+  const suffix = extname(filename).toLowerCase();
+  if (PDF_EXTENSIONS.has(suffix)) return 'pdf';
+  if (DOCX_EXTENSIONS.has(suffix)) return 'docx';
+  if (PPTX_EXTENSIONS.has(suffix)) return 'pptx';
+  if (XLSX_EXTENSIONS.has(suffix)) return 'xlsx';
+  if (ODT_EXTENSIONS.has(suffix)) return 'odt';
+  if (SUPPORTED_IMAGE_EXTENSIONS.has(suffix)) return 'image';
+  if (SUPPORTED_TEXT_EXTENSIONS.has(suffix)) return 'text';
+  return null;
+}
+
 /** Check if a file extension is supported for extraction. */
 export function isSupported(filename: string): boolean {
   return ALL_SUPPORTED_EXTENSIONS.has(extname(filename).toLowerCase());
@@ -66,6 +93,10 @@ export interface ExtractedDocument {
   scannedPagesDetected?: number;
   ocrApplied?: boolean;
 }
+
+/** What an extraction learned about the file: everything
+ * {@link ExtractedDocument} says of it but its text. */
+export type ExtractedFacts = Omit<ExtractedDocument, 'text'>;
 
 /**
  * Extract text from file bytes, routing to the correct extractor. Returns

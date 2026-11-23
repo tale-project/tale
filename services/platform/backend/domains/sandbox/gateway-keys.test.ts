@@ -27,7 +27,8 @@ vi.mock('../../core/node_only/sandbox/llm_gateway_admin.ts', () => gateway);
 vi.mock('../governance/service.ts', () => ledger);
 vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx: vi.fn() }));
 
-const { revokeSessionGatewayKeys } = await import('./gateway-keys.ts');
+const { countOpenGatewayKeys, revokeSessionGatewayKeys } =
+  await import('./gateway-keys.ts');
 
 interface Statement {
   text: string;
@@ -248,5 +249,49 @@ describe('revokeSessionGatewayKeys', () => {
     expect(out).toEqual({ revoked: 2, failed: 1 });
     expect(gateway.revokeVirtualKey).toHaveBeenCalledTimes(3);
     error.mockRestore();
+  });
+});
+
+/**
+ * Which keys hold the retired gateway open is decided in one statement; the
+ * integration lane (`domains/control/gateway-keys.integration.ts`) runs it
+ * on rows in every state. What this holds is its shape: the four holders,
+ * each key once, and never a relay key.
+ */
+describe('countOpenGatewayKeys', () => {
+  it('counts each gateway key once across open turns, live sessions and waiting teardowns, never a relay key [CTRL-R6]', async () => {
+    const { sql, statements } = fakeSql([
+      { match: 'count(DISTINCT key_id)', rows: [{ open: 4 }] },
+    ]);
+
+    await expect(countOpenGatewayKeys(sql)).resolves.toBe(4);
+
+    expect(statements).toHaveLength(1);
+    const [count] = statements;
+    for (const holder of [
+      // A turn whose spend is unread or whose key is unrevoked.
+      'FROM app.sandbox_session_ops WHERE (spend_settled_at_ms IS NULL OR (minted_key_id IS NOT NULL AND key_revoked_at_ms IS NULL))',
+      // An unrevoked token, and a parked key, under a live incarnation.
+      'FROM app.sandbox_session_tokens token WHERE token.revoked_at_ms IS NULL',
+      'FROM app.sandbox_sessions parked WHERE parked.llm_gateway_key_id IS NOT NULL',
+      'live.status = ANY(?)',
+      // A deleted organization's teardown that has not ended.
+      "WHERE job.name = 'sandbox.retire_organization' AND job.state IN ('created', 'retry', 'active')",
+    ]) {
+      expect(count?.text).toContain(holder);
+    }
+    // Every holder leaves out the relay's keys.
+    expect(count?.values.filter((value) => value === 'tr_')).toHaveLength(4);
+    expect(count?.values).toContainEqual([
+      'creating',
+      'active',
+      'degraded',
+      'stopped',
+    ]);
+  });
+
+  it('reads no keys as none', async () => {
+    const { sql } = fakeSql([]);
+    await expect(countOpenGatewayKeys(sql)).resolves.toBe(0);
   });
 });

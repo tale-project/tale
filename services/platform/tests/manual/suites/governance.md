@@ -55,9 +55,10 @@ left out; GOV-F48 covers a rule on such a key).
 type **API key** or **Environment variable** serves — in mode A, the
 `e2e-mock` provider's environment credential, wired per
 [SETUP.md](../setup.md) §1.A. Every refusal those boxes judge
-is answered before the model gateway is reached, so they run in mode A; a
-successful answer needs mode B with the sandbox model gateway running (mode A
-ends such a call in 503 `MODEL_API_UNAVAILABLE`).
+is answered before a model is called, so they run in mode A. The model relay
+in the backend calls the provider itself: in mode A a call that gets past
+every check is answered by the mock provider, and a real vendor's answer needs
+mode B.
 
 **GOV-F50–GOV-F52 and GOV-B18–GOV-B19 (the standard agent)** need a project
 without agents of its own (the docs demo seed's **Customer onboarding
@@ -775,8 +776,8 @@ agent.
   With that account's key, `GET /api/v1/openai/models` no longer lists M's id;
   a chat completion naming it answers 403 `MODEL_API_MODEL_FORBIDDEN` (`param`
   is `model`) and a message on the Anthropic path the same, in its shape,
-  while a model the rule leaves alone gets past this check (mode A: 503
-  `MODEL_API_UNAVAILABLE` from the gateway step; mode B: 200); a made-up id
+  while a model the rule leaves alone gets past this check and answers 200
+  (in mode A, the mock provider's reply); a made-up id
   such as `openrouter/no-such-model` answers 404 `MODEL_API_MODEL_UNKNOWN`, and
   so does a listed model's bare catalog id without its provider prefix. The
   owner's key still lists M. Remove the rule afterwards.
@@ -835,13 +836,12 @@ agent.
   **Recent events** shows the mask, and a model asked to repeat the message
   word for word repeats the placeholder, not the word; a category that checks
   only model output leaves the answer untouched. Restore the guardrails.
-- [ ] `GOV-F47` · **A call you break off ends at the gateway and is still
+- [ ] `GOV-F47` · **A call you break off ends at the vendor and is still
   booked** — Mode B, on a model with a catalog price. With a Developer's key,
   start `POST /api/v1/openai/chat/completions` without `stream` on a model that
   takes a while to answer (ask for a long essay) and stop the client after a
   few seconds (Ctrl-C on `curl`); repeat with `"stream": true` once the first
-  chunks have arrived → Within about a second the gateway's log (`docker logs`
-  on the `sandbox-llm-gateway` container) records each call as `499`; a
+  chunks have arrived → The model relay cancels each vendor call at once: a
   self-hosted upstream's own log shows the request cancelled, not finished.
   Within a minute both calls sit on the Developer's **Direct API**
   row in `usage` (GOV-F45): the whole answer costs about its prompt, the stream
@@ -874,9 +874,8 @@ agent.
   OpenAI transcription model, dictate in the chat composer → the request
   answers 403 `MODEL_ENDPOINT_OUTSIDE_EU` with the sentence, and no audio
   reaches OpenAI; with the model endpoints on (GOV-F41), a Developer's chat
-  completion naming an OpenAI model → 403 `MODEL_API_MODEL_FORBIDDEN` whose
-  message says the model gateway calls the vendor's own endpoint and names a
-  custom provider as the way out. Each refusal adds one **Model access
+  completion naming an OpenAI model → 403 `MODEL_API_MODEL_FORBIDDEN` with
+  the sentence, which names `eu.api.openai.com`. Each refusal adds one **Model access
   denied** row to **Logs** with its surface (`automation`, `transcription`,
   `model-api`). Turn the switch off → each call goes through again.
 - [ ] `GOV-F78` · **With the EU/EEA rule on, the pickers offer only what it lets through** —
@@ -906,8 +905,9 @@ agent.
   step uses the same agent → the step fails with the same sentence and
   **Logs** adds a row with the surface `automation`. Give a custom provider the
   base URL `https://eu.openrouter.ai/api/v1` and run the agent on one of its
-  models → the agent starts and answers; the OpenRouter catalog provider is
-  refused even with that base URL, because the gateway calls `openrouter.ai`.
+  models → the agent starts and answers; so does the OpenRouter catalog
+  provider once its base URL is that endpoint, since the model relay calls it
+  there, while at `openrouter.ai` it is refused.
   Attest a custom provider's host and its agent starts too. Turn the switch
   off → every refused agent starts again. Restore the state you found.
 - [ ] `GOV-F38` · **Image generation is off until an admin turns it on** — On
@@ -1019,7 +1019,9 @@ agent.
   line names the model and agent type it uses for you: with **Agent type**
   on **Automatic** and a model served directly it is
   `governance.standardAgent.currentNative` (works with the model, hands over
-  to the agent type when a task needs a full workspace); with an agent type
+  to the agent type when a task needs a full workspace), and the agent type
+  it names is Pi; in an organization whose only credentials are a Claude
+  subscription it names Claude Code instead; with an agent type
   chosen, or a model only an agent type can run, it is
   `governance.standardAgent.current` (runs on the agent type with the model).
   **Model** lists only models the chosen agent type can run.

@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 
 import OpenAI from 'openai';
 
+import { CHART_PROGRAM } from '../../src/mock/run-code.ts';
 import { createMockServer, type MockServer } from '../../src/mock/server.ts';
 
 let mock: MockServer;
@@ -52,6 +53,24 @@ const WEATHER_TOOL = {
       },
       required: ['city', 'unit'],
       additionalProperties: false,
+    },
+  },
+};
+
+/** The light sandbox's tool, as the platform's chat offers it. */
+const RUN_CODE_TOOL = {
+  type: 'function' as const,
+  function: {
+    name: 'run_code',
+    description: 'Run Python, Node.js or Bash in a light sandbox',
+    parameters: {
+      type: 'object',
+      properties: {
+        language: { type: 'string', enum: ['python', 'node', 'bash'] },
+        code: { type: 'string' },
+        timeoutSeconds: { type: 'integer', minimum: 5, maximum: 300 },
+      },
+      required: ['language', 'code'],
     },
   },
 };
@@ -208,6 +227,49 @@ describe('chat completions through the OpenAI SDK', () => {
     });
     expect(answer.choices[0]?.finish_reason).toBe('stop');
     expect(answer.choices[0]?.message.tool_calls ?? []).toEqual([]);
+  });
+
+  test('a run-code turn calls run_code with the chart program, and its result ends the turn', async () => {
+    const ask = 'Chart our revenue by quarter. [[mock:run-code]]';
+    const completion = await client.chat.completions.create({
+      model: 'load-chat-fast',
+      messages: [{ role: 'user', content: ask }],
+      tools: [WEATHER_TOOL, BASH_TOOL, RUN_CODE_TOOL],
+    });
+    const choice = completion.choices[0];
+    expect(choice?.finish_reason).toBe('tool_calls');
+    const call = choice?.message.tool_calls?.[0];
+    if (call?.type !== 'function') throw new Error('no function call');
+    expect(call.function.name).toBe('run_code');
+    expect(JSON.parse(call.function.arguments)).toEqual({
+      language: 'python',
+      code: CHART_PROGRAM,
+    });
+
+    const answer = await client.chat.completions.create({
+      model: 'load-chat-fast',
+      tools: [WEATHER_TOOL, BASH_TOOL, RUN_CODE_TOOL],
+      messages: [
+        { role: 'user', content: ask },
+        { role: 'assistant', content: null, tool_calls: [call] },
+        {
+          role: 'tool',
+          tool_call_id: call.id,
+          content: JSON.stringify({ status: 'ok', exitCode: 0 }),
+        },
+      ],
+    });
+    expect(answer.choices[0]?.finish_reason).toBe('stop');
+    expect(answer.choices[0]?.message.tool_calls ?? []).toEqual([]);
+  });
+
+  test('a run-code turn that offers no run_code is answered in prose', async () => {
+    const completion = await client.chat.completions.create({
+      model: 'load-chat-fast',
+      messages: [{ role: 'user', content: 'Chart it [[mock:run-code]]' }],
+      tools: [WEATHER_TOOL],
+    });
+    expect(completion.choices[0]?.finish_reason).toBe('stop');
   });
 
   test('a hog turn without a shell tool is answered in prose', async () => {
@@ -367,7 +429,7 @@ describe('refusals the SDK recognizes', () => {
 });
 
 describe('the other OpenAI routes', () => {
-  test('models list the chat and embedding models', async () => {
+  test('models list the chat, embedding and transcription models', async () => {
     const ids: string[] = [];
     for await (const model of client.models.list()) ids.push(model.id);
     expect(ids).toEqual(
@@ -375,8 +437,30 @@ describe('the other OpenAI routes', () => {
         'load-chat-fast',
         'load-chat-reasoning',
         'load-embed',
+        'load-transcribe',
       ]),
     );
+  });
+
+  test('the transcription model is listed as one, priced per second of audio', async () => {
+    const listing = (await (await fetch(`${mock.url}/v1/models`)).json()) as {
+      data: Record<string, unknown>[];
+    };
+    expect(
+      listing.data.find((model) => model.id === 'load-transcribe'),
+    ).toEqual({
+      id: 'load-transcribe',
+      object: 'model',
+      created: 1_767_225_600,
+      owned_by: 'tale-load',
+      name: 'Load Transcribe',
+      type: 'transcription',
+      architecture: {
+        input_modalities: ['audio'],
+        output_modalities: ['transcription'],
+      },
+      pricing: { prompt: '0.0001', completion: '0' },
+    });
   });
 
   test('embeddings decode from the SDK default base64 and are stable', async () => {

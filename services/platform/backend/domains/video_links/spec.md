@@ -4,9 +4,9 @@
 
 Pasting a link to a video into the chat message field turns the video into an attachment: its
 captions are read, or its sound is transcribed. These rules cover which links are accepted,
-what pasting the same link again does, how many videos are prepared at once, which proxy a
-video is fetched through, and what removing a link does. How a video is read is not covered;
-see Not yet.
+what pasting the same link again does, how many videos are prepared at once, where a video is
+fetched and how much of it, which proxy it is fetched through, and what removing a link does.
+How a video is read is not covered; see Not yet.
 
 ## Which links are accepted
 
@@ -45,6 +45,36 @@ at the same moment cannot both slip past it.
 
 - **Example**: Three videos are being prepared in Mia's organization. She pastes a fourth link
   → refused, and she can paste it again once one of them is done.
+
+## Fetching a video
+
+### VID-R8 · A video is fetched in a sandbox session, and waits for a free one
+
+Its captions and its sound are fetched by a program that runs in a sandbox session opened for
+the video and removed after it, never beside the application. The session counts as one of the
+organization's render sessions. When none is free, or the sandbox host has no room for one
+more, the video stays queued and asks again, for at most 15 minutes. That wait is none of its
+attempts.
+
+- **Example**: Mia pastes a link while a website scan uses both of her organization's render
+  sessions → her video stays queued and starts once the scan gives a session back.
+- **Example**: No session comes free for 15 minutes → her video fails as a temporary problem,
+  and she can try it again.
+
+### VID-R9 · A video's sound is fetched as it is served, and may weigh 1 GiB
+
+Nothing is converted while a video is fetched. Of the streams a platform offers, the best one
+of sound alone that weighs up to 200 MiB is taken, and the smallest one where none does. From
+a platform that serves sound only with a picture, a small picture is taken: at most 480 pixels
+in height, or in width for a video that stands upright. A sound over 1 GiB fails the video as
+too large (`videoTooLarge`), and it is not tried again.
+
+- **Example**: Mia pastes a four-hour talk whose best sound stream weighs 230 MB → a smaller
+  stream of the same talk is fetched.
+- **Example**: Mia pastes a one-minute portrait clip that its platform serves from 360 to
+  1080 pixels wide, each with its sound → the one 480 pixels wide is fetched, about 6 MB.
+- **Example**: Mia pastes a video whose only stream weighs 3 GB → the video fails as too
+  large, without a retry.
 
 ## Fetching through proxies
 

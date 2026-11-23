@@ -640,6 +640,30 @@ function migrationSuite(): void {
       );
     });
 
+    // The model relay replaced the sandbox LLM gateway (tale-project/tale#4942),
+    // and the Incus stack runs none: a gateway an earlier release left on
+    // Docker, and its store, go with the rest of the Docker stack.
+    test('removes a gateway an earlier release left, and its store, with the Docker stack', async () => {
+      const docker = await dockerDeployment();
+      docker.seedInstance({
+        name: `${PROJECT}-sandbox-llm-gateway`,
+        stack: PROJECT,
+        service: 'sandbox-llm-gateway',
+        image: 'ghcr.io/tale-project/tale/tale-sandbox-llm-gateway:0.5.95',
+      });
+      docker.seedVolume('tale_llm-gateway-data', { 'config.db': 'the store' });
+      const h = harness(docker);
+      await migrateToIncus(h.context);
+
+      await finishMigration({ ...h.context, confirm: async () => true });
+
+      expect(h.docker.instances.has(`${PROJECT}-sandbox-llm-gateway`)).toBe(
+        false,
+      );
+      expect(h.docker.volumes.has('tale_llm-gateway-data')).toBe(false);
+      expect(h.docker.volumes.has('tale_backups')).toBe(true);
+    });
+
     test('refuses while a Docker container of the stack runs again', async () => {
       const h = harness(await dockerDeployment());
       await migrateToIncus(h.context);

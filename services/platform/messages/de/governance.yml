@@ -2010,7 +2010,7 @@ standardAgent:
   description: Der Agent, den Tale in jedem Projekt ohne eigene Agenten bereitstellt. So kann jeder, der das Projekt öffnen kann, ihm eine Aufgabe übergeben, auch Mitglieder.
   enabledLabel: Standard-Agenten bereitstellen
   harnessLabel: Agent-Laufzeit
-  harnessHint: Automatisch arbeitet mit denselben Tools wie der Chat und übergibt an Claude Code oder an die Agent-Laufzeit, an die ein Abo-Modell gebunden ist, wenn eine Aufgabe einen vollständigen Arbeitsbereich braucht. Wähle eine Agent-Laufzeit, damit jede Aufgabe darauf läuft.
+  harnessHint: Automatisch arbeitet mit denselben Tools wie der Chat und übergibt an Pi oder an die Agent-Laufzeit, an die ein Abo-Modell gebunden ist, wenn eine Aufgabe einen vollständigen Arbeitsbereich braucht. Wähle eine Agent-Laufzeit, damit jede Aufgabe darauf läuft.
   modelLabel: Modell
   modelHint: Automatisch wählt ein empfohlenes Modell, das die Person nutzen darf, die die Aufgabe startet. Ein gewähltes Modell bleibt in Kraft, bis du es änderst, auch wenn es nicht mehr verfügbar ist.
   automaticLabel: Automatisch

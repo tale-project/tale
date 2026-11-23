@@ -3,7 +3,14 @@
 import type { Sql } from 'postgres';
 import { describe, expect, it } from 'vitest';
 
-import { appPoolMax, authPoolMax, jsonParam, likeContains } from './sql.ts';
+import {
+  appPoolMax,
+  authPoolMax,
+  jobsPoolMax,
+  jsonParam,
+  likeContains,
+  preparedStatements,
+} from './sql.ts';
 
 /**
  * `jsonParam` binds any JSON value as one parameter, serialized up front: the
@@ -50,6 +57,31 @@ describe('likeContains', () => {
   });
 });
 
+describe('prepared statements', () => {
+  it('keeps statements prepared unless DATABASE_PREPARED_STATEMENTS says false', () => {
+    expect(preparedStatements({})).toBe(true);
+    expect(preparedStatements({ DATABASE_PREPARED_STATEMENTS: 'true' })).toBe(
+      true,
+    );
+    expect(preparedStatements({ DATABASE_PREPARED_STATEMENTS: 'false' })).toBe(
+      false,
+    );
+    expect(
+      preparedStatements({ DATABASE_PREPARED_STATEMENTS: ' False ' }),
+    ).toBe(false);
+  });
+
+  // A typo must not quietly change how every query is sent.
+  it.each(['', '0', 'off', 'no', 'disabled'])(
+    'reads only the word false as a no (%j)',
+    (raw) => {
+      expect(preparedStatements({ DATABASE_PREPARED_STATEMENTS: raw })).toBe(
+        true,
+      );
+    },
+  );
+});
+
 describe('connection pool sizes', () => {
   it('reads DATABASE_POOL_MAX, defaulting to ten', () => {
     expect(appPoolMax({})).toBe(10);
@@ -61,11 +93,36 @@ describe('connection pool sizes', () => {
     expect(authPoolMax({ AUTH_DATABASE_POOL_MAX: '24' })).toBe(24);
   });
 
+  it('gives the job queue two connections where jobs are only sent, and the application pool’s size where they are worked', () => {
+    expect(jobsPoolMax('api', {})).toBe(2);
+    expect(jobsPoolMax('worker', {})).toBe(10);
+    expect(jobsPoolMax('all', {})).toBe(10);
+    // A deployment that sized its application pool sized this one with it,
+    // before it had a name of its own.
+    expect(jobsPoolMax('worker', { DATABASE_POOL_MAX: '40' })).toBe(40);
+    expect(jobsPoolMax('all', { DATABASE_POOL_MAX: '4' })).toBe(4);
+    expect(jobsPoolMax('api', { DATABASE_POOL_MAX: '40' })).toBe(2);
+  });
+
+  it('reads JOBS_DATABASE_POOL_MAX for every role, whatever the application pool', () => {
+    for (const role of ['api', 'worker', 'all'] as const) {
+      expect(jobsPoolMax(role, { JOBS_DATABASE_POOL_MAX: '3' })).toBe(3);
+      expect(
+        jobsPoolMax(role, {
+          JOBS_DATABASE_POOL_MAX: '6',
+          DATABASE_POOL_MAX: '40',
+        }),
+      ).toBe(6);
+    }
+  });
+
   it.each(['0', '-3', '2.5', 'many', ''])(
     'ignores a size that is not a positive integer (%j)',
     (raw) => {
       expect(appPoolMax({ DATABASE_POOL_MAX: raw })).toBe(10);
       expect(authPoolMax({ AUTH_DATABASE_POOL_MAX: raw })).toBe(5);
+      expect(jobsPoolMax('api', { JOBS_DATABASE_POOL_MAX: raw })).toBe(2);
+      expect(jobsPoolMax('all', { JOBS_DATABASE_POOL_MAX: raw })).toBe(10);
     },
   );
 });

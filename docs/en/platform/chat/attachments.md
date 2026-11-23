@@ -69,5 +69,8 @@ For recurring questions about a brief or policy, put the file in the appropriate
 | The answer invents detail from a recording | Check the transcript against the recording and supply the corrected passage before continuing. |
 | A queued message has not sent | Inspect every attachment’s status, including video links. Remove or retry failed items. |
 | A removed video link comes back | Tale could not remove it, and the message that appears says why. The link is still attached. Remove it again once the cause is resolved, for example when your connection is back or after you sign in again. |
+| A YouTube link says the server was asked to prove it isn’t a bot | YouTube challenged your deployment’s address, and the deployment has no token provider to answer with. Ask an admin to [turn on the token provider](/self-hosted/configuration/video-ingestion#token-provider). Until then, attach the recording itself or its transcript. |
+| A video link says the video is too large to process | The audio of the video is larger than Tale reads from a link. Attach the recording itself, or its transcript. |
+| A video link stays **Queued** for several minutes | It is waiting for a free sandbox on your deployment and starts on its own once one is free. If it fails as a temporary issue, try again later, or ask an admin to check [sandbox capacity](/platform/admin/sandboxes). |
 
 Return to [Chat basics](/platform/chat/basics) to check sources and continue the conversation.

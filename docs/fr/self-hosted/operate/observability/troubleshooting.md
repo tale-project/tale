@@ -5,7 +5,7 @@ description: Pars de l’action en échec, inspecte le bon service et rétablis 
 
 Note l’heure, l’organisation, l’URL ou l’action concernée et le code d’erreur avant tout redémarrage. Détermine si le problème touche un élément, une organisation ou tout le déploiement. Cette distinction oriente l’enquête vers un fichier, une connexion d’organisation ou l’infrastructure partagée.
 
-Pour un déploiement dans un workspace, commence par `tale status` et `tale logs <service> --tail 200`. Dans ton propre projet Compose, utilise `docker compose ps` et `docker compose logs --tail=200 <service>`. Les noms de services comme `platform` et `backend-api` diffèrent des noms de conteneurs générés.
+Pour un déploiement dans un workspace, commence par `tale status` et `tale logs <service> --tail 200`. Dans ton propre projet Compose, utilise `docker compose ps` et `docker compose logs --tail=200 <service>`. Les noms de services comme `platform` et `backend-api` diffèrent des noms de conteneurs générés, et un workspace qui exécute l’application en [un seul processus](/fr/self-hosted/operate/upgrades#one-process) a `platform` là où cette page dit `backend-api` ou `backend-worker` : `tale logs` lit son log sous chacun des trois noms.
 
 ## Échec de l’URL publique, du certificat ou de la connexion
 
@@ -38,6 +38,7 @@ Compare la réponse du serveur à la requête du navigateur vers l’URL présig
 | `object store (ignored)` | Le fichier est géré par l’opérateur. Examine `default/object-storage/connection.json` ; la synchronisation d’environnement le laisse volontairement intact. |
 | `seeded` ou `reconciled` | La connexion par défaut a été écrite ou actualisée depuis l’environnement. Cela ne prouve pas toutes les permissions objet ni le chemin du navigateur. |
 | Sonde de stockage en échec | Vérifie point d’accès, réseau, identifiants, existence du bucket et erreur backend détaillée. |
+| `The blobs stay in MinIO …` pendant `tale deploy` | Le déplacement vers versitygw s’est arrêté avant la bascule, et MinIO sert les fichiers comme avant. La ligne se termine par la cause : l’absence de `OBJECT_STORE_SECRET_KEY`, le manque de place là où se trouve `blob-data`, ou un système de fichiers sans attributs étendus. Corrige-la et relance `tale deploy --stop` ; voir [Les fichiers passent de MinIO à versitygw](/fr/self-hosted/operate/upgrades#blob-store). |
 | Test serveur réussi, mais import navigateur en échec | Vérifie point d’accès public, confiance du certificat et CORS du bucket pour l’origine réelle du navigateur. Autorise `GET`, `PUT` et `HEAD` selon les opérations de fichiers. |
 
 `tale_backend_store_up` couvre les valeurs par défaut et mesure l’accessibilité, pas un import complet. Un `403` du stockage objet peut malgré tout donner la valeur `1`. Après correction, vérifie un envoi et un téléchargement contrôlés. [Résidence des données](/fr/self-hosted/configuration/data-residency) explique les changements de connexion et la migration des fichiers.
@@ -78,7 +79,7 @@ Cette commande non concurrente peut bloquer du travail. Coordonne-la avec l’ex
 
 Lis l’erreur du chat ou de l’exécution et les journaux API/worker correspondants. Un `429` fournisseur, un refus d’identifiants, un timeout, une attente d’approbation et une déconnexion du flux navigateur sont des états différents. Une approbation attend une décision, pas un redémarrage. Un flux coupé peut masquer une opération toujours active ; lis son résultat enregistré avant de relancer.
 
-Pour un échec fournisseur, vérifie quota et permissions des identifiants choisis, ainsi que l’état du fournisseur. Ne change de modèle que si le remplacement est autorisé et adapté. Pour un échec d’environnement d’agent, examine `sandbox`, `sandbox-llm-gateway`, l’image d’exécution et les journaux de session.
+Pour un échec fournisseur, vérifie quota et permissions des identifiants choisis, ainsi que l’état du fournisseur. Ne change de modèle que si le remplacement est autorisé et adapté. Pour un échec d’environnement d’agent, examine `sandbox`, les lignes `[llm-relay]` du relais de modèles dans le journal de `backend-api`, l’image d’exécution et les journaux de session. Une session appelle son modèle par le relais à `http://backend-api:8080`. Un backend qui s’arrête au démarrage avec `[llm-relay] cannot start` en donne la raison : `SANDBOX_NETWORK_SUBNET` n’est pas un CIDR IPv4, ou le conteneur n’a pas d’adresse dans ce réseau. La [référence d’environnement](/fr/self-hosted/configuration/environment-reference#model-relay) décrit où le relais écoute.
 
 ## Un agent ne joint pas le service de sandbox
 
@@ -101,6 +102,23 @@ Quand de nombreuses sessions installent des paquets ou chargent des pages en mê
 Quand les connexions d’une seule session échouent sur des réinitialisations alors que d’autres sessions atteignent encore les mêmes hôtes, cette session détient peut-être déjà `SANDBOX_EGRESS_MAX_CONNECTIONS_PER_SESSION` connexions (256 par défaut), et le proxy refuse les suivantes jusqu’à ce que certaines se ferment. Augmente la valeur, ou mets `0` pour désactiver la limite, puis recrée le service de sortie.
 
 Un service `sandbox-egress` recréé (après un déploiement ou un redémarrage de la pile) peut revenir à une autre adresse, alors que les sessions qui tournaient déjà continuent d’envoyer leur trafic à l’ancienne et perdent l’accès réseau. Le service `sandbox` recycle chacune de ces sessions dès qu’elle est libérée et inactive, et consigne `recycling <session>` ; la prochaine utilisation la redémarre avec son espace de travail intact. Une session encore utilisée continue d’échouer jusqu’à la fin de son travail, et une session épinglée continue de tourner jusqu’à ce que tu l’arrêtes ou ne l’épingles plus.
+
+## Une trace de pile désigne des fichiers compilés
+
+Le backend s’exécute sous forme de JavaScript compilé. Une trace de pile dans son journal indique donc des positions dans `main.js` ou dans un fichier `chunk-….js`, avec des noms de fonction courts choisis à la compilation :
+
+```text
+    at KKo (file:///app/backend-dist/main.js:20807:3579)
+```
+
+L’image contient les source maps à côté de ce code, et le backend en cours d’exécution ne les charge jamais. Pour lire une trace en lignes du code source, transmets-la au programme que l’image fournit à cet effet. Il lit la trace sur l’entrée standard et la réécrit en remplaçant chaque position :
+
+```bash
+docker logs --tail 200 <backend-api-container> 2>&1 \
+  | docker exec -i <backend-api-container> node /app/backend-dist/symbolicate-trace.js
+```
+
+La même ligne devient alors `at KKo (backend/env.ts:295:20)` : un fichier, une ligne et une colonne des sources de cette version. Les noms de fonction restent ceux de la compilation, et les lignes qui ne font pas partie d’une trace sont conservées telles quelles. Utilise un conteneur de la version qui a consigné la trace, car chaque version a ses propres source maps ; là où l’application tourne en un seul processus, ce conteneur est `platform`. Joins la trace ainsi résolue lorsque tu signales un défaut.
 
 ## Les écritures échouent ou le stockage se remplit
 

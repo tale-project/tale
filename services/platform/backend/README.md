@@ -17,6 +17,7 @@ workspace and its build/test commands.
 | Public REST resources and error contracts | `rest/` |
 | Accounts, sessions, membership and native identity | `auth/` |
 | Durable jobs, schedules and queue policies | `jobs/` |
+| Reading a file under a memory cap: text extraction, chunking, converting a recording | [`lib/heavy-slot/`](lib/heavy-slot/), `core/lib/knowledge/file_extraction/` |
 | Application migrations and transaction setup | `db/` |
 | Realtime invalidation events | `realtime/` |
 | Reused domain logic and compatibility types | [`core/`](core/README.md) |
@@ -44,13 +45,16 @@ bun run --filter @tale/platform backend:dev
 This starts Node with the repository's TypeScript loader and watch mode. Use the
 Node and Bun versions pinned by the repository. The loader resolves imports used
 by the shared platform code; launching `main.ts` with a different runtime command
-can fail before the application starts.
+can fail before the application starts. Like the container, it also serves the
+built app on port 3000. To run Vite there beside it, start it with
+`APP_PORT=off`, as `bun run dev` starts its backend.
 
 | Setting | Purpose |
 | --- | --- |
 | `DATABASE_URL` | Required application database connection |
 | `ROLE` | `api`, `worker`, or `all` (default) |
 | `PORT` | Backend HTTP port, default `3005` |
+| `APP_PORT` | The port the web tier is served on, default `3000`: beside the API in `api` and `all`, alone in the image's `web` role. Never the API's port. `off` serves the API without the web tier, for a process whose app something else serves: `bun run dev` starts its backend so, beside Vite. The `web` role refuses it |
 | `BETTER_AUTH_SECRET` | Required when the process serves APIs (`api` or `all`) |
 | `SITE_URL` | Public origin used by authentication; non-loopback origins require HTTPS |
 | `TALE_CONFIG_DIR` / `TALE_CONFIG_BUILTIN_DIR` | Writable deployment configuration and shipped catalog |
@@ -59,24 +63,168 @@ can fail before the application starts.
 | `AGENT_DRIVE_SLOTS` | Live agent turns' drive windows one worker runs at once per lane, default `WORKER_CONCURRENCY` and at least 16 (1–256); a worker drains about 2.5× this many live turns per lane before their windows wait past the recovery horizon |
 | `AUTOMATION_ORG_CONCURRENCY` | Automation steps one organization runs at once across every worker, default `8` (0–256, `0` = no limit); counted by pg-boss per job group (`queueGroupConcurrency`), so workers fetching at the same instant can briefly pass it by one or two |
 | `AUTOMATION_RUNNER_PROCESSES` | Runner processes one backend process evaluates automation code in (1–16); unset, `2` for the api and one per core but one (at most `4`) for a worker. Each starts only while the others are busy; one beyond the first stops after five idle minutes (`backend/lib/code-runner.ts`) |
+| `HEAVY_SLOT_MEMORY_MB` | Memory one file may take while it is read, in MiB, default `512` (64–65536). The read runs in a child process that is stopped above it, and the file fails with a sentence naming the cap and this variable (`lib/heavy-slot/slot.ts`) |
+| `HEAVY_SLOTS` | Files one process reads at once, default `1` (1–16); each may take the whole cap |
+| `DATABASE_POOL_MAX` | Connections one process opens to the application database for its own queries, default `10` |
+| `JOBS_DATABASE_POOL_MAX` | Connections one process opens for the job queue (pg-boss), default `DATABASE_POOL_MAX` where jobs are worked and `2` on the api role, which only sends them. A role that works jobs holds one more to be woken on (LISTEN); the api role holds none |
+| `AUTH_DATABASE_POOL_MAX` | Connections one process that serves requests opens for sign-in session lookups, default `5` |
+| `DATABASE_PREPARED_STATEMENTS` | Whether the application and knowledge pools keep their statements prepared, default `true`. Prepared, a repeat saves a round trip and the database keeps the statement while the connection lives; `false` sends every statement unprepared and keeps each connection's PostgreSQL process small |
 | `KNOWLEDGE_DB_POOL_MAX` | Connections one process opens to the knowledge corpus, default `10`; an indexing job holds one per slice commit, so keep it at or above `WORKER_CONCURRENCY` |
 | `SHUTDOWN_DRAIN_MS` | How long a stopping process waits for its jobs, default `15000` for `api` and `90000` for `worker` and `all` (1000–600000); keep the container's stop grace at least 15 seconds above it |
+| `SHUTDOWN_DRAIN_SECONDS` | How long a stopping process that serves the web tier keeps answering after `/api/health` turned to 503, default `6` (0–300); skipped when nothing has checked its health in the last 15 seconds |
+| `BACKEND_NODE_FLAGS` | Image only. The Node flags the built backend starts with, in place of the ones the entrypoint works out from the container's memory limit and reservation (`backend_node_flags` in `docker-entrypoint.sh`: a heap cap only from a limit of 512 MiB or less); empty starts Node with none |
+| `MALLOC_ARENA_MAX` | Image only. glibc arenas for the process, `2` unless set |
 | `SENTRY_DSN` | Optional error reporting |
 | `BACKEND_SENTRY_TRACES_SAMPLE_RATE` | Manual HTTP and worker trace sample rate, `0` (disabled) by default, `0`–`1`; requires `SENTRY_DSN` and transaction support at the destination |
 
 An `api` process serves HTTP/SSE and can enqueue work; a `worker` consumes jobs
-and runs schedules. `all` combines both for local development. Every role runs
+and runs schedules. `all` combines both: local development runs it, and so does
+a workspace, whose `tale deploy` starts one `platform` process per replica in
+this role unless the job runner is asked for apart (`tools/cli`'s
+`lib/compose/app-tier.ts`). Every role runs
 application migrations under the same advisory lock. Auth migrations run where
 auth is configured, and pg-boss manages its own schema when it starts.
 
-On `SIGTERM` a process first tells its work that it is stopping
-(`lib/shutdown.ts`), then closes HTTP and stops fetching jobs
-(`shutdown-sequence.ts`). A worker's automation walkers hand their runs on at
+A process that serves the API serves the web tier too, on a listener of its
+own: the built app with its shell, the status page and the other doors of
+[`../server.ts`](../server.ts). It starts last, once the API listens, and writes
+the ready marker itself, so a replica reads as ready only when it can serve the
+app and answer what the app then asks. The web tier holds no database
+connection in either shape: it asks the API for a session's verdict and for the
+status page, and in this process that is the process's own API listener
+(`ownApiUrl` in `env.ts`), never whichever replica a shared network name
+resolves to. Its `/metrics` answers the one registry the process has. The same
+web tier runs alone as the image's `web` role, from an entry of its own
+([`web-main.ts`](web-main.ts)) that reads none of the backend.
+
+On `SIGTERM` a process that serves the web tier first turns `/api/health` to
+503 and keeps working for `SHUTDOWN_DRAIN_SECONDS`, so a balancer that checks
+each replica stops sending it requests; a replica nothing has checked lately
+skips the wait. The process then tells its work that it is stopping
+(`lib/shutdown.ts`), closes HTTP (the web tier's listener first, then the
+API's) and stops fetching jobs (`shutdown-sequence.ts`). A worker's automation walkers hand their runs on at
 their next step, a step still running after the grace (20 seconds, or a third of
 a shorter `SHUTDOWN_DRAIN_MS`) is cut and handed on unrecorded, and the worker
 releases any run it still holds, so another worker continues it at once. Agent
 turns' drive windows end and leave the turn to its next window. The process then
 waits out its other jobs for up to `SHUTDOWN_DRAIN_MS` and closes its pools.
+
+## Build the backend for production
+
+The production image does not run these sources. It runs a build of them:
+
+```bash
+bun run --filter @tale/platform backend:build   # writes services/platform/backend-dist/
+node services/platform/backend-dist/main.js      # plain node: no loader, no flags
+```
+
+[`scripts/build-backend.ts`](../scripts/build-backend.ts) folds the backend and
+every dependency into one flat directory of minified JavaScript. A process that
+reads the sources through the loader keeps each module as a script of its own,
+with its comments and an inline source map; the same process started from the
+build measured about 100 MiB less at rest (256 → 149 MiB on amd64). The build
+fails if a built file would still import a package at runtime, because the image
+ships no `node_modules` for it.
+
+The build is a production build wherever it is made. Bun writes the
+`NODE_ENV` of the build's own environment into the code in place of every
+`process.env.NODE_ENV` (`development` when it is unset), so the build names
+`production` itself: a built backend never runs a library's development
+checks, and setting `NODE_ENV` on the container changes nothing in it.
+
+Three more properties of the build are held by its test:
+
+- **Every script is written in one-byte characters.** V8 keeps a script's text
+  at one byte a character only while every character fits in a byte; one em
+  dash makes it two for the whole file. The build writes each character above
+  U+00FF as its `\uXXXX` escape ([`scripts/one-byte-scripts.ts`](../scripts/one-byte-scripts.ts))
+  and moves the source maps along, which is worth another 13 MiB at rest.
+- **A boot reads only what every role needs.** `build.json` lists the files
+  and packages `main.js` imports statically. What only some work needs is
+  behind an `import()`: the error-reporting SDK (with a `SENTRY_DSN`), SheetJS,
+  the SAML libraries, and for a pure worker the routes, the sign-in stack and
+  the web tier. A new dependency of that kind belongs behind one too, and in
+  the test's list.
+- **The web role reads none of the backend.** `web-main.js` is the entry of
+  the role that serves the web tier alone, and `build.json` lists what it
+  imports as well: the web tier, the HTTP server and the metrics client. A
+  database client, the job queue or the sign-in stack there fails the test.
+  `server.ts` may import a backend module only when that module imports
+  nothing of the backend itself (`lib/http-hygiene.ts`, `lib/request-id.ts`,
+  `lib/close-http-server.ts`, `lib/layout.ts`).
+
+- **The child that reads a file reads only the readers.** `heavy-child.js` is
+  the program a process starts for one file ([Read a file under a memory
+  cap](#read-a-file-under-a-memory-cap)), and `build.json` lists what it
+  imports: the extractors, the secret scan, the PII policy and the chunker.
+  A database client, the HTTP app or the object store there fails the test;
+  what a child loads is what every file pays before its first byte is read.
+
+A module that reads a file by its own location must ask
+[`lib/layout.ts`](lib/layout.ts), which knows both shapes: in the build every
+module sits in `backend-dist/`, so `new URL('./x', import.meta.url)` points
+somewhere else than in the sources. Today that covers the boot migrations (the
+build copies the `.sql` files and compiles each data migration, which keeps the
+name it is recorded under), the message catalogs and the code runner's child
+program.
+
+Two programs are built beside the backend for whoever operates the image:
+
+- `node backend-dist/image-check.js` reads what the backend reads from beside
+  its code (the PII data tree, the catalogs, the migrations, the code runner)
+  and exits 1 when something is missing. It also fails a built app whose
+  scripts and stylesheets lack their precompressed copies, which the edge
+  would then compress per request; `--app <directory>` names an app that is
+  not at `dist/` beside the backend. The container smoke test runs it.
+- `node backend-dist/symbolicate-trace.js` turns a logged stack trace, which
+  names positions in `main.js`, back into source lines. The source maps are
+  written beside the build for it and never loaded by the backend.
+
+`scripts/build-backend.test.ts` builds the backend, boots it as far as its
+environment check, and runs both programs.
+
+## Read a file under a memory cap
+
+A document's text is extracted, checked and cut into chunks in a child process,
+and a recording is converted by an `ffmpeg` the same code starts
+([`lib/heavy-slot/`](lib/heavy-slot/)). One such job runs at a time in a
+process (`HEAVY_SLOTS`), work a person waits for ahead of work a queue
+brought, which keeps every fifth turn. A job that takes more than
+`HEAVY_SLOT_MEMORY_MB` is stopped, and a document whose text would not fit
+under it is refused by the child before it is read back: either way the
+caller gets a `HeavyLimitError`, whose sentence names the cap and the
+variable. The process that asked never holds the file or its text. It streams
+the stored object into a job directory, the child reads it from there and
+writes the chunks beside it, and indexing reads those back sixty-four at a
+time. A directory a killed process left behind is removed by the next one to
+look, at its start and every ten minutes.
+
+The cap holds because the child holds little, so keep it that way:
+
+- **Read a file from disk, a piece at a time.** The readers that take a path
+  are in `core/lib/knowledge/file_extraction/`; the ones in `extraction/` take
+  bytes, open no file, and are what a data migration may import. A new format
+  gets both, and a line in `file_extraction/router.test.ts` that holds them to
+  the same text.
+- **Write text to the sink as it is made**, and never build a list of what a
+  document is made of: its rows, its pages, its chunks. `chunksOf` cuts a
+  chunk when it is asked for, and `prepareContent` hands them on that way.
+- **Reuse a buffer** where a loop would allocate one per piece. Memory outside
+  V8's heap is freed only when its owner is collected, and a small heap
+  collects late.
+- **Write through the sink, which has a limit.** A file can state far more
+  text than it holds: the sink stops a reader where the text passes what the
+  cap has room for (`TextLimitError`), before the disk fills.
+
+A test that needs the result and not the process runs the work in its own
+process: `tests/setup-server.ts` turns that on for every server suite
+(`runHeavySlotInline`). The suites in `lib/heavy-slot/` start real children.
+
+Measured on a build, with the cap at 96 MiB, a child peaked at 47 MiB for a
+spreadsheet of 60,000 rows by 10 columns, at 51 MiB for a PDF of 300 pages of
+text, and at 80 MiB for a 142 MB PDF of ten scanned pages. Text is what a
+document costs: about 20 MB of it fits under that cap, half as much under a
+PII policy, which scans the text whole.
 
 ## Preserve transaction and tenant boundaries
 

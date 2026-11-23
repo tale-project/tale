@@ -34,7 +34,7 @@ vi.mock('../chat/external_turn_shared', async (importActual) => {
       text: '',
       timeline: [],
     }),
-    resolveHarnessTurnContextWindow: async () => undefined,
+    resolveHarnessTurnModelLimits: async () => ({}),
   };
 });
 vi.mock('../automations/agent_host', () => ({
@@ -77,7 +77,7 @@ vi.mock('../lib/providers/resolve_image_model', () => ({
   resolveTurnImageGeneration: vi.fn(),
 }));
 vi.mock('../node_only/sandbox/gateway_provisioning', () => ({
-  provisionSessionGatewayKey: async () => ({
+  issueRelayKey: async () => ({
     token: 'test-token',
     keyId: 'key-new',
     keyHash: 'hash-new',

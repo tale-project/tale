@@ -1,7 +1,12 @@
 import { z } from 'zod';
 
 import { externalDepError } from '../../utils/fail';
-import { imageRef, type ServiceConfig } from '../compose/types';
+import {
+  ROTATABLE_SERVICES,
+  imageRef,
+  type RotatableService,
+  type ServiceConfig,
+} from '../compose/types';
 import {
   invalidProjectIdMessage,
   isValidProjectId,
@@ -169,12 +174,19 @@ export async function admitTagAutomationImage(
   return digests[0];
 }
 
-/** Resume inspects every already-created writer, not merely the newly pulled tag. */
+/**
+ * Resume inspects every already-created writer, not merely the newly pulled
+ * tag. `services` are the ones the colour is to run (its shape's,
+ * compose/app-tier.ts): each must have a container, and every container of
+ * the colour that runs the platform image, in whichever of its services,
+ * must be the admitted image.
+ */
 export async function admitPendingAutomationColor(
   project: string,
   platformImage: string | undefined,
   installed: AutomationWriterProtocol,
   dependencies: RuntimeDependencies = {},
+  services: readonly RotatableService[] = ROTATABLE_SERVICES,
 ): Promise<void> {
   if (installed === 1 && platformImage === undefined) return;
   requireRuntime(
@@ -209,12 +221,14 @@ export async function admitPendingAutomationColor(
       containers.every((c) => ids.includes(c.id)),
     'Pending writer identity changed.',
   );
-  for (const service of ['platform', 'backend-api', 'backend-worker']) {
+  // A service the colour is not to run still holds a writer where an earlier
+  // deploy left a container of it: judged like the rest, never required.
+  for (const service of ROTATABLE_SERVICES) {
     const matches = containers.filter(
       (c) => c.labels['com.docker.compose.service'] === service,
     );
     requireRuntime(
-      matches.length > 0 &&
+      (matches.length > 0 || !services.includes(service)) &&
         matches.every(
           (c) =>
             c.image === target.id &&

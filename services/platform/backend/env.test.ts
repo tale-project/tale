@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 
 import { describe, expect, it } from 'vitest';
 
-import { loadEnv } from './env.ts';
+import { loadEnv, ownApiUrl } from './env.ts';
 
 const KEY_HEX = 'ab'.repeat(32);
 const BASE = { DATABASE_URL: 'postgres://x', ENCRYPTION_SECRET_HEX: KEY_HEX };
@@ -226,6 +226,42 @@ describe('loadEnv', () => {
     expect(() => loadEnv({ ...BASE, AGENT_START_SLOTS: 'lots' })).toThrow();
   });
 
+  it('reads one file at a time in 512 MiB unless told otherwise, each bounded', () => {
+    const env = loadEnv({ ...BASE });
+    expect(env.HEAVY_SLOTS).toBe(1);
+    expect(env.HEAVY_SLOT_MEMORY_MB).toBe(512);
+    // What `tale deploy` gives the one process of a small host, and a host
+    // with memory to spare.
+    expect(
+      loadEnv({ ...BASE, HEAVY_SLOT_MEMORY_MB: '96' }).HEAVY_SLOT_MEMORY_MB,
+    ).toBe(96);
+    expect(loadEnv({ ...BASE, HEAVY_SLOTS: '4' }).HEAVY_SLOTS).toBe(4);
+    // A compose file hands on a variable its `.env` leaves empty: that is no
+    // value, not a refusal to boot.
+    const blank = loadEnv({
+      ...BASE,
+      HEAVY_SLOTS: '',
+      HEAVY_SLOT_MEMORY_MB: '',
+    });
+    expect(blank.HEAVY_SLOTS).toBe(1);
+    expect(blank.HEAVY_SLOT_MEMORY_MB).toBe(512);
+    // Under 64 MiB a reader does not start; the names are in the refusal.
+    for (const value of ['63', '65537', '96.5', 'plenty']) {
+      expect(() => loadEnv({ ...BASE, HEAVY_SLOT_MEMORY_MB: value })).toThrow(
+        /HEAVY_SLOT_MEMORY_MB/,
+      );
+    }
+    for (const value of ['0', '17', '1.5', 'many']) {
+      expect(() => loadEnv({ ...BASE, HEAVY_SLOTS: value })).toThrow(
+        /HEAVY_SLOTS/,
+      );
+    }
+    expect(
+      loadEnv({ ...BASE, HEAVY_SLOT_MEMORY_MB: '64' }).HEAVY_SLOT_MEMORY_MB,
+    ).toBe(64);
+    expect(loadEnv({ ...BASE, HEAVY_SLOTS: '16' }).HEAVY_SLOTS).toBe(16);
+  });
+
   it('limits an organization to eight automation steps at once by default, and 0 lifts it', () => {
     expect(loadEnv({ ...BASE }).AUTOMATION_ORG_CONCURRENCY).toBe(8);
     expect(
@@ -340,5 +376,45 @@ describe('loadEnv', () => {
       loadEnv(source);
       expect(source.WEBDAV_APP_PASSWORD_HMAC_KEY).toBeUndefined();
     });
+  });
+});
+
+// The web tier a backend process serves beside its API asks that API for
+// session verdicts and for the status page (`main.ts`). It must reach this
+// process's own listener, not whichever replica a shared network name
+// resolves to, so the address is worked out from what the listener bound.
+describe('ownApiUrl', () => {
+  it('is loopback at the API port when the listener binds every interface', () => {
+    expect(ownApiUrl({ PORT: 3005, BACKEND_LISTEN_HOST: undefined })).toBe(
+      'http://127.0.0.1:3005',
+    );
+    expect(ownApiUrl({ PORT: 8080, BACKEND_LISTEN_HOST: '0.0.0.0' })).toBe(
+      'http://127.0.0.1:8080',
+    );
+    expect(ownApiUrl({ PORT: 3005, BACKEND_LISTEN_HOST: '::' })).toBe(
+      'http://127.0.0.1:3005',
+    );
+  });
+
+  it('is the one interface the listener bound, where it names one', () => {
+    expect(ownApiUrl({ PORT: 3005, BACKEND_LISTEN_HOST: '10.0.4.7' })).toBe(
+      'http://10.0.4.7:3005',
+    );
+    expect(ownApiUrl({ PORT: 3005, BACKEND_LISTEN_HOST: 'localhost' })).toBe(
+      'http://localhost:3005',
+    );
+  });
+
+  it('brackets an IPv6 address', () => {
+    expect(ownApiUrl({ PORT: 3005, BACKEND_LISTEN_HOST: '::1' })).toBe(
+      'http://[::1]:3005',
+    );
+  });
+
+  it('follows the port the environment sets', () => {
+    expect(ownApiUrl(loadEnv({ ...BASE, PORT: '53005' }))).toBe(
+      'http://127.0.0.1:53005',
+    );
+    expect(ownApiUrl(loadEnv(BASE))).toBe('http://127.0.0.1:3005');
   });
 });

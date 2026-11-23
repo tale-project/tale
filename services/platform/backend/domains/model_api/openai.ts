@@ -33,7 +33,7 @@ import {
  *  - a tool that is not the caller's own (`function`, `custom`), and
  *    `web_search_options`: a search the vendor runs is neither metered nor
  *    audited here;
- *  - what the gateway would price at a rate the catalog does not know — a
+ *  - what the provider would bill at a rate the catalog does not know — a
  *    `service_tier` other than `auto` or `default`, and audio output
  *    (`modalities` with `audio`, an `audio` field);
  *  - `store: true`, which keeps the conversation in the vendor's account
@@ -267,7 +267,7 @@ function readTools(
   return offers;
 }
 
-/** Fields the gateway would price at a rate the catalog does not know, or
+/** Fields the provider would bill at a rate the catalog does not know, or
  * that keep the conversation beyond the request. */
 function refuseUnpricedOptions(body: Record<string, unknown>): void {
   const tier = body.service_tier;
@@ -429,40 +429,15 @@ export function inspectOpenAiChatRequest(raw: unknown): WireRequest {
   };
 }
 
-/** Whether the caller asked for the stream's closing usage chunk itself —
- * the door asks for it regardless (it books the counts) and drops it from a
- * stream that did not. */
-export function openAiStreamIncludesUsage(
-  body: Record<string, unknown>,
-): boolean {
-  return (
-    isRecord(body.stream_options) && body.stream_options.include_usage === true
-  );
-}
-
-/** The body the gateway receives: the caller's, with the model the door
- * resolved, the output cap the hold was sized for when the caller named
- * none (the hold is a bound only if the answer is), and, on a stream, the
- * usage chunk requested. */
+/** The body the relay receives: the caller's, with the output cap the hold
+ * was sized for when the caller named none — the hold is a bound only if
+ * the answer is. The relay itself names the model upstream and asks a
+ * stream for its usage chunk, which reaches the caller only when the
+ * caller's own `stream_options` asked for it. */
 export function openAiUpstreamBody(
   request: WireRequest,
-  gatewayModel: string,
   heldOutputCap: number,
 ): Record<string, unknown> {
-  const body: Record<string, unknown> = {
-    ...request.body,
-    model: gatewayModel,
-  };
-  if (request.maxOutputTokens === undefined) {
-    body.max_completion_tokens = heldOutputCap;
-  }
-  if (request.stream) {
-    body.stream_options = {
-      ...(isRecord(request.body.stream_options)
-        ? request.body.stream_options
-        : {}),
-      include_usage: true,
-    };
-  }
-  return body;
+  if (request.maxOutputTokens !== undefined) return request.body;
+  return { ...request.body, max_completion_tokens: heldOutputCap };
 }

@@ -40,20 +40,25 @@ export function entityTagOf(bytes: Uint8Array): string {
   return `"${digest.subarray(0, 16).toString('base64url')}"`;
 }
 
-/** The content codings the edge may append to a tag it compressed
+/** The content codings a compressing proxy may append to a tag
  * (`"abc"` → `"abc-gzip"`): the codings Caddy's `encode` can serve. */
 const EDGE_CODING_SUFFIX = /-(?:gzip|zstd|br|deflate)"$/;
 
 /**
  * The opaque tag inside an entity tag as this origin issued it: the weak
  * marker stripped — the weak comparison of RFC 9110 §13.1.2, the one
- * `If-None-Match` uses — and the edge's coding suffix removed. Caddy's
+ * `If-None-Match` uses — and a proxy's coding suffix removed. Caddy's
  * `encode` rewrites the tag of every answer it compresses to `"abc-gzip"`
  * (or `-zstd`), and strips that suffix from a single incoming tag only
  * when the request offers the same coding; a client that stored the
  * suffixed form and revalidates with a tag list, or without that coding,
  * would otherwise never be told 304. The suffixed tag names the same
  * bytes before encoding, which is what the client holds after decoding.
+ *
+ * Tale's own edge was Caddy up to 0.5 and is Traefik since, which
+ * compresses without touching the tag. The suffix is still read: a client
+ * holds the tags an earlier release gave it, and an operator may run a
+ * proxy that suffixes in front of this one.
  */
 export function canonicalEntityTag(tag: string): string {
   const trimmed = tag.trim();

@@ -10,6 +10,8 @@ const { rosterState } = vi.hoisted(() => ({
     modelsHiddenBy: undefined as 'eu' | undefined,
     // Rows a test adds after the two below.
     moreModels: [] as unknown[],
+    // Runtimes a test adds after Claude Code.
+    moreHarnesses: [] as unknown[],
   },
 }));
 
@@ -20,7 +22,10 @@ const { rosterState } = vi.hoisted(() => ({
 vi.mock('@/app/features/projects/hooks/queries', () => ({
   useProjectHarnesses: () => ({
     data: {
-      harnesses: [{ harness: 'claude-code', label: 'Claude Code' }],
+      harnesses: [
+        { harness: 'claude-code', label: 'Claude Code' },
+        ...rosterState.moreHarnesses,
+      ],
       models: [
         {
           id: 'anthropic/claude-fable-5',
@@ -133,6 +138,83 @@ describe('AgentNodeFields model pin', () => {
 
     expect(screen.getByText('claude-fable-5')).toBeVisible();
     expect(screen.queryByText(/without a pinned provider/)).toBeNull();
+  });
+
+  // A step on Default runs a subscription's model where the subscription
+  // works — the host does, and "Default" alone would name a runtime the
+  // step does not use (tale-project/tale#4942).
+  const BOUND_SENTENCE =
+    'This step runs on Claude Code: only a subscription serves its model, and that subscription works only there.';
+
+  it('offers a step on Default a Claude subscription’s model, and says it runs on Claude Code', () => {
+    previewState.data = undefined;
+    renderFields({
+      id: 'agent',
+      type: 'agent',
+      model: 'claude-fable-5',
+      modelProvider: 'anthropic',
+    });
+    expect(screen.getByText('claude-fable-5')).toBeVisible();
+    expect(screen.getByText(BOUND_SENTENCE)).toBeVisible();
+  });
+
+  it('says where the run’s own resolution takes a pinless pick on Default', () => {
+    previewState.data = {
+      ok: true,
+      providerSlug: 'anthropic',
+      modelId: 'claude-fable-5',
+      lane: 'subscription',
+      harness: 'claude-code',
+    };
+    renderFields(PINLESS);
+    expect(screen.getByText(BOUND_SENTENCE)).toBeVisible();
+  });
+
+  it('says nothing more for a model the default runtime runs', () => {
+    previewState.data = undefined;
+    renderFields({
+      id: 'agent',
+      type: 'agent',
+      model: 'anthropic/claude-fable-5',
+      modelProvider: 'openrouter',
+    });
+    expect(screen.queryByText(BOUND_SENTENCE)).toBeNull();
+  });
+
+  it('keeps a subscription’s pick when the step moves to Default, and clears it for a runtime it does not work in', async () => {
+    previewState.data = undefined;
+    rosterState.moreHarnesses = [{ harness: 'codex', label: 'Codex' }];
+    try {
+      const { user, onChange } = renderFields({
+        id: 'agent',
+        type: 'agent',
+        harness: 'claude-code',
+        model: 'claude-fable-5',
+        modelProvider: 'anthropic',
+      });
+
+      await user.click(screen.getByRole('combobox', { name: /Agent runtime/ }));
+      await user.click(
+        await screen.findByRole('option', { name: 'Default (Pi)' }),
+      );
+      // A step on Default runs the subscription's model where the
+      // subscription works: the pick stays. Strict: a cleared pick is a call
+      // that names the model and its provider as undefined.
+      expect(onChange.mock.lastCall?.[0]).toStrictEqual({
+        harness: undefined,
+      });
+
+      await user.click(screen.getByRole('combobox', { name: /Agent runtime/ }));
+      await user.click(await screen.findByRole('option', { name: 'Codex' }));
+      // Codex cannot drive a Claude subscription: the pick goes.
+      expect(onChange.mock.lastCall?.[0]).toStrictEqual({
+        harness: 'codex',
+        model: undefined,
+        modelProvider: undefined,
+      });
+    } finally {
+      rosterState.moreHarnesses = [];
+    }
   });
 
   it('names a model two providers offer by its provider, and groups the list by provider', async () => {

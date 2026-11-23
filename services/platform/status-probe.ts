@@ -82,9 +82,12 @@ let cache: { at: number; result: StatusResult } | null = null;
 let inflight: Promise<StatusResult> | null = null;
 
 /** The backend's `/ping`: reachability + 2xx, body dropped unread. */
-async function probeLiveness(doFetch: typeof fetch): Promise<boolean> {
+async function probeLiveness(
+  doFetch: typeof fetch,
+  baseUrl: string,
+): Promise<boolean> {
   try {
-    const res = await doFetch(`${backendUrl()}/ping`, {
+    const res = await doFetch(`${baseUrl}/ping`, {
       signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
       redirect: 'error',
     });
@@ -142,9 +145,10 @@ function readStoresBody(text: string): StoresVerdict | null {
  */
 async function probeStoresVerdict(
   doFetch: typeof fetch,
+  baseUrl: string,
 ): Promise<StoresVerdict> {
   try {
-    const res = await doFetch(`${backendUrl()}/health/stores`, {
+    const res = await doFetch(`${baseUrl}/health/stores`, {
       signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
       redirect: 'error',
     });
@@ -167,10 +171,13 @@ async function probeStoresVerdict(
   }
 }
 
-async function runProbes(doFetch: typeof fetch): Promise<StatusResult> {
+async function runProbes(
+  doFetch: typeof fetch,
+  baseUrl: string,
+): Promise<StatusResult> {
   const [backendUp, stores] = await Promise.all([
-    probeLiveness(doFetch),
-    probeStoresVerdict(doFetch),
+    probeLiveness(doFetch, baseUrl),
+    probeStoresVerdict(doFetch, baseUrl),
   ]);
   const components: ComponentResult[] = [
     { id: 'backend', up: backendUp },
@@ -198,9 +205,15 @@ async function runProbes(doFetch: typeof fetch): Promise<StatusResult> {
   };
 }
 
+/**
+ * The status of the backend at `baseUrl` — TALE_BACKEND_URL unless the
+ * caller names another, as a process that serves the page beside its own API
+ * does. One cache for the process: it asks one backend.
+ */
 export async function probeServices(
   doFetch: typeof fetch = fetch,
   now: () => number = Date.now,
+  baseUrl: string = backendUrl(),
 ): Promise<StatusResult> {
   const t = now();
   if (cache && t - cache.at < CACHE_TTL_MS) {
@@ -208,7 +221,7 @@ export async function probeServices(
   }
   if (inflight) return inflight;
 
-  const pending = runProbes(doFetch)
+  const pending = runProbes(doFetch, baseUrl)
     .then((result) => {
       cache = { at: now(), result };
       return result;

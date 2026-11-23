@@ -71,7 +71,6 @@ import {
   DEMO_WEBDAV_RETIRED_LABEL,
   DEMO_WEBHOOK,
   MOCK_PROVIDER_DISPLAY_NAME,
-  MOCK_PROVIDER_SLUG,
   type DemoDocument,
   type DemoKnowledgeEntry,
   type DemoProduct,
@@ -337,6 +336,41 @@ async function ensureProject(
   return projectId;
 }
 
+/** A section of the project General tab that its Save writes. */
+export type ProjectOverviewSection = 'identity' | 'instructions';
+
+/**
+ * Press the project General tab's Save and wait until every write it makes
+ * has answered. The tab's one Save/Discard cluster saves its dirty sections
+ * one after the other — the identity (the description among it) and the
+ * standing instructions — and its Save is disabled while that save is in
+ * flight as well as once the form is clean again. A disabled Save says
+ * nothing about the writes: a reload that followed it cut off whichever
+ * write was still on its way.
+ */
+export async function saveProjectOverview(
+  page: Page,
+  projectId: string,
+  sections: ReadonlyArray<ProjectOverviewSection>,
+): Promise<void> {
+  const writes = sections.map((section) => {
+    const write = `/api/app/projects/${encodeURIComponent(projectId)}/${section}`;
+    return page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        new URL(response.url()).pathname === write,
+      { timeout: TIMEOUT.PERSIST },
+    );
+  });
+  await page.getByRole('button', { name: t('common.actions.save') }).click();
+  for (const response of await Promise.all(writes)) {
+    expect(
+      response.ok(),
+      `${new URL(response.url()).pathname} answered ${response.status()}`,
+    ).toBe(true);
+  }
+}
+
 /** Fill the demo project's description (General tab identity) once. */
 async function ensureProjectDescription(
   page: Page,
@@ -348,10 +382,8 @@ async function ensureProjectDescription(
   });
   // The standing instructions live on the same tab and share its ONE
   // Save/Discard cluster with the identity form — fill whatever is still
-  // blank, save once, and read both back from a fresh load. Right after the
-  // project was created, a description typed here has been lost on save while
-  // the instructions persisted (a later, quiet load saves both), so a pass
-  // that did not stick is repeated rather than trusted.
+  // blank, save once, wait for its writes to answer and read both back from
+  // a fresh load. A pass that did not stick is repeated rather than trusted.
   const instructions = page.getByRole('textbox', {
     name: t('projects.instructions.label'),
   });
@@ -371,22 +403,17 @@ async function ensureProjectDescription(
     // The Audience picker is the last thing on the tab to settle.
     await expect(audience).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
     await expect(instructions).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-    let dirty = false;
+    const dirty: ProjectOverviewSection[] = [];
     if ((await description.inputValue()) === '') {
       await description.fill(DEMO_PROJECT_DESCRIPTION);
-      dirty = true;
+      dirty.push('identity');
     }
     if ((await instructions.inputValue()) === '') {
       await instructions.fill(DEMO_PROJECT_INSTRUCTIONS);
-      dirty = true;
+      dirty.push('instructions');
     }
-    if (dirty) {
-      const save = page.getByRole('button', {
-        name: t('common.actions.save'),
-      });
-      await save.click();
-      // The Save/Discard cluster disables once the form is clean again.
-      await expect(save).toBeDisabled({ timeout: TIMEOUT.PERSIST });
+    if (dirty.length > 0) {
+      await saveProjectOverview(page, projectId, dirty);
       await page.reload();
       await expect(audience).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
     }
@@ -473,6 +500,24 @@ async function ensureProjectAgents(
 }
 
 /**
+ * Choose the mock provider in the embedding form's Provider select. An
+ * option reads its provider's display name, as the AI providers page names
+ * it, once the providers listing has answered; the slug stands in only until
+ * then. So the option is asked for by the display name, which the click
+ * waits for, never by the slug: a pick by slug waited out its timeout.
+ */
+export async function chooseEmbeddingProvider(page: Page): Promise<void> {
+  await page
+    .getByRole('combobox', {
+      name: t('settings.dataResidency.orgEmbedding.provider'),
+    })
+    .click();
+  await page
+    .getByRole('option', { name: MOCK_PROVIDER_DISPLAY_NAME, exact: true })
+    .click();
+}
+
+/**
  * Settings > Data residency > Embedding model — knowledge indexing refuses
  * every upload ("No embedding model is configured") until the org names one,
  * so this runs BEFORE the first document lands. Points at the mock provider
@@ -502,14 +547,7 @@ async function ensureEmbeddingModel(page: Page, orgId: string): Promise<void> {
   } else {
     await toggle.click();
   }
-  await page
-    .getByRole('combobox', {
-      name: t('settings.dataResidency.orgEmbedding.provider'),
-    })
-    .click();
-  await page
-    .getByRole('option', { name: MOCK_PROVIDER_SLUG, exact: true })
-    .click();
+  await chooseEmbeddingProvider(page);
   await model.fill(DEMO_EMBEDDING_MODEL.model);
   await page
     .getByRole('spinbutton', {

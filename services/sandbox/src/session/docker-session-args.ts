@@ -32,11 +32,9 @@ import {
   sessionContainerName,
 } from './session-naming.ts';
 import {
-  DEFAULT_SESSION_PROFILE,
-  isAgentSessionProfile,
   SESSION_NO_PROXY,
-  sessionAgentProfile,
   sessionDindEnabled,
+  sessionLimits,
   sessionSharesPackageCaches,
 } from './session-profile.ts';
 
@@ -45,6 +43,8 @@ interface DockerSessionRunInput {
   organizationId: string;
   profile: SandboxSessionProfile;
   docker?: boolean;
+  /** The per-file cap a `default` session's creator asked for. */
+  maxFileBytes?: number;
   /** Internal ownership fence for failed-create cleanup; never caller supplied. */
   createAttemptId?: string;
   /** Host dir bind-mounted 1:1 at /agent (survives container death). */
@@ -141,9 +141,12 @@ export function buildDockerSessionRunArgs(
   }
 
   const dind = sessionDindEnabled(cfg, inp.profile, inp.docker);
-  const profile = isAgentSessionProfile(inp.profile)
-    ? sessionAgentProfile(cfg, dind)
-    : DEFAULT_SESSION_PROFILE;
+  const profile = sessionLimits(cfg, inp.profile, dind, inp.maxFileBytes);
+  if (!Number.isSafeInteger(profile.fsizeBytes) || profile.fsizeBytes < 1) {
+    throw new Error(
+      `docker-session-args: per-file size rejected by safety check: ${JSON.stringify(profile.fsizeBytes)}`,
+    );
+  }
   assertSafe('profile.user', profile.user, USER_RE);
   assertSafe('profile.memory', profile.memory, MEM_RE);
   assertSafe('profile.tmpfsSize', profile.tmpfsSize, MEM_RE);
@@ -453,14 +456,15 @@ export function buildDockerSessionRunArgs(
     `HTTPS_PROXY=${cfg.egressProxy}`,
     '--env',
     `HTTP_PROXY=${cfg.egressProxy}`,
-    // Session execs reach the LLM gateway (sandbox-llm-gateway) and the
-    // backend origin (the in-sandbox connector bridge → /api/connectors/*,
-    // the staging callback) directly on the internal bridge — not through
-    // tinyproxy. The agent adapters set ANTHROPIC_BASE_URL at the gateway
-    // and the bridge calls http://backend-api:3005, so both must be in
-    // NO_PROXY or the CONNECT would be denied. If
-    // EXTERNAL_AGENT_CONNECTORS_URL overrides the host, this list must
-    // match (SESSION_NO_PROXY, shared with the Incus launcher).
+    // Session execs reach the backend origin — the model relay
+    // (backend-api:8080), the in-sandbox connector bridge →
+    // /api/connectors/*, the staging callback — directly on the internal
+    // bridge, not through tinyproxy. The agent adapters set
+    // ANTHROPIC_BASE_URL at the relay and the bridge calls
+    // http://backend-api:3005, so the host must be in NO_PROXY or the
+    // CONNECT would be denied. If EXTERNAL_AGENT_CONNECTORS_URL overrides the
+    // host, this list must match (SESSION_NO_PROXY, shared with the Incus
+    // launcher).
     '--env',
     `NO_PROXY=${SESSION_NO_PROXY}`,
     // Per-org shared dep caches (empty under DinD and for the untrusted

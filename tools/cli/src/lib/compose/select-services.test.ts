@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
+import { SPLIT, THREE_WAY, UNIFIED } from './app-tier';
 import { selectDefaultServices, servicesKeepingHost } from './select-services';
 
 const ALL_RUNNING = () => true;
@@ -19,13 +20,11 @@ describe('selectDefaultServices', () => {
       'backend-api',
       'backend-worker',
     ]);
-    // The sandbox tier stays a singleton — it holds docker.sock, the session
-    // directory and the gateway volume — and rolls in place.
-    expect(sel.stateful).toEqual([
-      'sandbox-llm-gateway',
-      'sandbox',
-      'sandbox-egress',
-    ]);
+    // The sandbox tier stays a singleton — it holds docker.sock and the
+    // session directory — and rolls in place. The model gateway an earlier
+    // release ran is no service of the stack: a deploy retires what is left
+    // of it (retire-gateway.ts), never rolls it.
+    expect(sel.stateful).toEqual(['sandbox', 'sandbox-egress']);
   });
 
   test('running db/proxy are left untouched without --stop', () => {
@@ -53,7 +52,6 @@ describe('selectDefaultServices', () => {
     });
     expect(sel.leftRunning).toEqual([]);
     expect(sel.stateful).toEqual([
-      'sandbox-llm-gateway',
       'sandbox',
       'sandbox-egress',
       'db',
@@ -93,7 +91,6 @@ describe('selectDefaultServices', () => {
     });
     expect(sel.leftRunning).toEqual([]);
     expect(sel.stateful).toEqual([
-      'sandbox-llm-gateway',
       'sandbox',
       'sandbox-egress',
       'db',
@@ -154,5 +151,34 @@ describe('servicesKeepingHost', () => {
       'backend-api',
       'backend-worker',
     ]);
+  });
+
+  // A colour serves the host through the services it has: one that runs the
+  // whole application in `platform` has no backend left on the old host.
+  test('names only the services a colour of the shape runs', () => {
+    expect(servicesKeepingHost(['platform', 'sandbox'], UNIFIED)).toEqual([
+      'proxy',
+    ]);
+    expect(servicesKeepingHost(['platform', 'sandbox'], SPLIT)).toEqual([
+      'proxy',
+      'backend-worker',
+    ]);
+    expect(servicesKeepingHost(['proxy'], UNIFIED)).toEqual(['platform']);
+    expect(servicesKeepingHost(['platform', 'sandbox'], THREE_WAY)).toEqual(
+      servicesKeepingHost(['platform', 'sandbox']),
+    );
+  });
+
+  test('a default deploy of any shape leaves only a running proxy behind', () => {
+    for (const tier of [UNIFIED, SPLIT, THREE_WAY]) {
+      const sel = selectDefaultServices({
+        isFirstDeploy: false,
+        stop: false,
+        isStopGatedRunning: ALL_RUNNING,
+      });
+      expect(
+        servicesKeepingHost([...tier.services, ...sel.stateful], tier),
+      ).toEqual(['proxy']);
+    }
   });
 });

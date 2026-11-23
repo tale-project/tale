@@ -28,6 +28,12 @@ import { sleep } from './lib/docker';
 import { capture, ok, projectRoot, stdoutOf, stream } from './lib/exec';
 import { BOLD, GREEN, NC, RED } from './lib/log';
 import { checkPiBridgeRoundTrip } from './lib/pi-bridge-round-trip';
+import {
+  checkWindowReach,
+  WINDOW_REACH_RUNTIMES,
+  WINDOW_REACH_TOKENS,
+  windowReachInImage,
+} from './lib/window-reach';
 
 const PROJECT_ROOT = projectRoot();
 const IMAGE = process.env.IMAGE || 'tale-sandbox-runtime:contest';
@@ -439,6 +445,60 @@ NODEEOF
     );
   }
 }
+// Video-link ingestion runs in the default profile: yt-dlp at its pin, the
+// JavaScript runtime it looks for first, and the PO-token plugin where
+// yt-dlp is pointed. yt-dlp's own report names them, so what is checked is
+// what a run of it would find. No ffmpeg: a session downloads a video's
+// audio as it is served and converts nothing.
+{
+  const dockerfile = readFileSync(
+    join(PROJECT_ROOT, 'services/sandbox-runtime/Dockerfile'),
+    'utf8',
+  );
+  const pinOf = (name: string): string => {
+    const version = dockerfile.match(
+      new RegExp(`^ARG ${name}=([^\\s]+)$`, 'm'),
+    )?.[1];
+    if (!version) throw new Error(`Missing exact image pin ${name}`);
+    return version;
+  };
+  const ytdlp = pinOf('YTDLP_VERSION');
+  const deno = pinOf('DENO_VERSION').replace(/^v/, '');
+  const bgutil = pinOf('BGUTIL_POT_VERSION');
+  // Without a URL yt-dlp says what it found and then that it has nothing to
+  // fetch, which is its exit code 2.
+  const report = 'yt-dlp -v --plugin-dirs /opt/yt-dlp/plugins 2>&1 || true';
+  console.log('');
+  console.log('--- video tools (default session profile) ---');
+  await assertContains(
+    'yt-dlp runs at its pinned version',
+    65534,
+    ytdlp,
+    'yt-dlp --version',
+  );
+  await assertContains(
+    'yt-dlp finds deno at its pinned version',
+    65534,
+    `JS runtimes: deno-${deno}`,
+    report,
+  );
+  await assertContains(
+    'yt-dlp loads the PO-token plugin from its named directory',
+    65534,
+    'Plugin directories: /opt/yt-dlp/plugins/bgutil/yt_dlp_plugins',
+    report,
+  );
+  await assertOk(
+    'each video tool says the version it was built from',
+    65534,
+    `test "$(cat /etc/yt-dlp-version)" = "${ytdlp}" && test "$(cat /etc/deno-version)" = "v${deno}" && test "$(cat /etc/bgutil-pot-version)" = "${bgutil}"`,
+  );
+  await assertOk(
+    'a session converts nothing: the image carries no ffmpeg',
+    65534,
+    '! command -v ffmpeg && ! command -v ffprobe',
+  );
+}
 // Every bundled harness must start offline from an empty HOME as the agent,
 // report its exact source pin, and finish within a generous cold-start bound.
 // Print timings so upgrades expose startup regressions without a noisy
@@ -572,6 +632,20 @@ try {
   );
 } catch (error) {
   fail(`pi bridge round trip: ${String(error)}`);
+}
+// Each runtime runs past a 49,152-token window against a loopback model of
+// that window (tale-project/tale#5417): it compacts at its own threshold,
+// sends no request the window cannot hold, its output cap included, and a
+// resumed exec reads on from the summary.
+for (const runtime of WINDOW_REACH_RUNTIMES) {
+  try {
+    const reach = await checkWindowReach(runtime, windowReachInImage(IMAGE));
+    pass(
+      `${runtime.slug} runs past a ${WINDOW_REACH_TOKENS}-token window: ${reach.requests} requests, the largest ${reach.largest} tokens, ${reach.compactions.length} compactions at its own threshold, resumed from the summary at ${reach.resumedAt} tokens`,
+    );
+  } catch (error) {
+    fail(`${runtime.slug} window reach: ${String(error)}`);
+  }
 }
 // The entrypoint creates every harness state root a harness.yml points at
 // under HOME, or the harness refuses to start (Codex above). Registry and

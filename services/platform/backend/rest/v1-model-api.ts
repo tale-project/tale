@@ -1,6 +1,7 @@
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 
+import { DEFAULT_ANTHROPIC_VERSION } from '../domains/llm_relay/endpoint.ts';
 import {
   listModelApiModelsForCaller,
   type ModelApiRequestContext,
@@ -46,9 +47,6 @@ import {
  * request limit, so a conversation with images the vendor would take is not
  * refused here first. */
 const MODEL_API_BODY_BYTES = 32 * 1024 * 1024;
-
-/** The Messages API version a caller that names none is served under. */
-const DEFAULT_ANTHROPIC_VERSION = '2023-06-01';
 
 /** The longest `anthropic-beta` list relayed — a comma list of short flag
  * names; anything longer is not one. */

@@ -49,8 +49,8 @@ import {
 } from '@/lib/automations/slug';
 import { useT } from '@/lib/i18n/client';
 import {
-  DEFAULT_HARNESS,
   findSelectedModel,
+  offeredOnDefault,
   toModelOptions,
 } from '@/lib/shared/harness-offer';
 import { localTimeZone } from '@/lib/shared/zoned-time';
@@ -188,14 +188,13 @@ export function BlankAutomationDialog({
   // One option per (provider, model) pair — the shared picker vocabulary:
   // collapsing two providers serving the same id was how a pick silently
   // landed on the wrong provider's bill. The scaffolded node names no
-  // harness, so the host default drives it: subscription-served entries are
-  // offered only when bound to that harness.
+  // harness, so it runs on Default: a subscription-served entry on the
+  // runtime its subscription is bound to, any other on the default runtime,
+  // each offered where that runtime runs it (`offeredOnDefault`).
   const offeredModels = useMemo(
     () =>
-      toModelOptions(roster.data?.models ?? []).filter(
-        (option) =>
-          option.subscription === undefined ||
-          option.subscription.harness === DEFAULT_HARNESS,
+      toModelOptions(roster.data?.models ?? []).filter((option) =>
+        offeredOnDefault(option, roster.data?.harnesses),
       ),
     [roster.data],
   );

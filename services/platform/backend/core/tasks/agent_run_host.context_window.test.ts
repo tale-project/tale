@@ -1,11 +1,12 @@
 /**
- * The serving model's context window — and the organization's Custom
- * instructions — reach every exec a task agent run launches: the REAL start
- * and steer hosts, with only external I/O replaced and the model's catalog
- * entry stubbed. Without it Claude Code assumes a
- * 200,000-token window for a model it does not know — a local model serving
- * 32,768 let a desk turn grow to ~140K before the CLI compacted, and the
- * prefill outlasted the CLI's own 30-minute stream watchdog.
+ * The serving model's context window and output limit — and the
+ * organization's Custom instructions — reach every exec a task agent run
+ * launches: the REAL start and steer hosts, with only external I/O replaced
+ * and the model's catalog entry stubbed. Without the window Claude Code
+ * assumes a 200,000-token window for a model it does not know — a local model
+ * serving 32,768 let a desk turn grow to ~140K before the CLI compacted, and
+ * the prefill outlasted the CLI's own 30-minute stream watchdog; without the
+ * limit Pi asks every request for at most 16,384 output tokens.
  */
 
 import type { ModelCatalogEntry } from '@tale/shared/schemas/providers';
@@ -24,7 +25,7 @@ import { ModelEndpointRefusal } from '../governance/model_endpoint_gate';
 import { loadHarnesses } from '../lib/providers/load_system_config';
 import { resolveModel } from '../lib/providers/resolve_model';
 import { encryptSecret } from '../lib/secret_box';
-import { provisionSessionGatewayKey } from '../node_only/sandbox/gateway_provisioning';
+import { issueRelayKey } from '../node_only/sandbox/gateway_provisioning';
 import {
   SessionMemoryBusyError,
   SpawnerUnreachableError,
@@ -50,7 +51,11 @@ const io = vi.hoisted(() => ({
     env: Record<string, string>;
     stdin?: string;
   }>,
-  builds: [] as Array<{ execId: string; contextWindow?: number }>,
+  builds: [] as Array<{
+    execId: string;
+    contextWindow?: number;
+    maxOutputTokens?: number;
+  }>,
   /** The windows the drain answers, in order; `running` once they run out.
    * An error is thrown instead, as a start the sandbox refused is. */
   windows: [] as unknown[],
@@ -59,6 +64,10 @@ const io = vi.hoisted(() => ({
     | { providerSlug: string; modelId: string; apiBaseUrl: string },
   /** What the session ensure throws, when it refuses. */
   sessionRefusal: undefined as Error | undefined,
+  /** Why the run's kick chose its harness, as the run keeps it
+   * (`getTaskAgentRunHarnessReason`): null for a run an earlier image
+   * kicked, `throws` for a read that fails. */
+  harnessReason: 'pinned' as string | null,
   /** What the turn's budget reservation answers. */
   reservation: { allowed: true, budgetCents: 500 } as
     | { allowed: true; budgetCents: number }
@@ -89,6 +98,9 @@ vi.mock('../chat/external_turn_shared', async (importActual) => {
         execId: args.execId,
         ...(args.contextWindow !== undefined
           ? { contextWindow: args.contextWindow }
+          : {}),
+        ...(args.maxOutputTokens !== undefined
+          ? { maxOutputTokens: args.maxOutputTokens }
           : {}),
       });
       return actual.buildExternalTurnExec(args);
@@ -181,7 +193,7 @@ vi.mock('../lib/providers/resolve_vision_model', () => ({
   resolveTurnVisionModel: async () => null,
 }));
 vi.mock('../node_only/sandbox/gateway_provisioning', () => ({
-  provisionSessionGatewayKey: vi.fn(async () => ({
+  issueRelayKey: vi.fn(async () => ({
     token: 'test-token',
     keyId: 'key-new',
     keyHash: 'hash-new',
@@ -198,7 +210,9 @@ const {
   steerTaskAgentTurnImpl,
 } = await import('./agent_run_host');
 
-function servesWindow(contextWindow: number): void {
+/** The serving model's catalog entry: its window, and its output limit when
+ * it names one. */
+function servesWindow(contextWindow: number, maxOutputTokens?: number): void {
   const entry: ModelCatalogEntry = {
     id: 'qwen3-32b',
     provider: 'local-inference',
@@ -206,6 +220,7 @@ function servesWindow(contextWindow: number): void {
     supportsTools: true,
     supportsVision: false,
     contextWindow,
+    ...(maxOutputTokens !== undefined ? { maxOutputTokens } : {}),
   };
   vi.mocked(resolveModel).mockResolvedValue({
     entry,
@@ -291,6 +306,12 @@ function makeCtx(run: RunState, contextCap: number | null = null) {
         }
         return { confined: run.confined ?? false };
       }
+      if (name === 'tasks/agent_runs:getTaskAgentRunHarnessReason') {
+        if (io.harnessReason === 'throws') {
+          throw new Error('the run could not be read');
+        }
+        return io.harnessReason;
+      }
       throw new Error(`unexpected query ${name}`);
     },
     runMutation: async (ref: unknown, args: Record<string, unknown>) => {
@@ -356,6 +377,7 @@ beforeEach(() => {
   io.subscription = undefined;
   io.sessionRefusal = undefined;
   io.reservation = { allowed: true, budgetCents: 500 };
+  io.harnessReason = 'pinned';
   io.brokerRow = null;
   io.ensures = 0;
   io.endpointPolicy = { kind: 'open' };
@@ -702,6 +724,108 @@ describe('a task agent start', () => {
     });
   });
 
+  it('records on the op it opens why the run’s kick chose its runtime', async () => {
+    const { ctx, mutations, queries } = makeCtx({
+      status: 'queued',
+      execId: 'exec-1',
+    });
+
+    await startTaskAgentTurnImpl(ctx, KEYS as never);
+
+    expect(io.starts).toHaveLength(1);
+    expect(
+      queries.find(
+        (q) => q.name === 'tasks/agent_runs:getTaskAgentRunHarnessReason',
+      )?.args,
+    ).toEqual({ organizationId: KEYS.organizationId, runId: KEYS.runId });
+    expect(
+      mutations.find(
+        (m) => m.name === 'sandbox/session_mutations:reserveTurnBudget',
+      )?.args,
+    ).toMatchObject({ kind: 'task-agent', harnessReason: 'pinned' });
+  });
+
+  it('records what the kick decided for a turn off the default, never the default', async () => {
+    // The standard agent ran a model only Codex runs: the kick recorded why.
+    io.harnessReason = 'model_bound';
+    const { ctx, mutations } = makeCtx({ status: 'queued', execId: 'exec-1' });
+
+    await startTaskAgentTurnImpl(ctx, { ...KEYS, harness: 'codex' } as never);
+
+    expect(
+      mutations.find(
+        (m) => m.name === 'sandbox/session_mutations:reserveTurnBudget',
+      )?.args,
+    ).toMatchObject({ harness: 'codex', harnessReason: 'model_bound' });
+  });
+
+  it('records none for a run an earlier image kicked, rather than deciding again', async () => {
+    // Kicked on Claude Code while it was the default: the run keeps no
+    // reason, and Claude Code is not the default now.
+    io.harnessReason = null;
+    const { ctx, mutations } = makeCtx({ status: 'queued', execId: 'exec-1' });
+
+    await startTaskAgentTurnImpl(ctx, KEYS as never);
+
+    expect(io.starts).toHaveLength(1);
+    const reserved = mutations.find(
+      (m) => m.name === 'sandbox/session_mutations:reserveTurnBudget',
+    )?.args;
+    expect(reserved).toMatchObject({ harness: 'claude-code' });
+    expect(reserved).not.toHaveProperty('harnessReason');
+  });
+
+  it.each(['subscription_bound', 'policy'] as const)(
+    'records why the standard agent’s subscription turn runs on its runtime: %s',
+    async (reason) => {
+      io.harnessReason = reason;
+      io.subscription = {
+        providerSlug: 'anthropic',
+        modelId: 'claude-sonnet-4-6',
+        apiBaseUrl: 'https://api.anthropic.com',
+      };
+      vi.mocked(resolveProviderCredential).mockResolvedValue({
+        authMethod: 'subscription-key',
+        credentialId: 'credential-1',
+        name: 'Team subscription',
+        secret: 'synthetic-subscription-key',
+      } as never);
+      io.reservation = { allowed: true, budgetCents: 0 };
+      const { ctx, mutations } = makeCtx({
+        status: 'queued',
+        execId: 'exec-1',
+      });
+
+      await startTaskAgentTurnImpl(ctx, {
+        ...KEYS,
+        harness: 'claude-code',
+        model: 'claude-sonnet-4-6',
+        modelProvider: 'anthropic',
+        sweep: true,
+      } as never);
+
+      expect(
+        mutations.find(
+          (m) => m.name === 'sandbox/session_mutations:reserveTurnBudget',
+        )?.args,
+      ).toMatchObject({ costFree: true, harnessReason: reason });
+    },
+  );
+
+  it('still starts, recording no reason, when how the run got its runtime cannot be read', async () => {
+    io.harnessReason = 'throws';
+    const { ctx, mutations } = makeCtx({ status: 'queued', execId: 'exec-1' });
+
+    await startTaskAgentTurnImpl(ctx, KEYS as never);
+
+    expect(io.starts).toHaveLength(1);
+    expect(
+      mutations.find(
+        (m) => m.name === 'sandbox/session_mutations:reserveTurnBudget',
+      )?.args,
+    ).not.toHaveProperty('harnessReason');
+  });
+
   it('refuses a subscription start at a reached request cap, before any credential is vended [GOV-R16]', async () => {
     io.subscription = {
       providerSlug: 'anthropic',
@@ -916,16 +1040,53 @@ describe('a task agent start', () => {
   });
 
   it('narrows the window to the starter’s context limit', async () => {
-    servesWindow(131_072);
+    servesWindow(131_072, 32_768);
     const { ctx } = makeCtx({ status: 'queued', execId: 'exec-1' }, 16_384);
 
     await startTaskAgentTurnImpl(ctx, { ...KEYS, sweep: true } as never);
 
     expect(io.starts[0]?.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW).toBe('16384');
+    // The output limit never passes the narrowed window.
+    expect(io.builds).toEqual([
+      { execId: 'exec-1', contextWindow: 16_384, maxOutputTokens: 16_384 },
+    ]);
+  });
+
+  it('hands Pi the serving model’s window and output limit', async () => {
+    servesWindow(49_152, 12_288);
+    const { ctx } = makeCtx({ status: 'queued', execId: 'exec-1' });
+
+    await startTaskAgentTurnImpl(ctx, {
+      ...KEYS,
+      harness: 'pi',
+      sweep: true,
+    } as never);
+
+    expect(io.starts).toHaveLength(1);
+    const argv = io.starts[0]?.argv ?? [];
+    const model = argv[argv.indexOf('--model') + 1];
+    // The models.json the wrapper stages from the first line of stdin, for
+    // the model the exec names.
+    const envelope = z
+      .object({
+        models: z.object({
+          providers: z.object({
+            'tale-gateway': z.object({ models: z.array(z.unknown()) }),
+          }),
+        }),
+      })
+      .parse(JSON.parse(io.starts[0]?.stdin?.split('\n')[0] ?? '{}'));
+    // A text-only model with no reasoning knob: Pi keeps it on text and
+    // sends it no reasoning effort.
+    expect(envelope.models.providers['tale-gateway'].models).toEqual([
+      { id: model, contextWindow: 49_152, maxTokens: 12_288, input: ['text'] },
+    ]);
+    expect(model).toMatch(/\/qwen3-32b$/);
+    expect(console.error).not.toHaveBeenCalled();
   });
 
   it('keeps the window when a dead resume handle relaunches fresh', async () => {
-    servesWindow(32_768);
+    servesWindow(32_768, 8_192);
     const { ctx } = makeCtx({ status: 'queued', execId: 'exec-1' });
     // The CLI launched with a dead handle: one errored result, no content.
     io.windows = [
@@ -949,6 +1110,12 @@ describe('a task agent start', () => {
     for (const start of io.starts) {
       expect(start.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW).toBe('32768');
     }
+    // The output limit rides both builds too, from the one catalog read.
+    expect(io.builds).toEqual([
+      { execId: 'exec-1', contextWindow: 32_768, maxOutputTokens: 8_192 },
+      { execId: 'exec-1', contextWindow: 32_768, maxOutputTokens: 8_192 },
+    ]);
+    expect(resolveModel).toHaveBeenCalledOnce();
   });
 
   it('still launches, and leaves the CLI to decide, without a catalog entry', async () => {
@@ -970,8 +1137,8 @@ describe('a task agent start', () => {
 });
 
 describe('a task agent steer restart', () => {
-  it('carries the window into the restarted exec', async () => {
-    servesWindow(32_768);
+  it('carries the window and the output limit into the restarted exec', async () => {
+    servesWindow(32_768, 8_192);
     // Codex has no stdin steering, so a comment restarts its process.
     const { ctx, queries } = makeCtx({ status: 'running', execId: 'exec-1' });
 
@@ -986,7 +1153,7 @@ describe('a task agent steer restart', () => {
     } as never);
 
     expect(io.builds).toEqual([
-      { execId: 'exec-rotated', contextWindow: 32_768 },
+      { execId: 'exec-rotated', contextWindow: 32_768, maxOutputTokens: 8_192 },
     ]);
     expect(io.starts.map((s) => s.execId)).toEqual(['exec-rotated']);
     expect(
@@ -995,6 +1162,42 @@ describe('a task agent steer restart', () => {
       )?.args,
     ).toMatchObject({ execId: 'exec-rotated', kind: 'task-agent' });
     expect(console.error).not.toHaveBeenCalled();
+  });
+
+  it('records on the restarted exec’s op why the run’s kick chose its runtime', async () => {
+    servesWindow(32_768, 8_192);
+    // A run the standard agent's kick put on Codex for a model only Codex
+    // runs: its restart records the kick's reason, not one decided now.
+    io.harnessReason = 'model_bound';
+    const { ctx, mutations, queries } = makeCtx({
+      status: 'running',
+      execId: 'exec-1',
+    });
+
+    await steerTaskAgentTurnImpl(ctx, {
+      ...KEYS,
+      harness: 'codex',
+      model: 'qwen3-32b',
+      feedback: 'Use the second address.',
+      author: 'Dana',
+      authorId: 'user-dana',
+      attempt: 0,
+    } as never);
+
+    expect(
+      queries.find(
+        (q) => q.name === 'tasks/agent_runs:getTaskAgentRunHarnessReason',
+      )?.args,
+    ).toEqual({ organizationId: KEYS.organizationId, runId: KEYS.runId });
+    expect(
+      mutations.find(
+        (m) => m.name === 'sandbox/session_mutations:reserveTurnBudget',
+      )?.args,
+    ).toMatchObject({
+      execId: 'exec-rotated',
+      harness: 'codex',
+      harnessReason: 'model_bound',
+    });
   });
 
   it('fails a restart the broker refused while every account cooled down, naming when the first is back', async () => {
@@ -1419,21 +1622,21 @@ describe('a task agent turn under the EU/EEA rule [GOV-R17]', () => {
     expectLaunchedAt('https://api.anthropic.com', mutations);
   });
 
-  it('hands the gateway lane’s provisioning the task surface and the starter, and settles its refusal the same way', async () => {
+  it('hands the relay key’s mint the task surface and the starter, and settles its refusal the same way', async () => {
     euRule();
-    const message = `${RULE}, and the model gateway reaches the provider "local-inference" through its built-in connection, which calls the vendor's own endpoint, so the call was not sent.`;
-    vi.mocked(provisionSessionGatewayKey).mockRejectedValueOnce(
+    const message = `${RULE}, and the provider "local-inference" names no endpoint, so the call was not sent.`;
+    vi.mocked(issueRelayKey).mockRejectedValueOnce(
       new ModelEndpointRefusal({
         code: 'MODEL_ENDPOINT_OUTSIDE_EU',
         message,
         provider: 'local-inference',
-        reason: 'gateway-builtin',
+        reason: 'unknown-endpoint',
       }),
     );
 
     const { mutations } = await start({ startedBy: 'api-key:user-8' });
 
-    expect(provisionSessionGatewayKey).toHaveBeenCalledWith(
+    expect(issueRelayKey).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
         surface: 'task',

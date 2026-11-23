@@ -12,6 +12,8 @@ import {
 } from '../../../tools/cli/src/lib/compose/services/traefik-labels';
 import {
   BACKEND_LANES,
+  COMPRESSED_CONTENT_TYPES,
+  COMPRESSED_FROM_BYTES,
   ConfigError,
   MACHINE_DOORS,
   PLATFORM_HEALTH,
@@ -386,6 +388,12 @@ describe('renderEdge', () => {
     expect(closed['tale-control'].rule).toBe(
       'Path(`/api/control`) || PathPrefix(`/api/control/`)',
     );
+    // The relay of a sandbox session's yt-dlp is the backend's and the
+    // sandbox network's alone, like the control plane.
+    expect(closed['tale-video-relay']).toEqual({
+      ...closed['tale-control'],
+      rule: 'Path(`/api/video-relay`) || PathPrefix(`/api/video-relay/`)',
+    });
     expect(
       regexpOf(closed['tale-metrics-unauthorized'].rule).test(
         '/METRICS/backend',
@@ -436,6 +444,7 @@ describe('renderEdge', () => {
       .map(([name]) => name);
     expect(outranked).toEqual([]);
     expect(edge['tale-control'].priority).toBeGreaterThan(highest);
+    expect(edge['tale-video-relay'].priority).toBeGreaterThan(highest);
     expect(edge['tale-dot-segments-dav'].priority).toBeGreaterThan(highest);
     expect(JSON.stringify([edge, labelled]).toLowerCase()).not.toContain(
       'convex',
@@ -560,6 +569,51 @@ describe('renderEdge', () => {
       'X-Analytics-Client-IP': '',
     });
     expect(headers.customResponseHeaders).toEqual({ Server: '', Via: '' });
+  });
+
+  it('compresses with gzip alone, from a kilobyte, and only the types it names', () => {
+    // With zstd offered the edge held megabytes per open answer, one the
+    // platform had compressed already included: its memory under a page
+    // load. The platform sends the app's files compressed at build, brotli
+    // first.
+    for (const env of [
+      base,
+      { ...base, TLS_MODE: 'external' },
+      { ...base, BASE_PATH: '/tale' },
+    ]) {
+      const { compress } = renderEdge(readSettings(env)).http.middlewares[
+        'tale-compress'
+      ];
+      expect(compress).toEqual({
+        encodings: ['gzip'],
+        includedContentTypes: COMPRESSED_CONTENT_TYPES,
+        minResponseBodyBytes: 1024,
+      });
+      // Traefik refuses a middleware that sets both lists, and every route
+      // that names the middleware goes with it.
+      expect(compress).not.toHaveProperty('excludedContentTypes');
+    }
+    expect(COMPRESSED_FROM_BYTES).toBe(1024);
+  });
+
+  it('names what it compresses as bare types: text the platform writes, and no stream or packed format', () => {
+    const types: string[] = COMPRESSED_CONTENT_TYPES;
+    expect(types).toContain('application/json');
+    expect(types).toContain('text/html');
+    expect(new Set(types).size).toBe(types.length);
+    for (const type of types) {
+      // Compared exactly: a wildcard matches nothing, and a type written
+      // with a parameter matches that parameter alone.
+      expect(type).toMatch(/^[a-z]+\/[a-z0-9.+-]+$/);
+      // An archive or a recording is packed already, and compressing a
+      // download takes its length and its byte ranges away.
+      expect(type).not.toMatch(/^(audio|video)\//);
+      expect(type).not.toMatch(/zip|pdf|octet-stream|woff/);
+      if (type.startsWith('image/')) expect(type).toBe('image/svg+xml');
+    }
+    // Written as it happens; a compressor holds events back until its
+    // buffer fills.
+    expect(types).not.toContain('text/event-stream');
   });
 
   it("answers a body the client framed wrongly with the client's 400 codes", () => {

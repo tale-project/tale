@@ -2,6 +2,7 @@ import { getProjectId } from '../../../utils/load-env';
 import { EXTRA_HOSTS } from '../generators/constants';
 import type { ComposeService, ServiceConfig } from '../types';
 import { DEFAULT_LOGGING, imageRef } from '../types';
+import { goMemory, memoryReservation } from './memory-env';
 
 /** The image's own probe, for either role (services/proxy/tale-proxy). */
 const PROXY_HEALTHCHECK: NonNullable<ComposeService['healthcheck']> = {
@@ -23,6 +24,7 @@ export function createProxyService(
   hostAlias: string,
   projects: string[],
 ): ComposeService {
+  const memory = goMemory('proxy');
   return {
     image: imageRef(config, 'proxy'),
     container_name: `${getProjectId()}-proxy`,
@@ -32,7 +34,18 @@ export function createProxyService(
     // them (tale-project/tale#5209).
     volumes: ['proxy-data:/data'],
     env_file: ['.env'],
-    environment: { TALE_PROXY_PROJECTS: projects.join(' ') },
+    environment: {
+      TALE_PROXY_PROJECTS: projects.join(' '),
+      // Traefik's heap held near the edge's share of the host's memory: it
+      // grows with the garbage of a burst of requests (memory-env.ts).
+      ...memory.environment,
+    },
+    // The edge's share of the host's memory: spared by reclaim while sandbox
+    // sessions press on host memory, where the engine runs cgroup v2, and a
+    // limit four times as large as a backstop against a runaway. Mirrored in
+    // compose.yml.
+    ...memoryReservation('proxy', config),
+    ...memory.limit,
     restart: 'unless-stopped',
     healthcheck: PROXY_HEALTHCHECK,
     logging: DEFAULT_LOGGING,

@@ -7,7 +7,6 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  anthropicUpstreamBody,
   inspectAnthropicMessagesRequest,
   refuseUnpricedAnthropicBetas,
 } from './anthropic.ts';
@@ -131,13 +130,13 @@ describe('inspectAnthropicMessagesRequest', () => {
     ]);
   });
 
-  it('never relays the gateway-only fallbacks, and names the gateway model upstream', () => {
+  it('never relays the gateway-only fallbacks', () => {
     const request = inspectAnthropicMessagesRequest({
       ...BASE,
       fallbacks: ['openai/gpt-5'],
     });
-    expect(anthropicUpstreamBody(request, 'org__deepseek__x/x')).toEqual({
-      model: 'org__deepseek__x/x',
+    expect(request.body).toEqual({
+      model: 'deepseek/deepseek-v4-flash',
       max_tokens: 1024,
       messages: [{ role: 'user', content: 'hi' }],
     });

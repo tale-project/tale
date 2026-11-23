@@ -72,8 +72,8 @@ second account per role (mint via `POST /api/auth/sign-up/email`, add under
 Settings → Members); SET-F16 needs a second **already-existing** account. The
 connector add-credential smoke (SET-F25) stores a credential and calls no vendor. The model
 endpoint boxes (SET-F64–SET-F68, SET-B23–SET-B26, SET-A10) need the
-endpoints switched on as in governance.md GOV-F41; a real answer needs mode B
-with the sandbox model gateway running. The Connected agents boxes (SET-F85–SET-F88, SET-B38, SET-A11)
+endpoints switched on as in governance.md GOV-F41; in mode A the mock provider
+answers, and a real vendor's answer needs mode B. The Connected agents boxes (SET-F85–SET-F88, SET-B38, SET-A11)
 need coding agents connected as auth.md AUTH-F34–AUTH-F36 describe; the agent
 sign-in is on unless `TALE_MCP_CLIENT_METADATA_DOCUMENTS` and
 `TALE_MCP_DYNAMIC_CLIENT_REGISTRATION` are both `false`, and the page itself is

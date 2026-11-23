@@ -174,6 +174,9 @@ services/web/public/fr/
 services/sandbox-runtime/daemon/dist/
 services/*/dist
 services/*/dist-ssr
+# the built backend (services/platform/scripts/build-backend.ts), and the
+# directories its test builds beside it
+services/*/backend-dist*
 # precompiled SEO + LLM artifact set (built in the Docker builder stage)
 services/*/dist-seo
 # vite-plugin-pwa dev-mode service worker output (regenerated on each dev run)

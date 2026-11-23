@@ -295,19 +295,17 @@ describe('a converged stack', () => {
 
   test('a live key changes in place (update), anything else replaces', () => {
     const target = structuredClone(desired.target);
-    const gateway = target.instances.find(
-      (spec) => spec.name === 'sandbox-llm-gateway',
+    const egress = target.instances.find(
+      (spec) => spec.name === 'sandbox-egress',
     );
-    if (!gateway) throw new Error('no gateway');
-    gateway.config['limits.memory'] = '3GiB';
+    if (!egress) throw new Error('no egress');
+    egress.config['limits.memory'] = '3GiB';
     let made = plan(desiredOf(target), readback, FULL);
-    expect(resource(made, 'instance/sandbox-llm-gateway').action).toBe(
-      'update',
-    );
+    expect(resource(made, 'instance/sandbox-egress').action).toBe('update');
 
-    gateway.config['environment.EXTRA'] = 'x';
+    egress.config['environment.EXTRA'] = 'x';
     made = plan(desiredOf(target), readback, FULL);
-    expect(resource(made, 'instance/sandbox-llm-gateway')).toMatchObject({
+    expect(resource(made, 'instance/sandbox-egress')).toMatchObject({
       action: 'replace',
       effects: [],
     });
@@ -531,11 +529,10 @@ describe('a converged stack', () => {
     const dropped = structuredClone(desired.target);
     dropped.instances = dropped.instances.filter((spec) => spec.name !== 'db');
     note(plan(desiredOf(dropped), readback, FULL));
-    const gateway = structuredClone(desired.target);
-    for (const spec of gateway.instances)
-      if (spec.name === 'sandbox-llm-gateway')
-        spec.config['limits.memory'] = '1GiB';
-    note(plan(desiredOf(gateway), readback, FULL));
+    const egress = structuredClone(desired.target);
+    for (const spec of egress.instances)
+      if (spec.name === 'sandbox-egress') spec.config['limits.memory'] = '1GiB';
+    note(plan(desiredOf(egress), readback, FULL));
     expect([...seen.actions].sort()).toEqual([...INCUS_PLAN_ACTIONS].sort());
     expect([...seen.effects].sort()).toEqual([...INCUS_PLAN_EFFECTS].sort());
   });

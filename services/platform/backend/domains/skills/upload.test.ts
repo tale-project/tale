@@ -8,12 +8,17 @@
  * answered needs_confirm, and the second silently overwrote the first.
  */
 
+import { MAX_SKILL_BUNDLE_TOTAL_BYTES } from '@tale/shared/schemas/skills';
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { OrgSkill } from '../../../lib/skills/listing.ts';
 import { readOrgSkill } from '../../../lib/skills/listing.ts';
-import { s3DeleteObject } from '../../core/lib/storage/object_store.ts';
+import {
+  ObjectTooLargeError,
+  s3DeleteObject,
+  s3GetObjectBytes,
+} from '../../core/lib/storage/object_store.ts';
 import {
   describeBundleWrite,
   prepareBundleWrite,
@@ -37,7 +42,10 @@ vi.mock('../../core/lib/storage/blob_ref.ts', () => ({
 vi.mock('../../lib/object-store.ts', () => ({
   resolveObjectStore: vi.fn(() => Promise.resolve({ bucket: 'tale' })),
 }));
-vi.mock('../../core/lib/storage/object_store.ts', () => ({
+vi.mock('../../core/lib/storage/object_store.ts', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('../../core/lib/storage/object_store.ts')
+  >()),
   s3GetObjectBytes: vi.fn(() => Promise.resolve(new Uint8Array(16))),
   s3DeleteObject: vi.fn(() => Promise.resolve()),
 }));
@@ -142,6 +150,67 @@ beforeEach(() => {
   vi.mocked(auditSkillWrite).mockResolvedValue(undefined);
   vi.mocked(readSkillBundleFiles).mockClear();
   vi.mocked(describeBundleWrite).mockClear();
+});
+
+/**
+ * A staged bundle over the size limit is refused without being read. The
+ * door a bundle is staged through takes files of up to 512 MiB, and the
+ * limit used to be compared after the whole staged file was in memory
+ * (tale-project/tale#4942).
+ */
+describe('uploadSkillBundlePg and the size limit', () => {
+  const refusalCode = (run: Promise<unknown>): Promise<unknown> =>
+    run.then(
+      () => 'no refusal',
+      (error: unknown) =>
+        error instanceof Error && 'data' in error
+          ? Reflect.get(Object(error.data), 'code')
+          : error,
+    );
+
+  it('asks the store for no more than a bundle may hold', async () => {
+    vi.mocked(readOrgSkill).mockResolvedValue(null);
+    vi.mocked(listSkillBundleFileEntries).mockResolvedValue(null);
+
+    await upload(fakeSql([]));
+
+    expect(s3GetObjectBytes).toHaveBeenCalledWith(
+      expect.anything(),
+      'acme/skill_bundle/x',
+      { maxBytes: MAX_SKILL_BUNDLE_TOTAL_BYTES },
+    );
+  });
+
+  it('refuses a bundle the store measured over the limit, and removes it', async () => {
+    vi.mocked(s3GetObjectBytes).mockRejectedValueOnce(
+      new ObjectTooLargeError(
+        'acme/skill_bundle/x',
+        MAX_SKILL_BUNDLE_TOTAL_BYTES,
+        536_870_912,
+      ),
+    );
+
+    expect(await refusalCode(upload(fakeSql([])))).toBe('BUNDLE_TOO_LARGE');
+    expect(s3DeleteObject).toHaveBeenCalledTimes(1);
+    expect(writeSkillBundleFiles).not.toHaveBeenCalled();
+  });
+
+  it('still refuses bytes over the limit that the store handed over', async () => {
+    vi.mocked(s3GetObjectBytes).mockResolvedValueOnce(
+      new Uint8Array(MAX_SKILL_BUNDLE_TOTAL_BYTES + 1),
+    );
+
+    expect(await refusalCode(upload(fakeSql([])))).toBe('BUNDLE_TOO_LARGE');
+    expect(s3DeleteObject).toHaveBeenCalledTimes(1);
+  });
+
+  it('answers a bundle the store could not hand over as missing', async () => {
+    vi.mocked(s3GetObjectBytes).mockRejectedValueOnce(
+      new Error('S3 GET acme/skill_bundle/x failed: 404'),
+    );
+
+    expect(await refusalCode(upload(fakeSql([])))).toBe('STORAGE_NOT_FOUND');
+  });
 });
 
 describe('uploadSkillBundlePg', () => {

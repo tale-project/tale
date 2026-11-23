@@ -1114,8 +1114,7 @@ describe('render worker — output budget in bytes', () => {
       {
         ...noProxy,
         HTTPS_PROXY: 'http://sandbox-egress:8888',
-        NO_PROXY:
-          '127.0.0.1,localhost,sandbox-llm-gateway,backend-api,backend-relay',
+        NO_PROXY: '127.0.0.1,localhost,backend-api,backend-relay',
         FAKE_LAUNCH_OPTIONS_FILE: launched,
       },
     );

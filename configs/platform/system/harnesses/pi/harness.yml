@@ -6,16 +6,25 @@
 # catalog dialect.
 #
 # The wrapper stages the config files into a private per-exec
-# PI_CODING_AGENT_DIR, then pipes the prompt into the CLI's stdin (Pi's
-# native headless prompt source). The MCP servers (the browser and the
+# PI_CODING_AGENT_DIR from the first line of stdin, then becomes Pi in its
+# RPC mode (--rpc), which reads the rest of stdin: the prompt as its prompt
+# command, then the platform's steer commands while the turn runs. stdin is
+# held open until the turn has settled; its EOF ends Pi (an EOF before then
+# aborts the run). The MCP servers (the browser and the
 # capability bridge, which carries every workspace tool) are staged as
 # <agentDir>/mcp.json, the user-level file Pi reads without asking for
-# project trust. Instructions are staged as
-# <agentDir>/APPEND_SYSTEM.md — auto-discovered and APPENDED to Pi's default
-# system prompt without replacing it (SYSTEM.md would replace it and drop
-# the defaults). Pi has NO native web tools (built-in tools: read, bash,
-# edit, write, grep, find, ls) and no interactive-question tool, so there is
-# nothing to deny for managed runs; additionalDirs needs no wiring either —
+# project trust. Instructions are staged beside that dir and named with
+# --append-system-prompt <file>: APPENDED to Pi's default system prompt
+# without replacing it, and exactly the platform's (given on the command
+# line, Pi looks for no APPEND_SYSTEM.md file). Pi runs with --no-approve: it
+# reads none of the workspace's own Pi configuration (.pi/settings.json,
+# .pi/mcp.json, extensions and packages, prompt templates, SYSTEM.md,
+# APPEND_SYSTEM.md), so what is staged here is the turn's whole
+# configuration; the wrapper names the workspace's skill directories with
+# --skill, so its skills still load. Pi has NO native web tools
+# (built-in tools: read, bash, edit, write, grep, find, ls) and no
+# interactive-question tool, so there is nothing to deny for managed runs;
+# additionalDirs needs no wiring either —
 # Pi's file tools are not cwd-scoped. No fallback and no turn cap — the
 # pinned CLI has neither flag; the runaway backstop is the platform runner.
 #
@@ -38,22 +47,24 @@ modelIdDialect: catalog
 promptTransport: stdin-ndjson
 capabilities:
   planMode: false
-  steering: false
+  # Over its RPC stdin: a steer is delivered after the current assistant
+  # turn's tool calls, before Pi's next model call.
+  steering: true
   mcp: true
   resume: true
 parser: pi-jsonl
 exec:
   bin: tale-pi-run
   argv:
-    - args: ['--workdir', '${workdir}']
-    # Pi keeps the system prompt in the session as named sections, re-reads
-    # the staged APPEND_SYSTEM.md every process and stores what changed as a
-    # section update ahead of the new turn; the request carries the newest
-    # value of each section. So a resumed session reads this exec's
-    # instructions. Observed on 1.0.1 against a local stand-in for the chat
-    # API.
+    - args: ['--workdir', '${workdir}', '--rpc']
+    # Pi keeps the system prompt in the session as named sections, reads the
+    # instructions file the wrapper names every process and stores what
+    # changed as a section update ahead of the new turn; the request carries
+    # the newest value of each section. So a resumed session reads this
+    # exec's instructions. Observed on 1.0.1 and 1.6.0 against a local
+    # stand-in for the chat API, a workspace .pi/APPEND_SYSTEM.md included.
     - resume: { flag: '--resume', instructions: current }
-    # Managed: pin the staged gateway provider so model resolution never
+    # Managed: pin the staged relay provider so model resolution never
     # wanders into Pi's built-in catalog (its default provider is google).
     # byo: the caller-resolved catalog id (or raw ref) resolves against Pi's
     # own registry with the user's credentials.
@@ -61,18 +72,41 @@ exec:
         flag: '--model'
         managedPrefixArgs: ['--provider', 'tale-gateway']
   stdin:
-    mode: json-envelope
+    mode: json-envelope-rpc
+    rpc: pi
     envelope:
-      - prompt: {}
       # Staged as <agentDir>/settings.json. Default-on install telemetry
-      # pings home; a sandbox turn must not.
+      # pings home; a sandbox turn must not. Cache warming (default "idle"
+      # since 1.5.1) sends paid requests to keep a provider's prompt cache
+      # warm, during a run and for up to 30 minutes after: a turn pays only
+      # for its own calls. Every steer queued is delivered at once, as
+      # Claude Code takes them. A model Pi may tell how hard to think
+      # (`reasoning` below) thinks at Pi's "high", the most it asks without
+      # a per-model map, as Claude Code thinks at its most on every turn
+      # (the claude-ultrathink transform); the relay carries "high" to every
+      # upstream wire. Observed on 1.6.0 against a local stand-in for the
+      # chat API: a model marked `reasoning` is asked with reasoning_effort
+      # "high", one without it with no effort at all.
       - doc:
           key: settings
           fragments:
             - set:
                 enableInstallTelemetry: false
+                cacheWarming: 'off'
+                steeringMode: all
+                defaultThinkingLevel: high
+            # MANAGED: wait for a silent stream as long as the model relay
+            # does. Pi gives up on a response whose headers or next bytes
+            # take longer than httpIdleTimeoutMs (300 s by default, also its
+            # provider request timeout) and asks again while the relay still
+            # serves the first request; a slow prefill outlasts that.
+            # Observed on 1.6.0: a staged 3 s abandoned a response withheld
+            # for 8 s and asked again; a staged 20 s waited for it.
+            - when: [managed]
+              set:
+                httpIdleTimeoutMs: { $number: '${gateway.streamIdleTimeoutMs}' }
       - instructions: { key: system_prompt }
-      # MANAGED: OpenAI-compatible route on the platform gateway, wired as a
+      # MANAGED: OpenAI-compatible route on the model relay, wired as a
       # Pi custom provider in a staged models.json. The session key rides
       # `$TALE_GATEWAY_TOKEN` env interpolation (Pi's models.json value
       # resolution), never the staged JSON itself (the staged file may get
@@ -89,10 +123,27 @@ exec:
                     apiKey: $TALE_GATEWAY_TOKEN
             # The model's context window as the catalog knows it. Pi takes
             # 128,000 tokens for a model it does not know, caps each request's
-            # output at that window minus its estimate of the conversation
-            # (one token at least) and compacts only near it: a conversation
-            # past ~124,000 tokens of a larger model got one-token answers and
+            # output at the room that window leaves after the conversation and
+            # compacts only near it: under Pi 1.0.1 a conversation past
+            # ~124,000 tokens of a larger model got one-token answers and
             # ended without a report. An unknown window leaves the key out.
+            # Beside it the model's output limit as the catalog knows it,
+            # never more than that window: Pi asks every request of a model
+            # without one for at most 16,384 output tokens (observed on 1.0.1
+            # and 1.6.0), however much more the model may write. Pi asks for
+            # the smaller of maxTokens and the room its window leaves, so the
+            # catalog's figure is safe at any size. An unknown limit leaves the
+            # key out, and Pi keeps its 16,384.
+            # Pi treats a model as text-only unless `input` lists images, and
+            # then replaces every image — an attachment it reads, a tool's
+            # screenshot — with a placeholder: a model that reads images
+            # itself is staged with them (Pi has no vision polyfill; a
+            # text-only model keeps text). Observed on 1.6.0: a PNG Pi read
+            # reached a model staged with images as the image itself, and a
+            # text-only one as "(tool image omitted: model does not support
+            # images)". Pi sends a reasoning effort only for a model marked
+            # `reasoning`: one whose catalog entry can be told how hard to
+            # think beside tools.
             - when: [model]
               set:
                 providers:
@@ -100,26 +151,36 @@ exec:
                     models:
                       - id: '${model}'
                         contextWindow: { $number: '${model.contextWindow}' }
-      # Staged as <agentDir>/mcp.json (stdio: command/args/env — Pi's MCP
-      # server config). Pi offers a server's tools to the model only with
-      # `exposure: direct`: its default keeps them inside its code-mode
-      # scripts, where an agent told to call the workspace tools by name
-      # never finds them. The bridge token rides `${TALE_GATEWAY_TOKEN}`,
-      # which Pi resolves from its own environment when it starts the server
-      # (its stdio servers inherit that environment), so the staged file
-      # never holds the key. No call timeout: Pi asks every call for progress,
-      # and the bridge's reports on a long one (an image generation) restart
-      # Pi's 60 s timer.
+                        maxTokens: { $number: '${model.maxOutputTokens}' }
+                        input:
+                          $when: [model-images]
+                          value: [text, image]
+                          else: [text]
+                        reasoning: { $when: [model-reasoning], value: true }
+      # Staged as <agentDir>/mcp.json (the common mcp.json format Pi reads:
+      # command/args for the browser, url/headers for a remote server). Pi
+      # offers a server's tools to the model only with `exposure: direct`:
+      # its default keeps them inside its code-mode scripts, where an agent
+      # told to call the workspace tools by name never finds them. The
+      # bridge is the platform's MCP server, reached over HTTP (`url`, which
+      # Pi reads as Streamable HTTP), so no relay process starts in the
+      # sandbox. Its bearer token rides `${TALE_GATEWAY_TOKEN}`, which Pi
+      # resolves from its own environment in a header value, so the staged
+      # file never holds the key. No call timeout: Pi asks every call for
+      # progress (and takes an event stream), and the bridge's reports on a
+      # long one (an image generation) restart Pi's 60 s timer. Observed on
+      # 1.6.0 against a loopback stand-in for the bridge: initialize,
+      # tools/list and tools/call, each with the session token, the call
+      # with a progress token; a 75 s call that reported progress every 15 s
+      # was answered, and one that reported none timed out at 60 s.
       - doc:
           key: mcp
           fragments:
             - mcpServers:
                 path: mcpServers
-                serverShape: command-args
-                bridgeEnvField: env
-                bridgeEnv:
-                  TALE_CONNECTORS_URL: '${bridgeUrl}'
-                  TALE_CONNECTORS_TOKEN: '${TALE_GATEWAY_TOKEN}'
+                serverShape: mcp-json
+                bridgeHeaders:
+                  Authorization: 'Bearer ${TALE_GATEWAY_TOKEN}'
                 serverFields:
                   exposure: direct
   env:

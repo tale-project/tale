@@ -292,7 +292,6 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
     'db',
     'platform',
     'proxy',
-    'sandbox-llm-gateway',
     'sandbox',
     'sandbox-egress',
     'sandbox-buildkitd',
@@ -1966,10 +1965,19 @@ describe('the Backend integration check', () => {
         ?.trim()
         .split(/\s+/);
     // The image is the first word after the options: the last one for the
-    // database, the one before its `server` command for the store.
+    // database, the one before its command for the store, which is
+    // versitygw's as compose gives it: its port, its health path, and the
+    // posix backend on the volume the run mounts.
     expect(dockerRun('tale-itest-db')?.at(-1)).toBe(String(build?.tags));
     const store = dockerRun('tale-itest-object-store') ?? [];
-    expect(store[store.indexOf('server') - 1]).toBe('"$OBJECT_STORE_IMAGE"');
+    expect(store[store.indexOf('--port') - 1]).toBe('"$OBJECT_STORE_IMAGE"');
+    expect(store.slice(store.indexOf('--port')).join(' ')).toBe(
+      '--port :9000 --health /_health --quiet posix --fsync /data',
+    );
+    expect(store.slice(store.indexOf('-v'), store.indexOf('-v') + 2)).toEqual([
+      '-v',
+      '/data',
+    ]);
     expect(start?.env?.OBJECT_STORE_IMAGE).toBe(
       '${{ steps.object-store.outputs.image }}',
     );

@@ -137,6 +137,62 @@ describe('immutable assets shared between releases', () => {
     ).toBeCloseTo(now, -1);
   });
 
+  it('publishes a bundle with its precompressed neighbours, and expires them with it', async () => {
+    const now = Date.now();
+    const expired = now - STATIC_ASSET_RETENTION_MS - 1_000;
+    for (const name of [
+      'preview-AAAAAAA1.js',
+      'preview-AAAAAAA1.js.br',
+      'preview-AAAAAAA1.js.gz',
+      // Neighbours of nothing the build emitted, and of a file that is no
+      // bundle, stay where they are.
+      'stray-DDDDDDD4.js.br',
+      'logo.svg.gz',
+      'index.html.br',
+    ])
+      await writeFile(join(blue, name), name);
+    for (const name of [
+      'retired-BBBBBBB2.js',
+      'retired-BBBBBBB2.js.br',
+      'retired-BBBBBBB2.js.gz',
+      'retired-BBBBBBB2.js.zst',
+      'operator-note.txt.gz',
+    ]) {
+      await writeFile(join(shared, name), name);
+      await utimes(join(shared, name), new Date(expired), new Date(expired));
+    }
+
+    await publishStaticAssets(blue, shared, now);
+
+    expect((await readdir(shared)).sort()).toEqual([
+      'operator-note.txt.gz',
+      'preview-AAAAAAA1.js',
+      'preview-AAAAAAA1.js.br',
+      'preview-AAAAAAA1.js.gz',
+    ]);
+    expect(await readFile(join(shared, 'preview-AAAAAAA1.js.br'), 'utf8')).toBe(
+      'preview-AAAAAAA1.js.br',
+    );
+    // Refreshed with the bundle, so a sweep never parts them.
+    for (const name of ['preview-AAAAAAA1.js', 'preview-AAAAAAA1.js.br'])
+      expect((await stat(join(shared, name))).mtimeMs).toBeCloseTo(now, -1);
+  });
+
+  it('adds the neighbours to a bundle an earlier release published without them', async () => {
+    // The same name is the same bytes: the bundle stays as published, and
+    // the release that compresses at build completes it.
+    await writeFile(join(shared, 'preview-AAAAAAA1.js'), 'same bytes');
+    await writeFile(join(blue, 'preview-AAAAAAA1.js'), 'same bytes');
+    await writeFile(join(blue, 'preview-AAAAAAA1.js.br'), 'brotli of them');
+
+    await publishStaticAssets(blue, shared);
+
+    expect((await readdir(shared)).sort()).toEqual([
+      'preview-AAAAAAA1.js',
+      'preview-AAAAAAA1.js.br',
+    ]);
+  });
+
   it('fails publication when the source cannot be read', async () => {
     await expect(
       publishStaticAssets(join(directory, 'missing'), shared),
@@ -161,6 +217,11 @@ describe('immutable assets shared between releases', () => {
     '/assets/subdir/x-AAAAAAA1.js',
     '/assets/preview-AAAAAAA1.html',
     '/branding/preview-AAAAAAA1.js',
+    // A neighbour is served for its bundle's name, never asked for by its own.
+    '/assets/preview-AAAAAAA1.js.br',
+    '/assets/preview-AAAAAAA1.js.gz',
+    '/assets/preview-AAAAAAA1.js.zst',
+    '/assets/preview-AAAAAAA1.js.map.br',
   ])('cannot retain %s', (pathname) => {
     expect(retainedAssetName(pathname)).toBeUndefined();
   });

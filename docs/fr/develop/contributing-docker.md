@@ -20,7 +20,6 @@ Les Dockerfiles utilisent la racine du dépôt comme contexte de construction. C
 | `tale-sandbox-runtime` | `services/sandbox-runtime/` | Environnement Python avec environnements d’agent de programmation, Node, Bun, navigateurs et outils documentaires. |
 | `tale-sandbox-egress` | `services/sandbox-egress/` | Proxy de sortie et prise en charge DNS sur Alpine. |
 | `tale-sandbox-buildkitd` | `services/sandbox-buildkitd/` | BuildKit avec les réglages réseau et de démarrage de la sandbox. |
-| `tale-sandbox-llm-gateway` | `services/sandbox-llm-gateway/` | Passerelle de modèles construite à partir de Bifrost. |
 
 Le stockage objet et le service auxiliaire d’ingestion vidéo utilisent directement des images amont, sans Dockerfile Tale. Les images d’exécution de sandbox et de BuildKit sont lancées à la demande. Construire les seuls services déclarés dans Compose ne les construit pas automatiquement.
 

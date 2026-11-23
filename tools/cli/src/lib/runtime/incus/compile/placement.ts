@@ -96,18 +96,12 @@ export const PLACEMENT = {
     start: 80,
     stop: STOP_GROUPS.data,
     acceptedWithoutInit:
-      'the pinned MinIO image is built by ops, and every writer of the store stops before it',
+      "neither image of the store is built here (versitygw's own, the MinIO rebuild of ops), and every writer of the store stops before it",
   },
   'sandbox-egress': {
     kind: 'service',
     address: { singleton: 'sandbox-egress' },
     start: 70,
-    stop: STOP_GROUPS.middle,
-  },
-  'sandbox-llm-gateway': {
-    kind: 'service',
-    address: { singleton: 'sandbox-llm-gateway' },
-    start: 60,
     stop: STOP_GROUPS.middle,
   },
   sandbox: {

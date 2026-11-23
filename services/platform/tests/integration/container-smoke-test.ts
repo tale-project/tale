@@ -19,6 +19,14 @@ import { copyFileSync, existsSync, rmSync } from 'node:fs';
 import { connect } from 'node:tls';
 
 import {
+  APP_FILES_PROGRAM,
+  deliveryFaults,
+  parseAppFiles,
+  parseDelivery,
+  type Delivery,
+  type ExpectedDelivery,
+} from './lib/delivery';
+import {
   Compose,
   composeArgs,
   containerState,
@@ -193,7 +201,6 @@ async function main(): Promise<number> {
     'docker-api',
     'sandbox',
     'sandbox-egress',
-    'sandbox-llm-gateway',
   ];
   let healthFailed = false;
   for (const svc of services) {
@@ -341,33 +348,26 @@ async function main(): Promise<number> {
     r.fail('Backend api /ping');
   }
 
-  // The PII data tree is baked into the backend image at
-  // TALE_CONFIG_SYSTEM_DIR (/app/system/pii); an image built without it
-  // cannot enforce any organization's `pii_config` policy and only says so
-  // in a boot log line. Load the registry inside the built image exactly as
-  // the backend does — the same node flags and loader — so a packaging
-  // regression fails this job rather than a customer's governance policy.
-  // The flags and loader path mirror the `backend)` launch line in
-  // docker-entrypoint.sh by hand: change them together, or this probe fails
-  // for the wrong reason.
+  // What the backend reads from beside its code is baked into the image: the
+  // PII data tree at TALE_CONFIG_SYSTEM_DIR (/app/system/pii), the message
+  // catalogs, the boot migrations and the code runner's child program. A boot
+  // that misses one does not fail — without the PII tree it only logs, and
+  // then refuses every document under an organization's `pii_config` policy
+  // — so a packaging regression would reach a customer first. The image's
+  // own check (backend/image-check.ts, built into backend-dist/) reads each
+  // of them with the backend's code, from the files the backend loads.
   if (
     await dockerExecOk(backendContainer, [
       'node',
-      '--experimental-transform-types',
-      '--disable-warning=ExperimentalWarning',
-      '--import',
-      '/app/backend/node-loader.mjs',
-      '--input-type=module',
-      '-e',
-      "const { PatternRegistry } = await import('/app/lib/pii/index.ts'); PatternRegistry.fromDefaults();",
+      '/app/backend-dist/image-check.js',
     ])
   ) {
     r.pass(
-      'Backend image loads the PII data tree (PatternRegistry.fromDefaults)',
+      'Backend image holds what the backend reads (PII tree, catalogs, migrations, code runner)',
     );
   } else {
     r.fail(
-      'Backend image loads the PII data tree (PatternRegistry.fromDefaults)',
+      'Backend image holds what the backend reads (PII tree, catalogs, migrations, code runner)',
     );
   }
 
@@ -376,11 +376,15 @@ async function main(): Promise<number> {
 
   // The deployment control channel is docker-exec localhost, never public.
   // The plain edge refusal distinguishes it from a backend token refusal.
+  // Nor is the relay a sandbox session's yt-dlp asks the backend through.
   for (const path of [
     '/api/control',
     '/api/control/',
     '/api/control/drain-status?probe=1',
     '/api/%63ontrol/drain-status',
+    '/api/video-relay',
+    '/api/video-relay/pot/a-token/ping',
+    '/api/video-%72elay/pot/a-token/get_pot',
   ]) {
     const probe = await capture([
       'docker',
@@ -399,13 +403,15 @@ async function main(): Promise<number> {
       '\n%{http_code}',
       `https://localhost${path}`,
     ]);
-    const label = `Public proxy refuses deployment control ${path}`;
+    const label = `Public proxy refuses the internal path ${path}`;
     if (probe.exitCode === 0 && probe.stdout === 'Not found\n404') {
       r.pass(label);
     } else {
       r.fail(label);
     }
   }
+
+  await edgeDeliveryProbe(platformContainer);
 
   // A body the client framed wrongly is the client's fault, answered at the
   // edge whatever the path routes to (services/proxy/bodyfaults). Traefik
@@ -497,12 +503,13 @@ async function main(): Promise<number> {
     r.fail('Platform → backend-api /ping connectivity');
   }
   // The backend must reach the blob store it seeds the deployment default
-  // against at boot — an unreachable store means every upload 503s.
+  // against at boot — an unreachable store means every upload 503s. The
+  // store is versitygw, which answers its health path (`--health`, compose).
   if (
     await dockerExecOk(backendContainer, [
       'curl',
       '-sf',
-      'http://object-store:9000/minio/health/live',
+      'http://object-store:9000/_health',
     ])
   ) {
     r.pass('Backend → object-store health connectivity');
@@ -512,30 +519,6 @@ async function main(): Promise<number> {
   // NOTE: knowledge-db reachability is covered by the `Knowledge DB pg_isready`
   // datastore check above.
 
-  // A fresh model gateway creates its first admin account only for a request
-  // carrying the setup token it started with, and the backend claims it with
-  // its admin password — so the gateway image always sets the token to that
-  // same password (services/sandbox-llm-gateway/docker-entrypoint.sh), even
-  // over an explicit BIFROST_SETUP_TOKEN, which .env.test gives the container
-  // (`docker exec` sees the container's own environment). The gateway process
-  // (PID 1, after the entrypoint's exec) must hold the password.
-  const gatewayContainer = await compose.containerName('sandbox-llm-gateway');
-  if (
-    await dockerExecOk(gatewayContainer, [
-      'sh',
-      '-c',
-      `test -n "$SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD" && test -n "$BIFROST_SETUP_TOKEN" && test "$BIFROST_SETUP_TOKEN" != "$SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD" && test "$(tr '\\0' '\\n' < /proc/1/environ | sed -n 's/^BIFROST_SETUP_TOKEN=//p')" = "$SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD"`,
-    ])
-  ) {
-    r.pass(
-      'Gateway takes its setup token from the admin password, not BIFROST_SETUP_TOKEN',
-    );
-  } else {
-    r.fail(
-      'Gateway takes its setup token from the admin password, not BIFROST_SETUP_TOKEN',
-    );
-  }
-
   // 6. Sandbox session API end-to-end probe
   await sandboxSessionProbe();
 
@@ -544,6 +527,128 @@ async function main(): Promise<number> {
   await egressLifecycleProbe(egressContainer);
 
   return r.failed === 0 ? 0 : 1;
+}
+
+/** The codings a current browser offers. */
+const BROWSER_ENCODINGS = 'gzip, deflate, br, zstd';
+
+/** One GET through the edge from inside a container, read for its headers. */
+async function edgeDelivery(
+  container: string,
+  path: string,
+  acceptEncoding: string,
+): Promise<Delivery | null> {
+  const answer = await capture([
+    'docker',
+    'exec',
+    container,
+    // nosemgrep: tools.opengrep.rules.trailofbits.generic.curl-insecure.curl-insecure -- Isolated smoke network and self-signed proxy; no credentials or external traffic.
+    'curl',
+    '--insecure',
+    '--silent',
+    '--show-error',
+    '--max-time',
+    '20',
+    '--connect-to',
+    'localhost:443:proxy:443',
+    '--header',
+    `Accept-Encoding: ${acceptEncoding}`,
+    '--dump-header',
+    '-',
+    '--output',
+    '/dev/null',
+    `https://localhost${path}`,
+  ]);
+  return answer.exitCode === 0 ? parseDelivery(answer.stdout) : null;
+}
+
+/**
+ * The app's files reach a browser as the build compressed them
+ * (scripts/precompress-dist.ts): the platform sends the neighbour the request
+ * accepts and the edge passes it through, where it would otherwise hold an
+ * encoder for every open answer. What the edge compresses itself is text,
+ * with gzip and under the answer's own entity tag
+ * (services/proxy/render/config.js); a packed file keeps its length, which a
+ * compressed answer does not have.
+ */
+async function edgeDeliveryProbe(platformContainer: string): Promise<void> {
+  const listed = await capture([
+    'docker',
+    'exec',
+    platformContainer,
+    'node',
+    '-e',
+    APP_FILES_PROGRAM,
+  ]);
+  const files = listed.exitCode === 0 ? parseAppFiles(listed.stdout) : null;
+  if (files === null) {
+    r.fail(
+      `Built app holds a precompressed bundle and a packed font: ${listed.combined.trim().slice(0, 300)}`,
+    );
+    return;
+  }
+  const { bundle, packed } = files;
+  const document = '/openapi.json';
+  const checks: [
+    label: string,
+    path: string,
+    offered: string,
+    expected: ExpectedDelivery,
+  ][] = [
+    [
+      'Edge passes a bundle through as the build compressed it (br)',
+      `/assets/${bundle.name}`,
+      BROWSER_ENCODINGS,
+      { coding: 'br', length: bundle.br },
+    ],
+    [
+      'Edge passes a bundle through as the build compressed it (gzip)',
+      `/assets/${bundle.name}`,
+      'gzip',
+      { coding: 'gzip', length: bundle.gzip },
+    ],
+    [
+      'Edge sends a bundle as it is to a client that takes no coding',
+      `/assets/${bundle.name}`,
+      'identity',
+      { coding: null, length: bundle.bytes },
+    ],
+    [
+      'Edge leaves a packed file its length',
+      `/assets/${packed.name}`,
+      BROWSER_ENCODINGS,
+      { coding: null, length: packed.bytes },
+    ],
+    [
+      'Edge compresses a JSON answer with gzip',
+      document,
+      BROWSER_ENCODINGS,
+      { coding: 'gzip' },
+    ],
+    [
+      'Edge compresses nothing for a client that takes zstd alone',
+      document,
+      'zstd',
+      { coding: null },
+    ],
+  ];
+  const tags = new Set<string>();
+  for (const [label, path, offered, expected] of checks) {
+    const delivery = await edgeDelivery(platformContainer, path, offered);
+    const faults = deliveryFaults(delivery, expected);
+    if (faults.length === 0) {
+      r.pass(label);
+    } else {
+      r.fail(`${label}: ${faults.join('; ')}`);
+    }
+    if (path === document) tags.add(delivery?.etag ?? '(none)');
+  }
+  const tagLabel = 'Edge keeps the entity tag of an answer it compresses';
+  if (tags.size === 1 && !tags.has('(none)')) {
+    r.pass(tagLabel);
+  } else {
+    r.fail(`${tagLabel}: got ${[...tags].join(' and ')}`);
+  }
 }
 
 /**

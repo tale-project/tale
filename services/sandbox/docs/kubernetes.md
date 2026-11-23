@@ -266,8 +266,8 @@ mislead operators into thinking TLS verification is disabled.
 The `KubernetesBackend.init` applies a default-deny egress NetworkPolicy
 (`tale-sandbox-session-egress`, built by `k8s-network-policy.ts`) selecting
 `tale.sandbox/role: session` Pods. It allows egress **only** to DNS (UDP/TCP 53)
-and the sandbox namespace itself — where the egress proxy + LLM gateway live, so
-the runner reaches the outside world only through that proxy. Everything else is
+and the sandbox namespace itself — where the egress proxy and the backend's model
+relay live, so the runner reaches the outside world only through that proxy. Everything else is
 denied by omission: cloud IMDS (`169.254.169.254`), the node, and other
 namespaces. The Pod's containers share one network namespace, so a per-Pod
 selector governs the whole Pod.

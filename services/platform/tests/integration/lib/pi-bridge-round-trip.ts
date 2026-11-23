@@ -9,13 +9,19 @@ import { buildHarnessExec } from '../../../lib/harnesses/exec-builder';
 import { createParser } from '../../../lib/harnesses/parsers/pi-jsonl';
 import { capture, projectRoot } from './exec';
 
-// Pi reaches the workspace tools only through the platform bridge it starts
-// from the staged mcp.json. One loopback server stands in for both ends: the
-// gateway's chat completions (it asks for the bridge's workspace_status, then
-// reads the tool's answer in the next request) and the platform's tools route
-// the bridge relays that call to, which checks the session key. A model that
-// never saw the tool, a bridge that never started or a call that never reached
-// the platform each fail the probe.
+// Pi reaches the workspace tools only through the platform's bridge, the MCP
+// server it mounts over HTTP from the staged mcp.json — no relay process
+// starts. One loopback server stands in for both ends: the gateway's chat
+// completions (it asks for the bridge's workspace_status, then reads the
+// tool's answer in the next request) and the platform's MCP server at
+// /api/connectors/mcp, stateless Streamable HTTP answering in JSON, which
+// checks the session key on every request. A model that never saw the tool,
+// a server Pi never reached or a call that never arrived each fail the probe.
+// Every request must also carry the exec's own instructions in its system
+// prompt, though the workspace holds a .pi/APPEND_SYSTEM.md of its own, and
+// none of the workspace's own Pi configuration may change the turn: its
+// settings and mcp.json would take the bridge away, its extension would run
+// and its SYSTEM.md would replace Pi's prompt. Its skill is still listed.
 const PROBE = String.raw`
 import http.server, json, os, signal, subprocess, sys, threading, time
 
@@ -33,17 +39,25 @@ def chunk(delta, finish=None, usage=None):
         body['usage'] = usage
     return body
 
+tools = [dict(name=name, description='Synthetic ' + name, inputSchema=dict(type='object', properties={}))
+         for name in ('connector', 'connector_status', 'workspace_tool', 'workspace_status')]
+
 class Handler(http.server.BaseHTTPRequestHandler):
     def log_message(self, *args):
         pass
 
+    def do_GET(self):
+        # The bridge opens no stream of its own: POST is the whole transport.
+        self.send_response(405)
+        self.send_header('Allow', 'POST')
+        self.end_headers()
+
     def do_POST(self):
         try:
             body = json.loads(self.rfile.read(int(self.headers['Content-Length'])) or b'{}')
-            if self.path == '/api/tools/status':
-                assert self.headers.get('Authorization') == 'Bearer ' + token, 'bridge sent no session key'
-                platform_calls.append(body)
-                self.answer_json({'probe': marker, 'tools': []})
+            if self.path == '/api/connectors/mcp':
+                assert self.headers.get('Authorization') == 'Bearer ' + token, 'Pi sent the bridge no session key'
+                self.mcp(body)
             elif self.path == '/openai/v1/chat/completions':
                 self.chat(body)
             else:
@@ -51,6 +65,28 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except Exception as error:
             errors.append(str(error))
             self.send_error(400, 'Synthetic protocol assertion failed')
+
+    def mcp(self, message):
+        if 'id' not in message:
+            self.send_response(202)
+            self.send_header('Content-Length', '0')
+            self.end_headers()
+            return
+        method = message.get('method')
+        if method == 'initialize':
+            params = message.get('params') or {}
+            result = dict(protocolVersion=params.get('protocolVersion', '2024-11-05'),
+                          capabilities=dict(tools={}), serverInfo=dict(name='tale-connectors', version='1.0.0'))
+        elif method == 'tools/list':
+            result = dict(tools=tools)
+        elif method == 'ping':
+            result = {}
+        elif method == 'tools/call':
+            platform_calls.append(message)
+            result = dict(content=[dict(type='text', text=json.dumps({'probe': marker, 'tools': []}))], isError=False)
+        else:
+            raise AssertionError('unexpected MCP method ' + str(method))
+        self.answer_json(dict(jsonrpc='2.0', id=message['id'], result=result))
 
     def answer_json(self, payload):
         data = json.dumps(payload).encode()
@@ -63,6 +99,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def chat(self, body):
         requests.append(body)
         assert len(requests) <= 2, 'unexpected model request'
+        system = '\n'.join(
+            message['content'] if isinstance(message.get('content'), str) else json.dumps(message.get('content'))
+            for message in body.get('messages', []) if message.get('role') in ('system', 'developer'))
+        assert 'PI_TALE_INSTRUCTIONS_OK' in system, "the exec's instructions are not in the system prompt"
+        assert 'WORKSPACE_APPEND_TEXT' not in system, "the workspace's APPEND_SYSTEM.md reached the system prompt"
+        assert 'WORKSPACE_SYSTEM_TEXT' not in system, "the workspace's SYSTEM.md reached the system prompt"
+        assert 'WORKSPACE_SKILL_TEXT' in system, "the workspace's skill is not listed"
         usage = dict(prompt_tokens=11, completion_tokens=7, total_tokens=18)
         if len(requests) == 1:
             names = [tool.get('function', {}).get('name', '') for tool in body.get('tools', [])]
@@ -103,18 +146,51 @@ local = lambda value: value.replace('http://127.0.0.1:0', origin)
 env = dict(PATH=os.environ['PATH'], HOME='/agent/.runtime/home', NO_PROXY='127.0.0.1',
            **{key: local(value) for key, value in spec['env'].items()})
 os.makedirs(env['HOME'], exist_ok=True)
-os.makedirs(spec['cwd'], exist_ok=True)
+ran = os.path.join(spec['cwd'], '.probe-extension-ran')
+workspace = {
+    '.pi/APPEND_SYSTEM.md': 'WORKSPACE_APPEND_TEXT',
+    '.pi/SYSTEM.md': 'WORKSPACE_SYSTEM_TEXT',
+    '.pi/settings.json': json.dumps(dict(extensions=['-builtin:mcp'], defaultTools=['read'])),
+    '.pi/mcp.json': json.dumps(dict(mcpServers=dict(connectors=dict(url='http://127.0.0.1:9/mcp')))),
+    '.pi/extensions/probe.js': 'import { writeFileSync } from "node:fs";\n'
+        'export default function () { writeFileSync(' + json.dumps(ran) + ', "ran"); }\n',
+    '.agents/skills/probe-skill/SKILL.md': '---\nname: probe-skill\ndescription: WORKSPACE_SKILL_TEXT\n---\n\n# Probe\n',
+}
+for name, text in workspace.items():
+    path = os.path.join(spec['cwd'], name)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, 'w') as handle:
+        handle.write(text)
 proc = subprocess.Popen([local(arg) for arg in spec['argv']], cwd=spec['cwd'], env=env,
                         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                         text=True, start_new_session=True)
+held = spec.get('stdinMode') == 'hold'
+err_lines = []
+threading.Thread(target=lambda: err_lines.extend(proc.stderr), daemon=True).start()
 try:
-    stdout, stderr = proc.communicate(local(spec['stdin']), timeout=75)
-    sys.stdout.write(stdout)
-    sys.stderr.write(stderr)
+    # A held stdin (Pi over RPC) stays open until Pi settles, as the platform
+    # keeps it: an EOF before then aborts the run. Then its EOF ends Pi.
+    proc.stdin.write(local(spec['stdin']))
+    proc.stdin.flush()
+    if not held:
+        proc.stdin.close()
+    out_lines = []
+    for line in proc.stdout:
+        out_lines.append(line)
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if held and isinstance(event, dict) and event.get('type') == 'agent_settled':
+            proc.stdin.close()
+    proc.wait(timeout=15)
+    sys.stdout.write(''.join(out_lines))
+    sys.stderr.write(''.join(err_lines))
     assert proc.returncode == 0, f'Pi exited {proc.returncode}'
     assert not errors, errors
     assert len(requests) == 2, f'expected a tool round trip, got {len(requests)} model requests'
-    assert len(platform_calls) == 1, f'expected one platform call, got {len(platform_calls)}'
+    assert len(platform_calls) == 1, f'expected one bridge call, got {len(platform_calls)}'
+    assert not os.path.exists(ran), "the workspace's extension ran"
 finally:
     try:
         os.killpg(proc.pid, signal.SIGKILL)
@@ -125,8 +201,11 @@ finally:
 `;
 
 /** Offline image proof: Pi, through the shipped exec builder, wrapper and
- * stream parser, calls a workspace tool over the platform bridge and reads its
- * answer, bounded even if the CLI, the bridge or the server stalls. */
+ * stream parser, calls a workspace tool over the platform's MCP server, which
+ * it reaches over HTTP with no relay process, and reads its answer, with the
+ * exec's own instructions in every request and none of the workspace's own
+ * Pi configuration in effect, whatever the workspace holds, bounded even if
+ * the CLI or the server stalls. */
 export async function checkPiBridgeRoundTrip(image: string): Promise<void> {
   const fact = harnessDefinitionSchema.parse(
     parseYaml(
@@ -150,7 +229,18 @@ export async function checkPiBridgeRoundTrip(image: string): Promise<void> {
     },
     workdir: '/agent/workspace',
     posture: 'act',
+    instructions: 'Probe instructions: PI_TALE_INSTRUCTIONS_OK',
     mcp: { bridgeUrl: 'http://127.0.0.1:0/api/connectors' },
+  });
+  // The staged mcp.json mounts the platform's MCP server itself: a url and
+  // the session key's reference, no relay command.
+  const staged = JSON.parse((exec.stdin ?? '').split('\n')[0] ?? '{}') as {
+    mcp?: { mcpServers?: { connectors?: Record<string, unknown> } };
+  };
+  assert.deepEqual(staged.mcp?.mcpServers?.connectors, {
+    url: 'http://127.0.0.1:0/api/connectors/mcp',
+    headers: { Authorization: 'Bearer ${TALE_GATEWAY_TOKEN}' },
+    exposure: 'direct',
   });
   const result = await capture([
     'docker',

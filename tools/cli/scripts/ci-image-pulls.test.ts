@@ -14,7 +14,6 @@ const services = [
   'db',
   'platform',
   'proxy',
-  'sandbox-llm-gateway',
   'sandbox',
   'sandbox-egress',
   'sandbox-buildkitd',

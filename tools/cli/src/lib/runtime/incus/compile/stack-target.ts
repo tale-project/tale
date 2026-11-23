@@ -123,13 +123,9 @@ export type CompileResult =
   | { target: StackTarget; refusals: [] }
   | { target: null; refusals: Refusal[] };
 
-/** Names of the resolvers' session view, and who answers each. */
-const SESSION_NAMES = {
-  'backend-api': 'switch',
-  'backend-relay': 'switch',
-  'sandbox-llm-gateway': 'sandbox-llm-gateway',
-  'llm-gateway': 'sandbox-llm-gateway',
-} as const;
+/** Names of the resolvers' session view, all answered by the switch: the
+ * backend API, and the model relay beside it (tale-project/tale#4942). */
+const SESSION_NAMES = ['backend-api', 'backend-relay'] as const;
 /** The name the gateway answers to, replacing `host-gateway` (D-20). */
 const HOST_GATEWAY_NAME = 'host.docker.internal';
 /** `localhost` stays the instance's own: /etc/hosts answers it first. */
@@ -219,9 +215,6 @@ export function compileStackTarget(input: CompileInput): CompileResult {
     }
   }
 
-  const present = new Set(
-    translated.filter((item) => !item.omitted).map((item) => item.service),
-  );
   const instances = translated.flatMap((item) => item.instances);
   for (const instance of instances)
     for (const dependency of instance.dependsOn)
@@ -290,11 +283,8 @@ export function compileStackTarget(input: CompileInput): CompileResult {
       for (const address of addresses) addName(name, address);
     }
   const sessionNames: Record<string, string[]> = {};
-  for (const [name, holder] of Object.entries(SESSION_NAMES))
-    if (holder === 'switch' || present.has(holder))
-      sessionNames[name] = [
-        plan.singleton(holder === 'switch' ? 'switch' : 'sandbox-llm-gateway'),
-      ];
+  for (const name of SESSION_NAMES)
+    sessionNames[name] = [plan.singleton('switch')];
 
   if (refusals.length > 0) return { target: null, refusals };
 

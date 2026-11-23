@@ -146,6 +146,46 @@ const DETECTORS: readonly Detector[] = [
   },
 ];
 
+/** What a detector found: which one, counted from the first, and how long
+ * the literal is. Never the literal. */
+interface Detection {
+  readonly detector: number;
+  readonly length: number;
+}
+
+/**
+ * The first detector, in their order, that finds a credential in `text`,
+ * among the first `among` of them.
+ */
+function firstDetection(
+  text: string,
+  among: number = DETECTORS.length,
+): Detection | null {
+  for (let index = 0; index < among; index += 1) {
+    const detector = DETECTORS[index];
+    if (detector === undefined) break;
+    const found = detector.detect(text);
+    if (found === null) continue;
+    if (detector.filterPlaceholders && isPlaceholder(found)) {
+      logger.debug(`secret scan ignored a placeholder (${detector.label})`);
+      continue;
+    }
+    return { detector: index, length: found.length };
+  }
+  return null;
+}
+
+function refusal(detection: Detection): SecretScanResult {
+  const label = DETECTORS[detection.detector]?.label ?? 'credential';
+  logger.warn(
+    `file refused by the secret scan (${label}, ${detection.length} characters)`,
+  );
+  return {
+    rejected: true,
+    reason: `This file looks like it contains a credential (${label}). Remove it and upload the file again.`,
+  };
+}
+
 /**
  * Scan a file's bytes before it is indexed.
  *
@@ -167,27 +207,160 @@ export function scanForSecrets(bytes: Uint8Array): SecretScanResult {
   }
 
   try {
-    for (const detector of DETECTORS) {
-      const found = detector.detect(text);
-      if (found === null) continue;
-      if (detector.filterPlaceholders && isPlaceholder(found)) {
-        logger.debug(`secret scan ignored a placeholder (${detector.label})`);
-        continue;
-      }
-      logger.warn(
-        `file refused by the secret scan (${detector.label}, ${found.length} characters)`,
-      );
-      return {
-        rejected: true,
-        reason: `This file looks like it contains a credential (${detector.label}). Remove it and upload the file again.`,
-      };
-    }
+    const detection = firstDetection(text);
+    return detection === null ? ALLOWED : refusal(detection);
   } catch (err) {
     logger.error(`secret scan failed, allowing the file: ${describe(err)}`);
     return ALLOWED;
   }
+}
 
-  return ALLOWED;
+/** How much text is gathered before a part of it is scanned. */
+const SCAN_PIECE_CHARS = 1024 * 1024;
+
+/** How many line ends of a piece, from its last one back, are tried for a
+ * place to cut before more text is waited for. */
+const CUT_TRIES = 512;
+
+/** How much white space before a line end is looked past to see what the
+ * line ends with. Past that, what it ends with cannot be told. */
+const CUT_LOOKBACK_CHARS = 96;
+
+/** How much of what a line ends with is looked at: more than the longest
+ * name a credential is assigned to. */
+const NAME_CHARS = 16;
+
+/** A line that ends where an assignment could go on: with the name a
+ * credential is assigned to, or with the `:` or `=` after it. */
+const OPEN_ASSIGNMENT =
+  /(?:api[_-]?key|secret|password|passwd|pwd|token|auth|[:=])$/i;
+
+/** The characters no detector's literal runs across: the ones `.` does not
+ * match. */
+function isLineEnd(unit: number): boolean {
+  return unit === 0x0a || unit === 0x0d || unit === 0x2028 || unit === 0x2029;
+}
+
+/**
+ * Where `piece` can be cut so that no detector's match runs across the cut:
+ * the index after a line end, or 0 when it holds no such place. `before`
+ * is the end of the text that came before the piece, and `atStart` whether
+ * that is all of it.
+ *
+ * Three of the detectors match inside one line. The keyword assignment
+ * alone can run over a line end, through the white space around its `:`
+ * or `=` (`password:` on one line, its value on the next). So a line end is
+ * a place to cut unless what precedes it, white space aside, is such a name
+ * or sign — or lies further back than is looked.
+ */
+function safeCut(before: string, piece: string, atStart: boolean): number {
+  const reach = CUT_LOOKBACK_CHARS + NAME_CHARS;
+  let tries = 0;
+  for (let at = piece.length - 1; at >= 0 && tries < CUT_TRIES; at -= 1) {
+    if (!isLineEnd(piece.charCodeAt(at))) continue;
+    tries += 1;
+    // What precedes the line end, as far back as is looked.
+    const seen =
+      at >= reach
+        ? piece.slice(at - reach, at)
+        : (before + piece.slice(0, at)).slice(-reach);
+    const said = seen.trimEnd();
+    if (said === '') {
+      // White space as far as is looked. From the very start of the text
+      // there is nothing before it to run on from; anywhere else, what the
+      // line before ended with cannot be told.
+      if (atStart && seen.length < reach) return at + 1;
+      continue;
+    }
+    // More white space than is looked past: what is left of the line is too
+    // little to tell a name by, where a name was cut short by the looking.
+    if (seen.length - said.length > CUT_LOOKBACK_CHARS) continue;
+    if (!OPEN_ASSIGNMENT.test(said)) return at + 1;
+  }
+  return 0;
+}
+
+/**
+ * The same scan for a file that is read a piece at a time: its text is
+ * pushed as it is decoded, and the verdict is asked for at its end. The
+ * verdict is the one {@link scanForSecrets} gives for the whole file.
+ *
+ * The text is scanned in parts cut at line ends that no credential can run
+ * across, so what is held is the part being gathered, and never the file
+ * (tale-project/tale#4942). Each piece is looked through for such a line
+ * end once, as it comes: a text with none for megabytes on end, a minified
+ * file or one whose lines every one end in a `:`, is gathered whole, and
+ * gathering it costs its length, not its length times its pieces.
+ */
+export class SecretScanner {
+  /** The text gathered and not yet scanned, in the pieces it came in. */
+  private pieces: string[] = [];
+  private gathered = 0;
+  /** The end of all the text pushed so far, as far back as a cut looks. */
+  private before = '';
+  /** Whether `before` is all the text pushed so far. */
+  private atStart = true;
+  private best: Detection | null = null;
+  private failed = false;
+
+  constructor(private readonly pieceChars: number = SCAN_PIECE_CHARS) {}
+
+  /** Take the next piece of the file's text. */
+  push(text: string): void {
+    if (this.settled() || text === '') return;
+    const reach = CUT_LOOKBACK_CHARS + NAME_CHARS;
+    const cut =
+      this.gathered + text.length >= this.pieceChars
+        ? safeCut(this.before, text, this.atStart)
+        : 0;
+    if (cut > 0) {
+      this.pieces.push(text.slice(0, cut));
+      const part = this.pieces.join('');
+      const rest = text.slice(cut);
+      this.pieces = rest === '' ? [] : [rest];
+      this.gathered = rest.length;
+      this.scan(part);
+    } else {
+      this.pieces.push(text);
+      this.gathered += text.length;
+    }
+    if (this.atStart && this.before.length + text.length > reach) {
+      this.atStart = false;
+    }
+    this.before = (this.before + text).slice(-reach);
+  }
+
+  /** How much text is gathered and not yet scanned, in UTF-16 units. */
+  get heldChars(): number {
+    return this.gathered;
+  }
+
+  /** The verdict on everything pushed. */
+  end(): SecretScanResult {
+    if (!this.settled()) this.scan(this.pieces.join(''));
+    this.pieces = [];
+    this.gathered = 0;
+    if (this.failed || this.best === null) return ALLOWED;
+    return refusal(this.best);
+  }
+
+  /** Whether nothing pushed from here on can change the verdict: the scan
+   * failed, which allows the file, or the first detector found something. */
+  private settled(): boolean {
+    return this.failed || this.best?.detector === 0;
+  }
+
+  private scan(part: string): void {
+    try {
+      // Only a detector that comes before the one that already found
+      // something can change the verdict.
+      const found = firstDetection(part, this.best?.detector);
+      if (found !== null) this.best = found;
+    } catch (err) {
+      logger.error(`secret scan failed, allowing the file: ${describe(err)}`);
+      this.failed = true;
+    }
+  }
 }
 
 /** Whether a detected literal is a stand-in rather than a real credential. */

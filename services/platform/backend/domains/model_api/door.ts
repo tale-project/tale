@@ -13,7 +13,6 @@ import {
   resolveModelApiGate,
 } from './access.ts';
 import {
-  anthropicUpstreamBody,
   inspectAnthropicMessagesRequest,
   refuseUnpricedAnthropicBetas,
 } from './anthropic.ts';
@@ -32,12 +31,12 @@ import {
   offeredModelApiModels,
   splitModelApiId,
 } from './models.ts';
+import { inspectOpenAiChatRequest, openAiUpstreamBody } from './openai.ts';
 import {
-  inspectOpenAiChatRequest,
-  openAiStreamIncludesUsage,
-  openAiUpstreamBody,
-} from './openai.ts';
-import { type RelayOutcome, relayToGateway } from './relay.ts';
+  modelApiRelayDeps,
+  relayModelApiCall,
+  type RelayOutcome,
+} from './relay.ts';
 import {
   estimatePromptTokens,
   ModelApiRefusal,
@@ -60,11 +59,11 @@ import {
  *     model that takes them;
  *  5. the organization's input guardrails pass (and mask) every text the
  *     caller wrote into the request (`guardrails.ts`);
- *  6. the worst-case hold is admitted whole and the request's gateway key
+ *  6. the worst-case hold is admitted whole and the request's relay key
  *     minted (`metering.ts`);
- *  7. the request is relayed and the answer returned in the caller's wire
- *     (`relay.ts`); its spend is booked once it ends, by what the relay saw
- *     as well as by the gateway's figure.
+ *  7. the request is relayed in process and the answer returned in the
+ *     caller's wire (`relay.ts`); the relay books the call's cost when it
+ *     ends, and the request is then closed and settled.
  *
  * Every refusal is a {@link ModelApiRefusal} the route answers in the
  * wire's error shape.
@@ -256,9 +255,9 @@ export async function relayModelApiRequest(
   await checkEndpointRegion(sql, caller, gate.policy, wire, model);
   checkCapabilities(model, request);
 
-  // The request's own id — its op row, its gateway key's name, the key of
-  // its guardrail events. The caller's `X-Request-Id` (which it may have
-  // chosen) rides beside it on the events, never as their key.
+  // The request's own id — its op row, the key of its guardrail events. The
+  // caller's `X-Request-Id` (which it may have chosen) rides beside it on
+  // the events, never as their key.
   const requestId = randomUUID();
   const budgetHolder = {
     organizationId: caller.organizationId,
@@ -289,42 +288,31 @@ export async function relayModelApiRequest(
     model,
     worstCase,
   });
-  // Everything the relay and the ending need, copied out of the request
-  // here: nothing that lives as long as the answer holds the parsed body.
-  const upstreamBody =
+  const body =
     wire === 'openai'
-      ? openAiUpstreamBody(request, lease.gatewayModel, worstCase.outputCap)
-      : anthropicUpstreamBody(request, lease.gatewayModel);
-  const stream = request.stream;
-  const dropUsageChunk =
-    wire === 'openai' && stream && !openAiStreamIncludesUsage(request.body);
+      ? openAiUpstreamBody(request, worstCase.outputCap)
+      : request.body;
   const stopHeartbeat = heartbeatModelApiOp(sql, lease);
   let closed = false;
   const close = (outcome: RelayOutcome) => {
     if (closed) return;
     closed = true;
     stopHeartbeat();
-    closeModelApiLease(sql, lease, { outcome, model, promptTokens });
+    closeModelApiLease(sql, lease, outcome);
   };
-  try {
-    return await relayToGateway({
-      wire,
-      publicModel: model.id,
-      gatewayModel: lease.gatewayModel,
-      token: lease.token,
-      body: upstreamBody,
-      stream,
-      dropUsageChunk,
-      anthropicHeaders: caller.anthropicHeaders,
-      requestId: caller.requestId,
-      signal: caller.signal,
-      onDone: close,
-    });
-  } catch (error) {
-    // Whatever stopped the relay, the lease closes: its key is settled and
-    // deleted, its hold released. (A relay that failed after sending has
-    // already closed it with what it knew.)
-    close({ status: 'failed' });
-    throw error;
-  }
+  // The relay closes the lease however the call ends — a refusal it throws
+  // included — and only once the call's cost is booked: closing it here as
+  // well could settle the request before that booking lands.
+  return relayModelApiCall({
+    wire,
+    lease,
+    publicModel: model.id,
+    body,
+    stream: request.stream,
+    anthropicHeaders: caller.anthropicHeaders,
+    requestId: caller.requestId,
+    signal: caller.signal,
+    onDone: close,
+    deps: modelApiRelayDeps(sql),
+  });
 }

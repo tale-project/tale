@@ -19,6 +19,27 @@ export const STATIC_ASSET_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 const HASHED_ASSET =
   /^[A-Za-z0-9._-]+-[A-Za-z0-9_-]{8,}\.(?:js|css|woff2?|ttf|png|jpe?g|gif|svg|webp|avif|ico|wasm)(?:\.map)?$/;
 
+/**
+ * The suffixes of a bundle's precompressed neighbours, as the build writes
+ * them (`scripts/precompress-dist.ts`) and the web tier serves them
+ * (`lib/static-file.ts`). A neighbour is published and expired WITH its
+ * bundle and is never asked for by name: a page of the previous release
+ * asks for `app-XXXX.js`, and gets the neighbour its request accepts.
+ */
+const PRECOMPRESSED_SUFFIXES = ['.br', '.zst', '.gz'] as const;
+
+/** The bundle a published file belongs to: itself, or the one it is a
+ *  precompressed neighbour of. Undefined for a file that is neither. */
+function publishedBundleName(name: string): string | undefined {
+  if (HASHED_ASSET.test(name)) return name;
+  const suffix = PRECOMPRESSED_SUFFIXES.find((candidate) =>
+    name.endsWith(candidate),
+  );
+  if (suffix === undefined) return undefined;
+  const bundle = name.slice(0, -suffix.length);
+  return HASHED_ASSET.test(bundle) ? bundle : undefined;
+}
+
 /** Only immutable bundle names can cross releases; HTML and user data cannot. */
 export function retainedAssetName(pathname: string): string | undefined {
   const name = pathname.startsWith('/assets/')
@@ -102,12 +123,10 @@ async function publishAndSweep(
   now: number,
 ): Promise<void> {
   for (const entry of await readdir(sourceDir, { withFileTypes: true })) {
-    if (
-      !entry.isFile() ||
-      !HASHED_ASSET.test(entry.name) ||
-      !emitted.has(`assets/${entry.name}`)
-    )
-      continue;
+    // A bundle the build emitted, or a precompressed neighbour of one: the
+    // manifest names the bundles, and a neighbour is its bundle's.
+    const bundle = entry.isFile() ? publishedBundleName(entry.name) : undefined;
+    if (bundle === undefined || !emitted.has(`assets/${bundle}`)) continue;
     const destination = join(destinationDir, entry.name);
     const temporary = join(destinationDir, '.publish-' + randomUUID());
     try {
@@ -137,7 +156,8 @@ async function publishAndSweep(
   // Sweep only our immutable artifacts. The volume carries no application
   // state, and unrelated files are never removed.
   for (const entry of await readdir(destinationDir, { withFileTypes: true })) {
-    if (!entry.isFile() || !HASHED_ASSET.test(entry.name)) continue;
+    if (!entry.isFile() || publishedBundleName(entry.name) === undefined)
+      continue;
     const destination = join(destinationDir, entry.name);
     try {
       if ((await stat(destination)).mtimeMs < now - STATIC_ASSET_RETENTION_MS)

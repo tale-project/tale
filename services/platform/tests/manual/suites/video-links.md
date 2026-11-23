@@ -1,6 +1,6 @@
 # Video-link ingestion
 
-> **Prefix** `VID-` · **Reset** none · **Cost** 16 boxes
+> **Prefix** `VID-` · **Reset** none · **Cost** 18 boxes
 
 Pasting a supported video URL into the chat composer starts ingestion and
 shows an attachment chip. Typing the same URL leaves ordinary message text;
@@ -19,10 +19,12 @@ the Postgres backend; no Convex CLI or Convex credentials are required.
 ## Preconditions
 
 Bring the stack up per [setup.md](../setup.md) — **mode B** for cases that
-run the real pipeline. The backend needs `yt-dlp` and `ffmpeg` on its PATH or
-in `VIDEO_INGEST_BIN_DIR`, plus outbound network access. Use a disposable
-local organization and chat. Changes to provider or anti-bot configuration
-belong only on that test deployment.
+run the real pipeline. `bun dev` provisions `yt-dlp`, its JavaScript runtime
+and `ffmpeg` and fetches a video on your machine (`VIDEO_INGEST_LANE=local`).
+**Mode C** fetches it in a sandbox session, as a deployment does: the boxes
+that watch a session need it. Both need outbound network access. Use a
+disposable local organization and chat. Changes to provider or anti-bot
+configuration belong only on that test deployment.
 
 Have a public YouTube URL with captions, one without captions, and a playlist
 URL. Caption-less ingestion requires an available organization audio model selected
@@ -87,10 +89,11 @@ provider/configuration refusals from browser failures.
   once its job is done into a second one → the proxies' logs show yt-dlp's
   requests, each job's through one proxy, the second job's through the proxy
   that served the first. Set `VIDEO_INGEST_PROXY_URL` to a third proxy,
-  recreate `backend-worker` and paste it into a third chat → only that proxy
-  sees the job's requests. Unset it, list two proxies other than KNOW-F40's in
-  `VIDEO_INGEST_PROXY_URLS`, recreate `backend-worker`, paste the URL into a
-  fourth chat and scan KNOW-F40's website again → the job's requests all go
+  recreate `backend-api` and `backend-worker` and paste it into a third chat →
+  only that proxy sees the job's requests. Unset it, list two proxies other
+  than KNOW-F40's in `VIDEO_INGEST_PROXY_URLS`, recreate both services, paste
+  the URL into a fourth chat and scan KNOW-F40's website again → the job's
+  requests all go
   through one of those two proxies, and the scan's still through KNOW-F40's.
   Restore the prior environment.
 
@@ -136,6 +139,20 @@ provider/configuration refusals from browser failures.
   (`chat.videoLink.toast.retryFailedTitle`) with the reason, and the failed
   chip stays. Repeat in a queued message's row: send while a video still
   processes, so the message waits, and retry there once that video fails.
+- [ ] `VID-B6` · **A video is fetched in a sandbox session** — On mode C, open
+  **Settings > Sandboxes** in a second tab, note the **Allocated** count of
+  **Render sessions**, paste the caption-less URL and watch both → While the
+  chip reads **Extracting audio…** the count is one higher; once the chip
+  settles it is back where it was, and `docker ps` lists no container with
+  `vid-` in its name. The `backend-worker` container has no `yt-dlp` on its
+  PATH (`docker exec` it and ask `command -v yt-dlp`).
+- [ ] `VID-B7` · **A link waits for a free sandbox** — On mode C, set
+  **Render sessions** to 1 under **Settings > Sandboxes**, start a scan of a
+  website whose pages are rendered, and paste the captioned URL while it runs
+  → The chip stays **Queued** and shows no attempt count while the scan holds
+  the session, then starts on its own and completes once the scan's session is
+  released. It does not fail in the first 15 minutes of waiting. Restore the
+  limit.
 
 ## Accessibility (WCAG 2.1 AA)
 

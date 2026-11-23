@@ -18,7 +18,7 @@
 // The explicit file, not the bare `undici`: Bun answers the bare specifier
 // with its own built-in stub, whose Agent has no `request`, and the tests run
 // under Bun. Node resolves both to the same package.
-import { Agent } from 'undici/index.js';
+import { Agent, interceptors } from 'undici/index.js';
 import type { Dispatcher } from 'undici/index.js';
 
 import type { MetricsRegistry } from '../metrics/registry.ts';
@@ -40,6 +40,11 @@ export interface AgentOptions {
    * lifts that ceiling.
    */
   localAddress?: string;
+  /**
+   * Speak HTTP/2 where the server offers it in the TLS handshake (ALPN), as
+   * a browser does; HTTP/1.1 elsewhere, plain HTTP included. Default off.
+   */
+  allowH2?: boolean;
 }
 
 /**
@@ -54,6 +59,7 @@ export function createAgent(options: AgentOptions = {}): Agent {
     keepAliveTimeout: options.keepAliveTimeoutMs ?? 30_000,
     headersTimeout: options.headersTimeoutMs ?? 60_000,
     bodyTimeout: 0,
+    ...(options.allowH2 === true ? { allowH2: true } : {}),
     connect: {
       timeout: options.connectTimeoutMs ?? 10_000,
       ...(options.localAddress === undefined
@@ -61,6 +67,32 @@ export function createAgent(options: AgentOptions = {}): Agent {
         : { localAddress: options.localAddress }),
     },
   });
+}
+
+/**
+ * The headers a current browser sends with every request, an event stream's
+ * included: the content codings it decodes (Chrome's and Firefox's list) and
+ * its language. With them the deployment answers as it answers a browser:
+ * its precompressed files, and the edge's compression of the rest.
+ */
+export const BROWSER_HEADERS: Readonly<Record<string, string>> = {
+  'accept-encoding': 'gzip, deflate, br, zstd',
+  'accept-language': 'en-US,en;q=0.9',
+};
+
+/**
+ * One browser's connections to a deployment: HTTP/2 where the edge offers it,
+ * and every answer decoded from the coding it came in, as a browser decodes
+ * it (`BROWSER_HEADERS` asks for those codings). Each person of a workload
+ * that stands for browsers gets one, so the edge sees a connection per
+ * browser, not one shared by everybody.
+ */
+export function createBrowserAgent(
+  options: Omit<AgentOptions, 'allowH2'> = {},
+): Dispatcher {
+  return createAgent({ ...options, allowH2: true }).compose(
+    interceptors.decompress({ skipErrorResponses: false }),
+  );
 }
 
 export type HttpMethod =

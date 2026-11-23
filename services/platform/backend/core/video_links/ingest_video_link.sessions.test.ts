@@ -22,15 +22,22 @@ vi.mock('./ytdlp', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./ytdlp')>();
   return {
     ...actual,
-    createJobDir: vi.fn(() =>
-      Promise.resolve({
-        jobDir: '/tmp/vlink-session-test',
-        cleanup: () => Promise.resolve(),
-      }),
-    ),
     ytdlpJson: (...args: unknown[]) => ytdlpJson(...(args as [])),
     ytdlpWriteSubs: vi.fn(),
-    ytdlpExtractAudio: vi.fn(),
+    ytdlpFetchAudio: vi.fn(),
+  };
+});
+// The place a video's yt-dlp runs in: a directory here, where a deployment
+// opens a sandbox session. yt-dlp itself is replaced above.
+vi.mock('./session_place', async () => {
+  const { localYtdlpPlace } =
+    await vi.importActual<typeof import('./ytdlp')>('./ytdlp');
+  return {
+    inYtdlpPlace: (
+      _ctx: unknown,
+      _video: unknown,
+      work: (place: ReturnType<typeof localYtdlpPlace>) => Promise<unknown>,
+    ) => work(localYtdlpPlace('/tmp/vlink-session-test')),
   };
 });
 vi.mock('./url_safety', async (importOriginal) => {
@@ -62,12 +69,17 @@ function harness(sourcePlatform: string, sourceUrl: string) {
   };
   const claims: ClaimArgs[] = [];
   const reports: { outcome: string }[] = [];
+  const failures: (string | undefined)[] = [];
   const ctx = createCtxShim(
     {
       'video_links/internal_queries:getJobById': () =>
         Promise.resolve({ ...row }),
       'video_links/internal_mutations:updateJob': (raw) => {
-        const args = raw as { status?: string; expectedStatus?: string };
+        const args = raw as {
+          status?: string;
+          expectedStatus?: string;
+          errorReasonCode?: string;
+        };
         if (
           args.expectedStatus !== undefined &&
           row.status !== args.expectedStatus
@@ -75,6 +87,7 @@ function harness(sourcePlatform: string, sourceUrl: string) {
           return Promise.resolve('cas_miss');
         }
         if (args.status !== undefined) row.status = args.status;
+        if (args.status === 'failed') failures.push(args.errorReasonCode);
         return Promise.resolve('ok');
       },
       'browser_sessions/sessions:claimBrowserSession': (raw) => {
@@ -90,12 +103,62 @@ function harness(sourcePlatform: string, sourceUrl: string) {
     { scheduler: () => Promise.resolve() },
   );
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the orchestrator's ActionCtx surface is what the shim provides (see runVideoIngestJob)
-  return { ctx: ctx as never, claims, reports };
+  return { ctx: ctx as never, claims, reports, failures };
 }
 
 afterEach(() => {
   vi.clearAllMocks();
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
+});
+
+describe('the reason a bot check ends a video with', () => {
+  const walled = () =>
+    new YtDlpError('botDetection', 'walled', 'ERROR: not a bot');
+  const run = async (platform: string, url: string) => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const h = harness(platform, url);
+    ytdlpJson.mockRejectedValueOnce(walled());
+    await ingestVideoLinkImpl(h.ctx, { jobId: 'job-1' });
+    return h.failures;
+  };
+
+  it('names the deployment’s setting for YouTube where no PO tokens are to be had', async () => {
+    vi.stubEnv('VIDEO_INGEST_POT_PROVIDER', '');
+    vi.stubEnv('VIDEO_INGEST_POT_PROVIDER_URL', '');
+    vi.stubEnv('VIDEO_INGEST_PO_TOKEN', '');
+    expect(await run('youtube', 'https://www.youtube.com/watch?v=abc')).toEqual(
+      ['poTokenProviderOff'],
+    );
+  });
+
+  it('is YouTube’s own wall where the deployment has a provider', async () => {
+    vi.stubEnv('VIDEO_INGEST_POT_PROVIDER_URL', 'http://pot.example:4416');
+    expect(await run('youtube', 'https://www.youtube.com/watch?v=abc')).toEqual(
+      ['botDetection'],
+    );
+  });
+
+  it('is YouTube’s own wall where the deployment turned its bundled provider on', async () => {
+    // The plugin that asks the provider is in the session's image, not on
+    // this machine: a deployment that turned the provider on had its tokens.
+    vi.stubEnv('VIDEO_INGEST_LANE', '');
+    vi.stubEnv('VIDEO_INGEST_POT_PROVIDER', 'true');
+    vi.stubEnv('VIDEO_INGEST_POT_PROVIDER_URL', '');
+    vi.stubEnv('VIDEO_INGEST_PO_TOKEN', '');
+    expect(await run('youtube', 'https://www.youtube.com/watch?v=abc')).toEqual(
+      ['botDetection'],
+    );
+  });
+
+  it('is the platform’s own wall anywhere else', async () => {
+    vi.stubEnv('VIDEO_INGEST_POT_PROVIDER', '');
+    vi.stubEnv('VIDEO_INGEST_POT_PROVIDER_URL', '');
+    expect(
+      await run('bilibili', 'https://www.bilibili.com/video/BV1xx'),
+    ).toEqual(['botDetection']);
+  });
 });
 
 describe('the browser-session claim', () => {

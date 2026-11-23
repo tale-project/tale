@@ -691,7 +691,10 @@ editor:
     modification ou abandonne-la.
   agent:
     equipmentLabel: Équipement
-    harnessDefault: Par défaut (Claude Code)
+    harnessDefault: Par défaut (Pi)
+    # Sous le champ d’environnement d’une étape par défaut dont seul un
+    # abonnement sert le modèle : l’étape s’exécute là où l’abonnement fonctionne.
+    harnessDefaultBound: 'Cette étape s’exécute sur {runtime} : seul un abonnement sert son modèle, et cet abonnement ne fonctionne que là.'
     modelUnlisted: 'Aucun fournisseur connecté ne propose le modèle
       enregistré "{model}" pour cet environnement d''agent — choisis-en un dans la liste.'
   # Le sélecteur de modèle du nœud llm : ce que servent les fournisseurs
@@ -1007,6 +1010,16 @@ runs:
     retry: Réessayer
     servedBy: 'Ce tour a tourné sur {model}.'
     visionModel: 'Les images de cette exécution ont été lues par {model}.'
+    # Pourquoi le tour a tourné sur son environnement d’agent, tel que le
+    # lancement qui a choisi l’environnement l’a décidé et que le tour l’a noté
+    # (`lib/shared/harness-reason.ts`). `owner` est qui désigne un
+    # environnement : un agent sur une tâche, une étape dans une automatisation.
+    harnessReason:
+      pinned: 'Ce tour a tourné sur {runtime}, l’environnement d’agent que {owner, select, agent {cet agent} other {cette étape}} désigne.'
+      default: 'Ce tour a tourné sur {runtime}, l’environnement d’agent par défaut.'
+      subscriptionBound: 'Ce tour a tourné sur {runtime}, car seul un abonnement sert son modèle et cet abonnement ne fonctionne que dans {runtime}.'
+      policy: 'Ce tour a tourné sur {runtime}, l’environnement d’agent défini pour l’agent standard de l’organisation dans Gouvernance.'
+      modelBound: 'Ce tour a tourné sur {runtime}, car l’environnement d’agent par défaut ne peut pas exécuter son modèle.'
   approval:
     title: 'En attente de ton approbation : {operation}'
     node: 'Demandé par le nœud « {node} » — approuver le laisse agir immédiatement ; rejeter le fait échouer.'

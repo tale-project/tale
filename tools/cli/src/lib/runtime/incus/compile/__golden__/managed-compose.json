@@ -52,12 +52,6 @@
       "reference": "ghcr.io/tale-project/tale/tale-sandbox-egress@sha256:7ea4422d675b76cb25f2710c42c26f8234772cf6aa7a5377e03aa67b09eb0761",
       "digest": "sha256:7ea4422d675b76cb25f2710c42c26f8234772cf6aa7a5377e03aa67b09eb0761",
       "services": ["names", "names-sessions", "sandbox-egress"]
-    },
-    {
-      "alias": "tale-sandbox-llm-gateway-9d3cd417832e31acf82eb37fa5c0fa2c",
-      "reference": "ghcr.io/tale-project/tale/tale-sandbox-llm-gateway@sha256:9d3cd417832e31acf82eb37fa5c0fa2c1450f20529983bac59d8e48d66b776f4",
-      "digest": "sha256:9d3cd417832e31acf82eb37fa5c0fa2c1450f20529983bac59d8e48d66b776f4",
-      "services": ["sandbox-llm-gateway"]
     }
   ],
   "volumes": [
@@ -102,12 +96,6 @@
     },
     {
       "name": "knowledge-db-data",
-      "kind": "data",
-      "pool": "tale",
-      "config": {}
-    },
-    {
-      "name": "llm-gateway-data",
       "kind": "data",
       "pool": "tale",
       "config": {}
@@ -1094,74 +1082,6 @@
       "dependsOn": []
     },
     {
-      "name": "sandbox-llm-gateway",
-      "service": "sandbox-llm-gateway",
-      "index": null,
-      "colour": null,
-      "image": "tale-sandbox-llm-gateway-9d3cd417832e31acf82eb37fa5c0fa2c",
-      "address": "10.30.2.9",
-      "config": {
-        "boot.autorestart": "true",
-        "boot.autostart.priority": "60",
-        "boot.stop.priority": "50",
-        "environment.BETTER_AUTH_SECRET": "fixture-auth-secret",
-        "environment.DB_PASSWORD": "fixture-db-password",
-        "environment.HOST": "demo.tale.dev",
-        "environment.OBJECT_STORE_SECRET_KEY": "fixture-object-store-secret",
-        "environment.PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-        "environment.POSTGRES_USER": "tale",
-        "environment.SANDBOX_INCUS_PROJECT": "tale-sessions",
-        "environment.SITE_URL": "https://demo.tale.dev",
-        "environment.TLS_MODE": "letsencrypt",
-        "limits.memory": "3328MiB",
-        "limits.processes": "2048",
-        "oci.dns.nameservers": "10.30.2.2",
-        "oci.entrypoint": "/init --single-child --rewrite 30:15 --rewrite 37:15 --rewrite 38:15 -- /usr/local/bin/docker-entrypoint.sh /app/main",
-        "security.guestapi": "false",
-        "security.idmap.isolated": "true",
-        "user.tale.grace": "90",
-        "user.tale.health": "{\"test\":[\"CMD-SHELL\",\"wget -q -O /dev/null http://127.0.0.1:8080/health || exit 1\"],\"intervalMs\":10000,\"timeoutMs\":5000,\"startPeriodMs\":15000,\"retries\":3}",
-        "user.tale.image": "sha256:9d3cd417832e31acf82eb37fa5c0fa2c1450f20529983bac59d8e48d66b776f4",
-        "user.tale.revision": "0123456789abcdef0123456789abcdef01234567",
-        "user.tale.role": "sandbox-llm-gateway",
-        "user.tale.service": "sandbox-llm-gateway",
-        "user.tale.signal": "15",
-        "user.tale.stack": "tale",
-        "user.tale.version": "0.5.95"
-      },
-      "devices": {
-        "llm-gateway-data": {
-          "type": "disk",
-          "pool": "tale",
-          "source": "llm-gateway-data",
-          "path": "/app/data"
-        },
-        "eth0": {
-          "type": "nic",
-          "network": "talebr0",
-          "name": "eth0",
-          "ipv4.address": "10.30.2.9/16",
-          "ipv4.gateway": "10.30.0.1",
-          "ipv6.address": "none"
-        }
-      },
-      "healthcheck": {
-        "test": [
-          "CMD-SHELL",
-          "wget -q -O /dev/null http://127.0.0.1:8080/health || exit 1"
-        ],
-        "intervalMs": 10000,
-        "timeoutMs": 5000,
-        "startPeriodMs": 15000,
-        "retries": 3
-      },
-      "stop": {
-        "signal": 15,
-        "graceSeconds": 90
-      },
-      "dependsOn": []
-    },
-    {
       "name": "switch",
       "service": "switch",
       "index": null,
@@ -1241,14 +1161,11 @@
       "platform": ["10.30.2.5"],
       "proxy": ["10.30.2.4"],
       "sandbox": ["10.30.2.11"],
-      "sandbox-egress": ["10.30.2.10"],
-      "sandbox-llm-gateway": ["10.30.2.9"]
+      "sandbox-egress": ["10.30.2.10"]
     },
     "sessions": {
       "backend-api": ["10.30.2.5"],
-      "backend-relay": ["10.30.2.5"],
-      "llm-gateway": ["10.30.2.9"],
-      "sandbox-llm-gateway": ["10.30.2.9"]
+      "backend-relay": ["10.30.2.5"]
     }
   },
   "switch": {
@@ -1478,21 +1395,6 @@
       "service": "sandbox",
       "key": "volumes",
       "reason": "/var/lib/tale-sandbox belongs to the Docker sandbox shape; the spawner runs its sessions on Incus"
-    },
-    {
-      "service": "sandbox-llm-gateway",
-      "key": "container_name",
-      "reason": "a singleton instance is named after its service, since the Incus project already namespaces the stack"
-    },
-    {
-      "service": "sandbox-llm-gateway",
-      "key": "logging",
-      "reason": "Incus keeps the console log of the instance"
-    },
-    {
-      "service": "sandbox-llm-gateway",
-      "key": "pull_policy",
-      "reason": "images are always pulled by digest"
     }
   ],
   "omitted": []

@@ -1,6 +1,6 @@
 import { describe, expect, mock, test } from 'bun:test';
 
-import { imageRef } from '../compose/types';
+import { imageRef, MINIO_IMAGE } from '../compose/types';
 import { pullImage } from './pull-image';
 
 // Fresh fakes per test, injected directly — no `mock.module`, which is
@@ -14,12 +14,18 @@ function fakeDeps() {
 }
 
 describe('pullImage', () => {
-  test('deploy can pull the object-store before Compose on an arm64 host', async () => {
+  test("deploy can pull MinIO's image before Compose on an arm64 host", async () => {
     const deps = fakeDeps();
+    // A deployment whose blobs are still in MinIO's volume.
     const image = imageRef(
-      { registry: 'ghcr.io/tale-project', version: '0.0.0-test' },
+      {
+        registry: 'ghcr.io/tale-project',
+        version: '0.0.0-test',
+        objectStore: 'minio',
+      },
       'object-store',
     );
+    expect(image).toBe(MINIO_IMAGE);
     // The pinned registry image has no arm64 manifest. A host-default pull
     // fails before the generated Compose service can select its platform.
     deps.docker.mockImplementation(async (...args: string[]) => ({
@@ -34,6 +40,22 @@ describe('pullImage', () => {
       '--platform',
       'linux/amd64',
       image,
+    );
+  });
+
+  test("versitygw's image is pulled for the host's own architecture", async () => {
+    const deps = fakeDeps();
+    deps.docker.mockResolvedValue({ success: true, stdout: '', stderr: '' });
+    const image = imageRef(
+      { registry: 'ghcr.io/tale-project', version: '0.0.0-test' },
+      'object-store',
+    );
+
+    expect(await pullImage(image, deps)).toBe(true);
+    // Its publisher builds it for amd64 and arm64: no platform is forced.
+    expect(deps.docker).toHaveBeenCalledWith('pull', image);
+    expect(image).toMatch(
+      /^ghcr\.io\/versity\/versitygw:v[0-9.]+@sha256:[0-9a-f]{64}$/,
     );
   });
 

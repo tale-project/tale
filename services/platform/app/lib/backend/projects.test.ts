@@ -611,6 +611,22 @@ describe('project read adapters', () => {
       '/api/app/tasks/serving-preview?model=m%2Fx&harness=claude-code&orgId=org-1',
       expect.anything(),
     );
+
+    // A step on Default asks with no harness; a task's agent always names
+    // one, so its preview asks nothing without.
+    const onDefault = projectActionQueryAdapters[
+      'automations/serving_preview:previewUnpinnedAgentServing'
+    ]?.({ organizationId: 'org-1', model: 'm/x', harness: '' }, {});
+    await onDefault?.();
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/app/automations/serving-preview?model=m%2Fx&harness=&orgId=org-1',
+      expect.anything(),
+    );
+    expect(
+      projectActionQueryAdapters[
+        'tasks/serving_preview:previewUnpinnedTaskServing'
+      ]?.({ organizationId: 'org-1', model: 'm/x', harness: '' }, {}),
+    ).toBeNull();
   });
 
   it('serves the composer walks from their org-scoped routes', async () => {

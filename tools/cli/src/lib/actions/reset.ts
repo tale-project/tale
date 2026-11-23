@@ -9,9 +9,16 @@ import { BACKUP_VOLUME } from '../backup/constants';
 import { archiveNativeSnapshot } from '../backup/create-snapshot';
 import { listSnapshots } from '../backup/list-snapshots';
 import { verifySnapshot } from '../backup/verify-snapshot';
-import { REQUIRED_VOLUMES } from '../compose/generators/constants';
+import {
+  REQUIRED_VOLUMES,
+  RETIRED_VOLUMES,
+} from '../compose/generators/constants';
 import type { DeploymentColor } from '../compose/types';
-import { SIDECAR_SERVICES, STATEFUL_SERVICES } from '../compose/types';
+import {
+  RETIRED_SERVICES,
+  SIDECAR_SERVICES,
+  STATEFUL_SERVICES,
+} from '../compose/types';
 import {
   snapshotStoreOf,
   type IncusSnapshotStore,
@@ -39,14 +46,16 @@ interface ResetOptions {
 
 /**
  * The volumes `--all` deletes: each volume a deploy creates under the
- * project's `<id>_` prefix, by name. Never `backups`, which the first snapshot
- * creates and which holds the snapshots `tale restore` lists, the one way back
- * from this reset; never the dev stack's `<id>-dev_` volumes either.
+ * project's `<id>_` prefix, by name, and each an earlier release created that
+ * the deployment kept (the model gateway's store). Never `backups`, which the
+ * first snapshot creates and which holds the snapshots `tale restore` lists,
+ * the one way back from this reset; never the dev stack's `<id>-dev_`
+ * volumes either.
  */
 function dataVolumes(): string[] {
-  return REQUIRED_VOLUMES.filter((name: string) => name !== BACKUP_VOLUME).map(
-    (name) => `${getProjectId()}_${name}`,
-  );
+  return [...REQUIRED_VOLUMES, ...RETIRED_VOLUMES]
+    .filter((name: string) => name !== BACKUP_VOLUME)
+    .map((name) => `${getProjectId()}_${name}`);
 }
 
 /**
@@ -191,10 +200,13 @@ export async function reset(options: ResetOptions): Promise<void> {
       logger.step(`${prefix}Removing stateful containers...`);
       // The sidecars restart unless stopped: left behind, they keep running
       // after the CLI is gone and pin the project network against the prune.
-      // On Incus the stack's resolvers and its switch are singletons too.
+      // So does a model gateway an earlier release left, whose volume goes
+      // below. On Incus the stack's resolvers and its switch are singletons
+      // too.
       for (const service of [
         ...STATEFUL_SERVICES,
         ...SIDECAR_SERVICES,
+        ...RETIRED_SERVICES,
         ...(runtime.engine === 'incus'
           ? (['names', 'names-sessions', 'switch'] as const)
           : []),

@@ -62,18 +62,35 @@ const CLAIMED_DETECTED_MIMES: ReadonlySet<string> = new Set(
 );
 
 /**
+ * A document's bytes, read where they are: in memory, or in a file that is
+ * never read whole (`attest_document_file.ts`). The attestation asks for
+ * no more of a document than its answer needs.
+ */
+export interface DocumentBytes {
+  readonly size: number;
+  /** What `file-type` makes of the document: its signature, or the
+   * container it is. */
+  detect(): Promise<{ mime: string } | undefined>;
+  /** `length` bytes from `offset`. Only asked for bytes that are there. */
+  read(offset: number, length: number): Promise<Uint8Array>;
+  /** The whole document, in order, a piece at a time. A piece is only read
+   * until the next one is asked for. */
+  pieces(): AsyncIterable<Uint8Array>;
+}
+
+/**
  * Whether detected bytes are a document of a type some OTHER allowed
  * extension owns — a signature-detected type in the map, or a legacy Office
  * Compound File carrying one of the format-specific directory streams.
  */
-function isClaimedByDocumentType(
+async function isClaimedByDocumentType(
   detected: { mime: string } | undefined,
-  bytes: Uint8Array,
-): boolean {
+  source: DocumentBytes,
+): Promise<boolean> {
   if (detected === undefined) return false;
   if (CLAIMED_DETECTED_MIMES.has(detected.mime)) return true;
   if (detected.mime !== 'application/x-cfb') return false;
-  const streams = cfbDirectoryStreamNames(bytes);
+  const streams = await cfbDirectoryStreamNames(source);
   if (streams === null) return false;
   return Object.values(LEGACY_OFFICE_STREAM_BY_EXTENSION).some((names) =>
     names.some((stream) => streams.has(stream)),
@@ -90,14 +107,27 @@ function invalidType() {
 const CFB_FREE_SECTOR = 0xffffffff;
 const CFB_END_OF_CHAIN = 0xfffffffe;
 
-function cfbDirectoryStreamNames(bytes: Uint8Array): Set<string> | null {
-  if (bytes.byteLength < 512) return null;
-  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  if (view.getUint16(28, true) !== 0xfffe || view.getUint16(32, true) !== 6) {
+const viewOf = (bytes: Uint8Array): DataView =>
+  new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+
+/**
+ * The names of the streams a Compound File's directory lists, or `null`
+ * for bytes that are no such file. Read a sector at a time: the header,
+ * the allocation table's sectors, and the directory's chain through them.
+ */
+async function cfbDirectoryStreamNames(
+  source: DocumentBytes,
+): Promise<Set<string> | null> {
+  if (source.size < 512) return null;
+  const header = viewOf(await source.read(0, 512));
+  if (
+    header.getUint16(28, true) !== 0xfffe ||
+    header.getUint16(32, true) !== 6
+  ) {
     return null;
   }
-  const majorVersion = view.getUint16(26, true);
-  const sectorShift = view.getUint16(30, true);
+  const majorVersion = header.getUint16(26, true);
+  const sectorShift = header.getUint16(30, true);
   if (
     (majorVersion !== 3 || sectorShift !== 9) &&
     (majorVersion !== 4 || sectorShift !== 12)
@@ -110,11 +140,13 @@ function cfbDirectoryStreamNames(bytes: Uint8Array): Set<string> | null {
   const sectorExists = (sectorId: number): boolean =>
     Number.isInteger(sectorId) &&
     sectorId >= 0 &&
-    sectorOffset(sectorId) + sectorSize <= bytes.byteLength;
+    sectorOffset(sectorId) + sectorSize <= source.size;
+  const sector = async (sectorId: number): Promise<DataView> =>
+    viewOf(await source.read(sectorOffset(sectorId), sectorSize));
 
-  const numberOfFatSectors = view.getUint32(44, true);
-  const numberOfDifatSectors = view.getUint32(72, true);
-  const maximumSectors = Math.floor(bytes.byteLength / sectorSize) - 1;
+  const numberOfFatSectors = header.getUint32(44, true);
+  const numberOfDifatSectors = header.getUint32(72, true);
+  const maximumSectors = Math.floor(source.size / sectorSize) - 1;
   if (
     numberOfFatSectors > maximumSectors ||
     numberOfDifatSectors > maximumSectors
@@ -123,10 +155,10 @@ function cfbDirectoryStreamNames(bytes: Uint8Array): Set<string> | null {
   }
   const fatSectorIds: number[] = [];
   for (let index = 0; index < 109; index++) {
-    const sectorId = view.getUint32(76 + index * 4, true);
+    const sectorId = header.getUint32(76 + index * 4, true);
     if (sectorId !== CFB_FREE_SECTOR) fatSectorIds.push(sectorId);
   }
-  let difatSector = view.getUint32(68, true);
+  let difatSector = header.getUint32(68, true);
   const difatEntriesPerSector = sectorSize / 4 - 1;
   for (
     let index = 0;
@@ -134,26 +166,26 @@ function cfbDirectoryStreamNames(bytes: Uint8Array): Set<string> | null {
     index++
   ) {
     if (!sectorExists(difatSector)) return null;
-    const offset = sectorOffset(difatSector);
+    const difat = await sector(difatSector);
     for (let entry = 0; entry < difatEntriesPerSector; entry++) {
-      const sectorId = view.getUint32(offset + entry * 4, true);
+      const sectorId = difat.getUint32(entry * 4, true);
       if (sectorId !== CFB_FREE_SECTOR) fatSectorIds.push(sectorId);
     }
-    difatSector = view.getUint32(offset + difatEntriesPerSector * 4, true);
+    difatSector = difat.getUint32(difatEntriesPerSector * 4, true);
   }
   if (fatSectorIds.length < numberOfFatSectors) return null;
 
   const fat: number[] = [];
   for (const sectorId of fatSectorIds.slice(0, numberOfFatSectors)) {
     if (!sectorExists(sectorId)) return null;
-    const offset = sectorOffset(sectorId);
+    const table = await sector(sectorId);
     for (let entry = 0; entry < sectorSize / 4; entry++) {
-      fat.push(view.getUint32(offset + entry * 4, true));
+      fat.push(table.getUint32(entry * 4, true));
     }
   }
 
   const names = new Set<string>();
-  let directorySector = view.getUint32(48, true);
+  let directorySector = header.getUint32(48, true);
   const visited = new Set<number>();
   while (directorySector !== CFB_END_OF_CHAIN) {
     if (
@@ -164,11 +196,15 @@ function cfbDirectoryStreamNames(bytes: Uint8Array): Set<string> | null {
       return null;
     }
     visited.add(directorySector);
-    const offset = sectorOffset(directorySector);
+    const directory = await source.read(
+      sectorOffset(directorySector),
+      sectorSize,
+    );
+    const entries = viewOf(directory);
     for (let entry = 0; entry < sectorSize / 128; entry++) {
-      const entryOffset = offset + entry * 128;
-      const objectType = view.getUint8(entryOffset + 66);
-      const nameLength = view.getUint16(entryOffset + 64, true);
+      const entryOffset = entry * 128;
+      const objectType = entries.getUint8(entryOffset + 66);
+      const nameLength = entries.getUint16(entryOffset + 64, true);
       if (
         objectType !== 2 ||
         nameLength < 2 ||
@@ -177,7 +213,7 @@ function cfbDirectoryStreamNames(bytes: Uint8Array): Set<string> | null {
       ) {
         continue;
       }
-      const nameBytes = bytes.subarray(
+      const nameBytes = directory.subarray(
         entryOffset,
         entryOffset + nameLength - 2,
       );
@@ -188,26 +224,44 @@ function cfbDirectoryStreamNames(bytes: Uint8Array): Set<string> | null {
   return names;
 }
 
-function isUtf8Text(bytes: Uint8Array): boolean {
-  if (bytes.includes(0)) return false;
-  let text: string;
-  try {
-    text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
-  } catch {
-    return false;
-  }
+/**
+ * Whether the document is UTF-8 text: no NUL, every byte part of a valid
+ * sequence, and no more than one control character in a hundred. Decoded a
+ * piece at a time, so that a text is never held as bytes and as the string
+ * they make at once.
+ */
+async function isUtf8Text(source: DocumentBytes): Promise<boolean> {
+  const decoder = new TextDecoder('utf-8', { fatal: true });
+  let length = 0;
   let controls = 0;
-  for (const char of text) {
-    const code = char.codePointAt(0) ?? 0;
-    if (code < 0x20 && code !== 0x09 && code !== 0x0a && code !== 0x0d) {
-      controls++;
+  const count = (text: string): void => {
+    length += text.length;
+    for (let at = 0; at < text.length; at++) {
+      const code = text.charCodeAt(at);
+      if (code < 0x20 && code !== 0x09 && code !== 0x0a && code !== 0x0d) {
+        controls++;
+      }
     }
+  };
+  try {
+    for await (const piece of source.pieces()) {
+      if (piece.includes(0)) return false;
+      count(decoder.decode(piece, { stream: true }));
+    }
+    // A sequence the document's end cuts short is not UTF-8 either.
+    count(decoder.decode());
+  } catch (error) {
+    // The decoder's only complaint is bytes that are not UTF-8; anything
+    // else is the reader's, and is not an answer about the document.
+    if (error instanceof TypeError) return false;
+    throw error;
   }
-  return controls <= Math.max(1, Math.floor(text.length / 100));
+  return controls <= Math.max(1, Math.floor(length / 100));
 }
 
 /**
- * Derive the authoritative MIME from uploaded bytes.
+ * Derive the authoritative MIME from a document's bytes, wherever they
+ * are.
  *
  * `file-type` owns binary signatures and ZIP-container inspection. The
  * families it intentionally cannot distinguish are handled narrowly:
@@ -217,17 +271,25 @@ function isUtf8Text(bytes: Uint8Array): boolean {
  * the corresponding MIME is accepted, and an opaque vendor container is
  * admitted unless the bytes are a document some other allowed type claims.
  */
-export async function attestDocumentContentType(
-  bytes: Uint8Array,
+export async function attestDocumentSource(
+  source: DocumentBytes,
   fileName: string,
 ): Promise<string> {
   const extension = extractExtension(fileName);
   if (extension === undefined) throw invalidType();
 
-  let detected: Awaited<ReturnType<typeof fileTypeFromBuffer>>;
+  let detected: { mime: string } | undefined;
   try {
-    detected = await fileTypeFromBuffer(bytes);
-  } catch {
+    detected = await source.detect();
+  } catch (error) {
+    // `file-type` answers some bytes it cannot read by throwing: they are of
+    // no type it knows. It is said aloud, because a detector that fails for
+    // every document, as a packaging mistake makes it, looks the same from
+    // here and would refuse every replacement as a mismatch.
+    console.warn(
+      '[documents] the type of a document could not be read from its bytes:',
+      error instanceof Error ? error.message : error,
+    );
     detected = undefined;
   }
 
@@ -242,7 +304,7 @@ export async function attestDocumentContentType(
   const legacyMime = LEGACY_OFFICE_MIME_BY_EXTENSION[extension];
   const legacyStreams =
     detected?.mime === 'application/x-cfb'
-      ? cfbDirectoryStreamNames(bytes)
+      ? await cfbDirectoryStreamNames(source)
       : null;
   if (
     legacyMime !== undefined &&
@@ -255,16 +317,40 @@ export async function attestDocumentContentType(
   }
 
   const textMime = UTF8_TEXT_MIME_BY_EXTENSION[extension];
-  if (textMime !== undefined && detected === undefined && isUtf8Text(bytes)) {
+  if (
+    textMime !== undefined &&
+    detected === undefined &&
+    (await isUtf8Text(source))
+  ) {
     return textMime;
   }
 
   if (
     OPAQUE_CONTAINER_EXTENSIONS.has(extension) &&
-    !isClaimedByDocumentType(detected, bytes)
+    !(await isClaimedByDocumentType(detected, source))
   ) {
     return 'application/octet-stream';
   }
 
   throw invalidType();
+}
+
+/** {@link attestDocumentSource} for bytes in memory. */
+export async function attestDocumentContentType(
+  bytes: Uint8Array,
+  fileName: string,
+): Promise<string> {
+  return attestDocumentSource(
+    {
+      size: bytes.byteLength,
+      detect: () => fileTypeFromBuffer(bytes),
+      read: (offset, length) =>
+        Promise.resolve(bytes.subarray(offset, offset + length)),
+      // oxlint-disable-next-line typescript/require-await -- one piece, as a sequence of pieces
+      pieces: async function* pieces() {
+        yield bytes;
+      },
+    },
+    fileName,
+  );
 }

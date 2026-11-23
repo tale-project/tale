@@ -38,7 +38,7 @@ export function createDeployCommand(): Command {
     )
     .option(
       '-s, --services <list>',
-      `Specific services to update (comma-separated: ${ALL_SERVICES.join(',')})`,
+      `Specific services to update (comma-separated: ${ALL_SERVICES.join(',')}). A deployment that runs the application as one platform process has no backend-api or backend-worker to name`,
     )
     .option('--dry-run', 'Preview deployment without making changes', false)
     .option(

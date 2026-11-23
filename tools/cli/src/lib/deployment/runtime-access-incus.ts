@@ -34,6 +34,7 @@ import type {
   RuntimeSession,
 } from '../runtime/types';
 import {
+  appRoleOf,
   bundledDatabaseOf,
   COPY_OUT_LIMIT_SENTENCE,
   type CopySource,
@@ -141,6 +142,14 @@ function runtimeInstanceOf(
         .filter(([key]) => key === 'environment.DATABASE_URL')
         .map(([, value]) => value),
     ),
+    ...(() => {
+      const role = appRoleOf(
+        environment
+          .filter(([key]) => key === 'environment.TALE_ROLE')
+          .map(([, value]) => value),
+      );
+      return role === undefined ? {} : { role };
+    })(),
     ...(nic?.network === undefined
       ? {}
       : {

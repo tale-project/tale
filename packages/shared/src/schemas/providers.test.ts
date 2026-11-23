@@ -921,15 +921,17 @@ describe('harnessDefinitionSchema', () => {
     ).toBe(false);
   });
 
+  /** Whether a harness whose one config document merges `set` is valid. */
+  const withDoc = (set: Record<string, unknown>) =>
+    harnessDefinitionSchema.safeParse({
+      ...VALID_HARNESS,
+      exec: {
+        ...VALID_HARNESS.exec,
+        envDocs: { PROBE_DOC: { fragments: [{ set }] } },
+      },
+    }).success;
+
   it('reads a number template in a doc tree and keeps `$number` out of keys', () => {
-    const withDoc = (set: Record<string, unknown>) =>
-      harnessDefinitionSchema.safeParse({
-        ...VALID_HARNESS,
-        exec: {
-          ...VALID_HARNESS.exec,
-          envDocs: { PROBE_DOC: { fragments: [{ set }] } },
-        },
-      }).success;
     const window = { $number: '${model.contextWindow}' };
     expect(withDoc({ model: { contextWindow: window } })).toBe(true);
     expect(
@@ -942,6 +944,66 @@ describe('harnessDefinitionSchema', () => {
     expect(withDoc({ model: { contextWindow: { $number: 4096 } } })).toBe(
       false,
     );
+  });
+
+  it('takes a whole number as a number template’s default', () => {
+    const limit = { $number: '${model.maxOutputTokens}', default: 32_000 };
+    expect(withDoc({ model: { maxTokens: limit } })).toBe(true);
+    expect(withDoc({ slots: [{ ...limit, default: 0 }] })).toBe(true);
+    // The default stands for the template's number, so it is what the
+    // template's own text must be: a whole number, within the safe range.
+    for (const invalid of [-1, 1.5, '32000', null, 2 ** 53]) {
+      expect(
+        withDoc({ model: { maxTokens: { ...limit, default: invalid } } }),
+      ).toBe(false);
+    }
+    // Without a template, `default` is an ordinary key of the tree; beside
+    // one, nothing else may stand.
+    expect(withDoc({ model: { maxTokens: { default: 32_000 } } })).toBe(true);
+    expect(
+      withDoc({ model: { maxTokens: { ...limit, fallback: 32_000 } } }),
+    ).toBe(false);
+  });
+
+  it('reads a conditional value in a doc tree and keeps `$when` out of keys', () => {
+    const input = {
+      $when: ['model-images'],
+      value: ['text', 'image'],
+      else: ['text'],
+    };
+    expect(withDoc({ models: [{ id: '${model}', input }] })).toBe(true);
+    // Without an `else`, a failed condition leaves the key out; the value
+    // is a tree like any other, its conditions an AND of known atoms.
+    expect(
+      withDoc({
+        model: { reasoning: { $when: ['model-reasoning'], value: true } },
+      }),
+    ).toBe(true);
+    expect(
+      withDoc({
+        model: {
+          limit: {
+            $when: ['managed', 'model'],
+            value: { $number: '${model.maxOutputTokens}' },
+          },
+        },
+      }),
+    ).toBe(true);
+    // An unknown atom, an empty condition, no value, a key beside the
+    // template, or `$when` as a key of its own are config defects.
+    expect(
+      withDoc({
+        model: { reasoning: { $when: ['model-vision'], value: true } },
+      }),
+    ).toBe(false);
+    expect(withDoc({ model: { reasoning: { $when: [], value: true } } })).toBe(
+      false,
+    );
+    expect(withDoc({ model: { reasoning: { $when: ['model'] } } })).toBe(false);
+    expect(
+      withDoc({ model: { input: { ...input, otherwise: ['text'] } } }),
+    ).toBe(false);
+    expect(withDoc({ model: { $when: 'model-images' } })).toBe(false);
   });
 
   it('rejects the retired argv-positional transport spelling', () => {
@@ -1049,6 +1111,13 @@ describe('harnessDefinitionSchema', () => {
       expect(
         issues(withDocMcp({ bridgeEnvField: 'env', bridgeEnv: RELAY_ENV })),
       ).toEqual([]);
+      // The common mcp.json format (Pi): a remote server as `{url, headers}`.
+      expect(
+        issues(withDocMcp({ serverShape: 'mcp-json', bridgeHeaders: HEADERS })),
+      ).toEqual([]);
+      expect(
+        issues(withDocMcp({ serverShape: 'mcp-url', bridgeHeaders: HEADERS })),
+      ).not.toEqual([]);
     });
 
     it('rejects a channel that mounts the bridge both ways or neither', () => {

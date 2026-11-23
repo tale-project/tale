@@ -38,7 +38,7 @@ const TOOLS_BASE_URL = BASE_URL.endsWith('/connectors')
   : '';
 // Fail closed: the per-session dispatch token is the ONLY credential this bridge
 // presents. No fallback to ANTHROPIC_AUTH_TOKEN — that is a different credential
-// (the LLM gateway key); presenting it to the connector endpoint would be a
+// (the turn's model key); presenting it to the connector endpoint would be a
 // credential-boundary slip. An empty token makes callPlatform report
 // "not configured" rather than authing with the wrong secret.
 const TOKEN = process.env.TALE_CONNECTORS_TOKEN || '';

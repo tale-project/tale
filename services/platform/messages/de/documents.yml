@@ -487,6 +487,12 @@ rag:
         askAdmin:
           Bitte einen Admin deiner Organisation, eines einzurichten, und
           starte die Indexierung danach neu.
+      memoryLimit:
+        hint:
+          Dieser Server gibt einer Datei {limit} MiB Arbeitsspeicher, und
+          diese Datei braucht mehr. Ein Admin des Servers kann das Limit mit
+          der Einstellung {setting} erhöhen; starte die Indexierung danach
+          neu.
     unsupported:
       title: Dokument kann nicht indexiert werden
       description:

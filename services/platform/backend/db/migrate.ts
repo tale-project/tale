@@ -4,6 +4,12 @@ import { isMigrationFile } from '@tale/shared/db/migration-files';
 import type { BetterAuthOptions } from 'better-auth';
 import postgres from 'postgres';
 
+import {
+  BUILT,
+  builtMigrationName,
+  MIGRATIONS_DIR,
+  migrationFileOnDisk,
+} from '../lib/layout.ts';
 import { installAuthInvalidationTriggers } from './auth-invalidation-triggers.ts';
 import { buildBootIndexes } from './boot-indexes.ts';
 import { createBootDatabaseWait, type BootDatabaseWait } from './boot-wait.ts';
@@ -34,8 +40,6 @@ export { isMigrationFile } from '@tale/shared/db/migration-files';
 
 /** Arbitrary-but-fixed app-wide advisory lock key for boot migrations. */
 const MIGRATION_LOCK_KEY = 72_085_001;
-
-const MIGRATIONS_DIR = new URL('./migrations/', import.meta.url);
 
 export interface BootMigrationOptions {
   databaseUrl: string;
@@ -262,11 +266,18 @@ export interface DataMigration {
   migrate(tx: postgres.TransactionSql): Promise<void>;
 }
 
-/** The files the migrator applies: `.sql`, and `.ts` data migrations — never
- * a test or a declaration file beside them. */
+/** The migrations the migrator applies, by the name each is recorded under:
+ * `.sql`, and `.ts` data migrations — never a test or a declaration file
+ * beside them. The built backend reads a data migration compiled
+ * (`lib/layout.ts`) and records it under the same name as the sources do. */
 async function listMigrationFiles(): Promise<string[]> {
   const entries = await readdir(MIGRATIONS_DIR);
-  return entries.filter(isMigrationFile).sort();
+  const names = BUILT
+    ? entries
+        .map(builtMigrationName)
+        .filter((name): name is string => name !== null)
+    : entries.filter(isMigrationFile);
+  return names.sort();
 }
 
 function isDataMigration(value: unknown): value is DataMigration {
@@ -283,7 +294,7 @@ export async function applyMigrationFileInTx(
   tx: postgres.TransactionSql,
   file: string,
 ): Promise<void> {
-  const url = new URL(file, MIGRATIONS_DIR);
+  const url = new URL(migrationFileOnDisk(file), MIGRATIONS_DIR);
   if (file.endsWith('.sql')) {
     await tx.unsafe(await readFile(url, 'utf8'));
     return;

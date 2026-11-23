@@ -63,6 +63,7 @@ import {
   RAG_ERROR_IMAGE_NO_VISION,
   RAG_ERROR_INDEXER_ERROR,
   RAG_ERROR_MALFORMED,
+  RAG_ERROR_MEMORY_LIMIT,
   RAG_ERROR_NOT_TEXT,
   RAG_ERROR_PII_BLOCKED,
   RAG_ERROR_PII_SCAN_FAILED,
@@ -79,16 +80,17 @@ import {
   type SearchKnowledgeArgs,
 } from '../../core/knowledge/search.ts';
 import { ExtractionError } from '../../core/lib/knowledge/extraction/errors.ts';
-import {
-  extractDocument,
-  isSupported,
-} from '../../core/lib/knowledge/extraction/router.ts';
+import { isSupported } from '../../core/lib/knowledge/extraction/router.ts';
 import { conversationAssignmentAllows } from '../../core/lib/rls/helpers/conversation_assignment.ts';
 import { parseBlobRef } from '../../core/lib/storage/blob_ref.ts';
-import { s3GetObjectBytes } from '../../core/lib/storage/object_store.ts';
 import { credentialRefusalMessage } from '../../core/provider_credentials/resolve_credential.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { createCtxShim, type ShimHandlers } from '../../lib/ctx-shim.ts';
+import {
+  prepareInHeavySlot,
+  type PreparedFile,
+} from '../../lib/heavy-slot/documents.ts';
+import { HeavyLimitError } from '../../lib/heavy-slot/slot.ts';
 import { locateOrgObjectStore } from '../../lib/object-store.ts';
 import {
   ORG_CONFIG_CACHE_TTL_MS,
@@ -1442,36 +1444,60 @@ export async function indexUploadedFile(
     ragStatus: 'running',
     ragProgress: 'Extracting text…',
   });
+  // The file made ready to index, with its chunks on disk until they are
+  // stored: let go of at the end, however the run ends.
+  let readied: PreparedFile | undefined;
   try {
+    const piiPolicy = await readGovernancePolicy(orgSlug, 'pii_config').catch(
+      () => null,
+    );
+    const piiConfig = parsePiiConfig(piiPolicy);
+
+    // The file is read, scanned, put under the PII policy and cut into
+    // chunks in the heavy slot: one such job at a time, in a process of its
+    // own under a memory cap, so that neither the file nor its text is ever
+    // held here (tale-project/tale#4942).
+    //
     // A read for the assistant (`read-text.ts`) may have extracted and
     // checked this file already: the index starts from that text. Its bytes
     // passed the secret scan then — the same bytes, a file row's ref never
-    // changes — and the PII policy is applied to it again below, as to every
+    // changes — and the PII policy is applied to it again, as to every
     // text, which changes nothing it masked or let through.
     const kept = await keptTextForIndex(sql, {
       fileId,
       orgSlug,
       storageRef: file.storageRef,
     });
-    let text: string;
-    let bytes: Uint8Array | undefined;
+    const slot = {
+      priority: 'background' as const,
+      piiConfig,
+      ...(options.signal !== undefined ? { signal: options.signal } : {}),
+    };
     if (kept !== null) {
-      text = kept;
+      readied = await prepareInHeavySlot(
+        { kind: 'text', text: kept },
+        file.fileName,
+        slot,
+      );
     } else {
       const parsed = parseBlobRef(file.storageRef);
       if (parsed.backend !== 's3') {
         throw new Error('0.5 blobs are S3 refs by construction');
       }
       const store = await locateOrgObjectStore(orgSlug, parsed.key);
-      bytes = await s3GetObjectBytes(store, parsed.key);
-      const extracted = await extractDocument(bytes, file.fileName);
-      text = extracted.text;
+      readied = await prepareInHeavySlot(
+        { kind: 'store', store, key: parsed.key },
+        file.fileName,
+        slot,
+      );
       // What the extraction learned about the file itself — the operator
       // reads it on the document row ("Image pages: 3", the OCR badge).
       // Stamped here, not on completion: a PDF whose embedding step later
       // fails is still a scanned PDF, and the answer to "why is this
       // document empty?" is exactly this pair of numbers.
-      await stampExtractionMetadata(sql, fileId, extracted);
+      if (readied.facts !== null) {
+        await stampExtractionMetadata(sql, fileId, readied.facts);
+      }
     }
 
     const config = await readOrgEmbeddingConfig(orgSlug);
@@ -1491,11 +1517,6 @@ export async function indexUploadedFile(
     );
     const pool = await getKnowledgePoolForOrg(orgSlug);
     const dbUrl = await resolveOrgUrl(orgSlug);
-
-    const piiPolicy = await readGovernancePolicy(orgSlug, 'pii_config').catch(
-      () => null,
-    );
-    const piiConfig = parsePiiConfig(piiPolicy);
 
     // Scope stamp from the document the file indexes as (hub/team/project),
     // and its folder — the corpus filters on both; a NULL folder stamp made
@@ -1560,10 +1581,8 @@ export async function indexUploadedFile(
         orgSlug,
         fileId: file.storageRef,
         filename: file.fileName,
-        text,
-        bytes,
+        prepared: readied.prepared,
         embedder,
-        piiConfig,
         folderPath,
         teamIds,
         projectId,
@@ -1767,6 +1786,18 @@ export async function indexUploadedFile(
       });
       return;
     }
+    // The file needs more memory to read than this deployment gives one
+    // file: the same file meets the same limit on every retry, so the job
+    // ends here, with the limit and the setting that raises it on the file.
+    // An administrator raises the limit, and indexing is retried.
+    if (error instanceof HeavyLimitError) {
+      await recordIndexingFailure(sql, {
+        ...failure,
+        ragError: error.message,
+        ragErrorCode: RAG_ERROR_MEMORY_LIMIT,
+      });
+      return;
+    }
     // An extractor's terminal refusal — binary bytes behind a text
     // extension, a file that does not parse as its format: the honest,
     // terminal `unsupported`, with its code, and NO rethrow: the job's five
@@ -1808,6 +1839,8 @@ export async function indexUploadedFile(
       ragErrorCode: RAG_ERROR_INDEXER_ERROR,
     });
     throw error;
+  } finally {
+    await readied?.release();
   }
 }
 

@@ -23,7 +23,6 @@ import {
   createProxyService,
 } from '../services/create-proxy-service';
 import { createSandboxEgressService } from '../services/create-sandbox-egress-service';
-import { createSandboxLlmGatewayService } from '../services/create-sandbox-llm-gateway-service';
 import { createSandboxService } from '../services/create-sandbox-service';
 import type { ComposeConfig, ServiceConfig } from '../types';
 import { DEV_VOLUME_NAMES } from './constants';
@@ -218,15 +217,14 @@ export function buildDevCompose(
       // The blob store the backend tier depends on (it seeds the deployment-
       // default blob connection at boot and refuses every upload without
       // one). Same service as the stateful stack — dev writes real blobs to
-      // the `object-store-data` dev volume, and the proxy forwards the
-      // presigned `/<bucket>/*` URLs to it exactly as in production.
+      // the `blob-data` dev volume, and the proxy forwards the presigned
+      // `/<bucket>/*` URLs to it exactly as in production.
       'object-store': createObjectStorageService(config),
       proxy,
       'docker-api': createDockerApiService(config),
       'backend-api': backendApi,
       'backend-worker': backendWorker,
       platform,
-      'sandbox-llm-gateway': createSandboxLlmGatewayService(config),
       'sandbox-egress': createSandboxEgressService(config),
       sandbox,
     },

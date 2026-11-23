@@ -43,6 +43,31 @@ export async function ensureNetwork(
 }
 
 /**
+ * The sandbox network's IPv4 subnet, as Docker reports it, or undefined when
+ * it cannot be read or has none: the model relay binds its address in it
+ * (`ServiceConfig.sandboxNetworkSubnet`).
+ */
+export async function readSandboxNetworkSubnet(): Promise<string | undefined> {
+  const inspected = await docker(
+    'network',
+    'inspect',
+    '--format',
+    '{{range .IPAM.Config}}{{.Subnet}} {{end}}',
+    'tale-sandbox-net',
+  );
+  if (!inspected.success) {
+    logger.warn(
+      `Could not read the sandbox network's subnet (${inspected.stderr.trim() || 'no output'}): the model relay will listen beside the API`,
+    );
+    return undefined;
+  }
+  return inspected.stdout
+    .trim()
+    .split(/\s+/)
+    .find((cidr) => /^\d{1,3}(?:\.\d{1,3}){3}\/\d{1,2}$/.test(cidr));
+}
+
+/**
  * The sandbox network is shared across blue/green and across dev/prod —
  * it's pinned to a fixed Docker name (`tale-sandbox-net`) so the spawner
  * can `docker run --network tale-sandbox-net` without discovering the

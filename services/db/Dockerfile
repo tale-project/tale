@@ -15,8 +15,8 @@ ARG VERSION=dev
 # Incus runs /init as PID 1 and halts a container with SIGPWR, or SIGRTMIN+3
 # when PID 1 blocks it; the runtime rewrites both to the stop signal. Docker
 # never runs it: the ENTRYPOINT below is unchanged. patches/README.md says why
-# and when it goes. Byte-identical in the six stack images (db, platform,
-# proxy, sandbox, sandbox-egress, sandbox-llm-gateway), held by
+# and when it goes. Byte-identical in the five stack images (db, platform,
+# proxy, sandbox, sandbox-egress), held by
 # tools/cli/scripts/oci-image-metadata.test.ts.
 # =============================================================================
 FROM alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc AS tale-init
@@ -144,11 +144,10 @@ ENV LANG=en_US.utf8 \
 ENV TALE_VERSION=${VERSION}
 ENV DB_NAME=tale \
     DB_USER=tale
-ENV DB_MAX_CONNECTIONS=100 \
-    DB_SHARED_BUFFERS=256MB \
-    DB_EFFECTIVE_CACHE_SIZE=1GB \
-    DB_MAINTENANCE_WORK_MEM=128MB \
-    DB_WORK_MEM=32MB
+# No DB_MAX_CONNECTIONS, DB_SHARED_BUFFERS, DB_EFFECTIVE_CACHE_SIZE,
+# DB_MAINTENANCE_WORK_MEM or DB_WORK_MEM here: a size named in the image
+# would read as the operator's own, and DB_PROFILE (docker-entrypoint.sh)
+# could never apply. Unset, each is postgresql.conf's.
 ENV DB_LOG_STATEMENT=none \
     DB_LOG_MIN_DURATION_STATEMENT=-1
 

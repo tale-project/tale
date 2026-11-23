@@ -82,46 +82,34 @@ export function ensureKnowledgeDatabaseUrl(env: NodeJS.ProcessEnv): void {
   )}@localhost:${KNOWLEDGE_DB_HOST_PORT}/tale_knowledge`;
 }
 
+/** The host `bun dev` backend's model relay port, unless one is set. */
+export const DEV_MODEL_RELAY_PORT = '3008';
+
 /**
- * LLM-gateway MANAGEMENT-plane URL for the host `bun dev` backend. The gateway
- * runs in Docker; the backend mints/revokes session virtual keys and
- * provisions providers against it. A containerized backend resolves the
- * compose hostname `sandbox-llm-gateway`, but the host can't — point it at the
- * loopback port `compose.sandbox-llm-gateway.dev.yml` publishes
- * (`127.0.0.1:8080`) so external-agent turns work with zero setup. Inherited by
- * the host backend through its spawn env. An explicit SANDBOX_LLM_GATEWAY_URL
- * (or the pre-rename LLM_GATEWAY_URL) wins.
- *
- * This is the management plane only; the in-container DATA-plane URL
- * (EXTERNAL_AGENT_GATEWAY_URL) stays the `sandbox-llm-gateway` alias — the agent
- * container reaches the gateway over the sandbox network, not loopback.
+ * The model relay's port for the host `bun dev` backend
+ * (`backend/domains/llm_relay`). A container's relay listens on 8080; the
+ * host backend takes a port of its own, which the dev stack's
+ * `backend-relay` forwards `backend-api:8080` on the sandbox network to
+ * (`compose.dev.yml`), so a harness reaches its models at the address it
+ * has in production. An explicit SANDBOX_RELAY_PORT wins.
  */
-export function ensureSandboxLlmGatewayUrl(env: NodeJS.ProcessEnv): void {
-  if (env.SANDBOX_LLM_GATEWAY_URL || env.LLM_GATEWAY_URL) return;
-  env.SANDBOX_LLM_GATEWAY_URL = 'http://127.0.0.1:8080';
+export function ensureModelRelayPort(env: NodeJS.ProcessEnv): void {
+  if (env.SANDBOX_RELAY_PORT) return;
+  env.SANDBOX_RELAY_PORT = DEV_MODEL_RELAY_PORT;
 }
 
 /**
- * Insecure local fallbacks for the two sandbox control-plane secrets. Both
- * sides fail closed without them — the spawner refuses to boot without
- * SANDBOX_TOKEN, the backend refuses every LLM-gateway management call
- * without the admin password — and each value MUST agree between the host
- * `bun dev` backend and the dockerized spawner / gateway. So these literals
- * are the SAME values `compose.dev.yml`'s `x-dev-secrets` anchor defaults to
- * (dev-secrets.test.ts pins the lockstep). The root `bun run dev` normally
- * mints random values into .env first; these only fill the gap when the
- * platform orchestrator runs on its own. Production must set real ones.
+ * Insecure local fallback for the sandbox control-plane secret. Both sides
+ * fail closed without it — the spawner refuses to boot without
+ * SANDBOX_TOKEN — and the value MUST agree between the host `bun dev`
+ * backend and the dockerized spawner. So this literal is the SAME value
+ * `compose.dev.yml`'s `x-dev-secrets` anchor defaults to (dev-secrets.test.ts
+ * pins the lockstep). The root `bun run dev` normally mints a random value
+ * into .env first; this only fills the gap when the platform orchestrator
+ * runs on its own. Production must set a real one.
  */
 export const DEV_SANDBOX_TOKEN =
   'local-dev-insecure-sandbox-token-do-not-use-in-prod-0123456789abcdef';
-// Must satisfy the gateway's own password policy (Bifrost >= v1.6.9: >=12
-// chars with an uppercase, a lowercase, a digit and a special char), since a
-// fresh dockerized dev gateway sets THIS value as its admin password on
-// first-time auth setup — a non-compliant one 400s and every sandbox call is
-// then a 401. Kept byte-identical with compose.dev.yml (dev-secrets.test.ts
-// pins the lockstep).
-export const DEV_SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD =
-  'Local-dev-insecure-gateway-admin-password-1';
 
 /** Shared HMAC key for backend → sandbox spawner request signing. */
 export function ensureSandboxToken(env: NodeJS.ProcessEnv): void {
@@ -132,29 +120,10 @@ export function ensureSandboxToken(env: NodeJS.ProcessEnv): void {
   env.SANDBOX_TOKEN = DEV_SANDBOX_TOKEN;
 }
 
-/** Admin credential for the sandbox LLM gateway's management API. The
- * pre-rename LLM_GATEWAY_ADMIN_PASSWORD still counts as set (the backend reads
- * it as a fallback for one release). */
-export function ensureSandboxLlmGatewayAdminPassword(
-  env: NodeJS.ProcessEnv,
-): void {
-  if (
-    env.SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD?.trim() ||
-    env.LLM_GATEWAY_ADMIN_PASSWORD?.trim()
-  ) {
-    return;
-  }
-  warnLine(
-    'SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD not set; using an insecure local default. Set it in .env for production.',
-  );
-  env.SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD =
-    DEV_SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD;
-}
-
 /**
  * The ordered secret-derivation chain: instance secret → better-auth secret →
- * WebDAV HMAC key (reused) → encryption key → knowledge-db URL → gateway URL →
- * the sandbox control-plane pair (spawner token, gateway admin password).
+ * WebDAV HMAC key (reused) → encryption key → knowledge-db URL → model relay
+ * port → the sandbox spawner token → app database URL → object store.
  * Each fills a gap only; the HMAC and encryption keys necessarily derive from
  * whatever INSTANCE_SECRET resolved to.
  */
@@ -164,9 +133,8 @@ export function deriveDevSecrets(env: NodeJS.ProcessEnv): void {
   ensureWebdavHmacKey(env);
   ensureEncryptionSecret(env);
   ensureKnowledgeDatabaseUrl(env);
-  ensureSandboxLlmGatewayUrl(env);
+  ensureModelRelayPort(env);
   ensureSandboxToken(env);
-  ensureSandboxLlmGatewayAdminPassword(env);
   ensureAppDatabaseUrl(env);
   ensureObjectStoreEnv(env);
 }
@@ -204,10 +172,22 @@ export function ensureAppDatabaseUrl(env: NodeJS.ProcessEnv): void {
  * The credentials mirror compose.yml's dev defaults so the two local modes
  * address the same bucket with the same keys — insecure by design, same
  * threat model as the rest of `x-dev-secrets`. An explicit value always wins.
+ *
+ * The browser reaches the store through the app's own origin, as it reaches
+ * the bundled store through the edge in a deployment: the links the backend
+ * hands it are signed for SITE_URL, as compose and `tale deploy` default
+ * OBJECT_STORE_PUBLIC_ENDPOINT, and Vite forwards the bucket's path to the
+ * store (`objectStoreProxy` in ./dev-blob-store). A link on the store's own
+ * address was a request to another origin, which versitygw answers only
+ * under a CORS rule the bucket does not have. An explicit value, an empty
+ * one included, hands the browser the store's own address instead.
  */
 export function ensureObjectStoreEnv(env: NodeJS.ProcessEnv): void {
   env.OBJECT_STORE_ENDPOINT ??= `http://127.0.0.1:${env.OBJECT_STORE_HOST_PORT ?? '59000'}`;
   env.OBJECT_STORE_BUCKET ??= 'tale-blobs';
   env.OBJECT_STORE_ACCESS_KEY ??= 'tale';
   env.OBJECT_STORE_SECRET_KEY ??= 'tale_dev_object_store';
+  if (env.OBJECT_STORE_PUBLIC_ENDPOINT === undefined && env.SITE_URL) {
+    env.OBJECT_STORE_PUBLIC_ENDPOINT = env.SITE_URL;
+  }
 }

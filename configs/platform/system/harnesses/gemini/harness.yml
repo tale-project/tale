@@ -131,8 +131,8 @@ exec:
                   Authorization: 'Bearer ${TALE_GATEWAY_TOKEN}'
       - instructions: { key: system_prompt }
   env:
-    # MANAGED: Google GenAI-compatible route on the platform gateway; the
-    # session virtual key authenticates as the API key (x-goog-api-key).
+    # MANAGED: Google GenAI-compatible route on the platform's model relay;
+    # the turn's model key authenticates as the API key (x-goog-api-key).
     managed:
       GOOGLE_GEMINI_BASE_URL: '${gateway.baseUrl}/genai'
       GEMINI_API_KEY: '${gateway.token}'

@@ -818,6 +818,7 @@ export interface AutomationsContract {
   };
   'automations/serving_preview:previewUnpinnedAgentServing': {
     kind: 'action';
+    /** An empty `harness` asks for a step on Default. */
     args: { organizationId: string; harness: string; model: string };
     returns:
       | {
@@ -825,6 +826,9 @@ export interface AutomationsContract {
           providerSlug: string;
           modelId: string;
           lane: 'gateway' | 'subscription';
+          /** The runtime the step runs on — for Default, the one the
+           * kick's resolution picks. */
+          harness?: string;
           reason?: undefined;
         }
       | {

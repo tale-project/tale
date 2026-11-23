@@ -1,3 +1,5 @@
+import pkg from '../../../package.json';
+import { preconditionError } from '../../utils/fail';
 import { formatBytes } from '../../utils/format-bytes';
 import { getProjectId, type DeploymentEnv } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
@@ -9,21 +11,25 @@ import {
   BACKUP_VOLUME,
   BLOB_VOLUME,
   CONFIG_VOLUME,
-  GATEWAY_VOLUME,
+  LEGACY_BLOB_VOLUME,
   LEGACY_CONFIG_VOLUME,
   RESTORABLE_ARCHIVES,
   isValidSnapshotId,
   restoreTargetVolume,
+  tarHelper,
 } from '../backup/constants';
 import { listSnapshots } from '../backup/list-snapshots';
 import { manifestSizeBytes, type SnapshotManifest } from '../backup/manifest';
 import { resolveSnapshotPrefix } from '../backup/resolve-prefix';
 import { verifySnapshot } from '../backup/verify-snapshot';
+import type { AppTier } from '../compose/app-tier';
 import {
+  RETIRED_SERVICES,
   ROTATABLE_SERVICES,
   SIDECAR_SERVICES,
   STATEFUL_SERVICES,
 } from '../compose/types';
+import { imageServesApp } from '../deployment/app-tier-image';
 import type { getContainerState } from '../docker/get-container-state';
 import type { listComposeContainers } from '../docker/list-service-containers';
 import type { stopContainer } from '../docker/stop-container';
@@ -31,6 +37,7 @@ import { snapshotStoreOf } from '../runtime/incus/verbs/snapshots';
 import { selectRuntime } from '../runtime/select-runtime';
 import type { StackRuntime } from '../runtime/types';
 import { withLock } from '../state/with-lock';
+import { colorTier } from './color-lifecycle';
 
 interface RestoreOptions {
   env: DeploymentEnv;
@@ -62,11 +69,39 @@ export interface RestoreDeps {
   getContainerState: typeof getContainerState;
   listComposeContainers: typeof listComposeContainers;
   stopContainer: typeof stopContainer;
+  /** The shape of each colour that has a `platform` to ask
+   *  (compose/app-tier.ts). */
+  colourTiers: () => Promise<AppTier[]>;
+  /** Whether a release's platform image serves the app from its backend
+   *  process; null when that image is not on this host to say. */
+  releaseServesApp: (version: string) => Promise<boolean | null>;
 }
 
 /** The collaborators as the selected runtime answers them. */
-function runtimeDeps(runtime: StackRuntime): RestoreDeps {
+function runtimeDeps(runtime: StackRuntime, env: DeploymentEnv): RestoreDeps {
   return {
+    colourTiers: async () => {
+      const tiers: AppTier[] = [];
+      for (const colour of ['blue', 'green'] as const) {
+        try {
+          const tier = await colorTier(colour, runtime);
+          if (tier !== null) tiers.push(tier);
+        } catch (error) {
+          // A colour that cannot be read says nothing here; the check that
+          // asks is a courtesy before the restore, never its condition.
+          logger.debug(
+            `The ${colour} colour's shape could not be read: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+      }
+      return tiers;
+    },
+    releaseServesApp: async (version) => {
+      const reference = `${env.GHCR_REGISTRY}/tale-platform:${version}`;
+      return (await runtime.imagePresent(reference))
+        ? imageServesApp(reference)
+        : null;
+    },
     listSnapshots: (prefix) => listSnapshots(prefix, runtime),
     resolveSnapshotPrefix: () => resolveSnapshotPrefix(runtime),
     verifySnapshot: (prefix, manifest) =>
@@ -109,6 +144,10 @@ interface LiveContainer {
  * is the only handle that finds all of them. Both are judged by one state
  * word and one predicate, so a replica that is restarting or paused is
  * refused and stopped like the stateful tier already was.
+ *
+ * A model gateway an earlier release left is one of them: an older snapshot
+ * writes its store back, which must not happen under a gateway that is
+ * writing it.
  */
 async function findLiveProjectContainers(
   deps: RestoreDeps,
@@ -116,7 +155,11 @@ async function findLiveProjectContainers(
   const projectId = getProjectId();
   const live: LiveContainer[] = [];
   const named: string[] = [];
-  for (const service of [...STATEFUL_SERVICES, ...SIDECAR_SERVICES]) {
+  for (const service of [
+    ...STATEFUL_SERVICES,
+    ...SIDECAR_SERVICES,
+    ...RETIRED_SERVICES,
+  ]) {
     named.push(`${projectId}-${service}`);
   }
   // The dev stack pins its names; production runs the same services inside a
@@ -157,18 +200,16 @@ function kindOf(manifest: SnapshotManifest): string {
 }
 
 function hasBlobArchive(manifest: SnapshotManifest): boolean {
-  return BLOB_VOLUME in manifest.volumes;
-}
-
-function hasGatewayArchive(manifest: SnapshotManifest): boolean {
-  return GATEWAY_VOLUME in manifest.volumes;
+  return (
+    BLOB_VOLUME in manifest.volumes || LEGACY_BLOB_VOLUME in manifest.volumes
+  );
 }
 
 function printSnapshotList(snapshots: SnapshotManifest[]): void {
   logger.table(
     snapshots.map((snapshot) => [
       snapshot.id,
-      `${snapshot.createdAt} · platform ${snapshot.platformVersion ?? 'unknown'} · ${formatBytes(totalSizeBytes(snapshot))} · ${snapshot.trigger}${kindOf(snapshot)}${hasBlobArchive(snapshot) ? '' : ' · without blobs'}${hasGatewayArchive(snapshot) ? '' : ' · without gateway'}`,
+      `${snapshot.createdAt} · platform ${snapshot.platformVersion ?? 'unknown'} · ${formatBytes(totalSizeBytes(snapshot))} · ${snapshot.trigger}${kindOf(snapshot)}${hasBlobArchive(snapshot) ? '' : ' · without blobs'}`,
     ]),
   );
 }
@@ -185,13 +226,49 @@ async function liveVolumeUsers(
   return [...names].sort().map((name) => ({ name, state: 'running' }));
 }
 
+/**
+ * A restore across releases hands the stack to the CLI of the snapshot's
+ * release: its data must come back under that version (`tale update
+ * --version`, then `tale deploy --stop`). A CLI from before the application
+ * could run as one process deploys only over the three services: its writer
+ * census looks for `backend-api` and `backend-worker`, and without them it
+ * refuses with "The installed backend database connection is unknown".
+ *
+ * So a workspace that runs fewer services is turned back HERE, while its
+ * volumes still hold their data, with the step that avoids the dead end.
+ * The release says which it is through its own image, where that image is
+ * still on the host; where it is not, the operator is told what to check.
+ */
+async function assertSnapshotReleaseCanDeploy(
+  manifest: SnapshotManifest,
+  deps: RestoreDeps,
+): Promise<void> {
+  const version = manifest.platformVersion;
+  if (version === null || version === pkg.version) return;
+  const runs = (await deps.colourTiers()).find(
+    (tier) => tier.shape !== 'three-way',
+  );
+  if (runs === undefined) return;
+  const servesApp = await deps.releaseServesApp(version);
+  if (servesApp === true) return;
+  const first =
+    'set TALE_APP_TIER=three-services in .env and run `tale deploy`, then restore';
+  if (servesApp === false)
+    throw preconditionError(
+      `Snapshot ${manifest.id} holds the data of Tale ${version}, whose CLI deploys only over the services platform, backend-api and backend-worker. This workspace runs the application as ${runs.services.join(' and ')}, which that CLI refuses once the data is restored. First ${first}. Nothing was changed.`,
+    );
+  logger.warn(
+    `Snapshot ${manifest.id} holds the data of Tale ${version}, and that release's image is not on this host to say which services it runs. This workspace runs the application as ${runs.services.join(' and ')}. If Tale ${version} is from before the application could run as one process, its CLI refuses this workspace once the data is restored: stop here, ${first}.`,
+  );
+}
+
 export async function restore(
   options: RestoreOptions,
   injected?: RestoreDeps,
 ): Promise<void> {
   const { env, snapshotId } = options;
   const runtime = options.runtime ?? (await selectRuntime(env.DEPLOY_DIR));
-  const deps = injected ?? runtimeDeps(runtime);
+  const deps = injected ?? runtimeDeps(runtime, env);
 
   if (options.resume === true || options.abort === true) {
     if (options.resume === true && options.abort === true)
@@ -267,6 +344,8 @@ export async function restore(
     // On Incus the restore stops the volumes' users itself, gracefully,
     // and starts them again: `--stop` is the consent to that.
     const store = snapshotStoreOf(runtime);
+    // On Incus the application runs as three services in every release.
+    if (store === null) await assertSnapshotReleaseCanDeploy(manifest, deps);
     const live =
       store === null
         ? await findLiveProjectContainers(deps)
@@ -321,26 +400,32 @@ export async function restore(
     // Snapshots from before blobs were captured — and snapshots of a
     // deployment whose blobs live in external S3 — carry no blob archive.
     // Restore what the snapshot has; say what it does not touch.
-    if (!volumes.includes(BLOB_VOLUME)) {
+    if (
+      !volumes.includes(BLOB_VOLUME) &&
+      !volumes.includes(LEGACY_BLOB_VOLUME)
+    ) {
       logger.notice(
         `Snapshot ${snapshotId} has no ${BLOB_VOLUME} archive (taken before blobs were captured, or with an external blob store) — the blob volume is left untouched.`,
       );
     }
+    // A snapshot from MinIO's time holds the blobs in MinIO's format, under
+    // the volume name of that time. Restored, they are the deployment's
+    // blobs again. What a later store wrote into `blob-data` belongs to the
+    // state this restore replaces: left there, the next deploy would find
+    // it, take that volume for the live one, and serve its blobs beside a
+    // database that knows other ones. So it is emptied with the rest, and
+    // the next deploy finds the blobs in MinIO's volume.
+    const emptiedBlobStore =
+      store === null &&
+      volumes.includes(LEGACY_BLOB_VOLUME) &&
+      !volumes.includes(BLOB_VOLUME) &&
+      (await runtime.volumeExists(`${prefix}${BLOB_VOLUME}`));
     // The config store has no such excuse: every snapshot the CLI has ever
     // written captured it, so a manifest without one is a torn snapshot and
     // restoring it would leave the deployment with no organization config.
     if (!volumes.includes(CONFIG_VOLUME)) {
       logger.warn(
         `Snapshot ${snapshotId} has no ${CONFIG_VOLUME} (or ${LEGACY_CONFIG_VOLUME}) archive — the org config store is left untouched. This snapshot is incomplete.`,
-      );
-    }
-    // Snapshots taken before the gateway's store was captured still restore
-    // everything they hold. What they cannot do is undo a gateway upgrade: a
-    // newer gateway migrated that store forward-only, and an older release
-    // started on it afterwards runs on the migrated store.
-    if (!volumes.includes(GATEWAY_VOLUME)) {
-      logger.warn(
-        `Snapshot ${snapshotId} has no ${GATEWAY_VOLUME} archive (taken before snapshots captured the model gateway's store, or without a gateway) — the gateway volume is left untouched, so this snapshot cannot return the model gateway to its store from before a gateway upgrade. If the gateway was upgraded after this snapshot, put your own copy of ${prefix}${GATEWAY_VOLUME} back before you deploy the snapshot's release.`,
       );
     }
 
@@ -351,7 +436,7 @@ export async function restore(
         );
       else
         logger.warn(
-          `This wipes the current contents of: ${volumes.map((volume) => `${prefix}${volume}`).join(', ')}`,
+          `This wipes the current contents of: ${[...volumes, ...(emptiedBlobStore ? [BLOB_VOLUME] : [])].map((volume) => `${prefix}${volume}`).join(', ')}`,
         );
       logger.warn(
         `and replaces them with snapshot ${snapshotId} (created ${manifest.createdAt}, platform ${manifest.platformVersion ?? 'unknown'}).`,
@@ -391,8 +476,11 @@ export async function restore(
       logger.step(
         `Restoring ${prefix}${volume}${archive === volume ? '' : ` (from ${archive}.tar.gz)`}...`,
       );
+      // The blob store's files get their extended attributes back from a
+      // tar that knows of them, as they were archived.
+      const tar = tarHelper(volume);
       const result = await runtime.oneShot({
-        image: BACKUP_HELPER_IMAGE,
+        image: tar.image,
         mounts: [
           { volume: `${prefix}${volume}`, target: '/data' },
           {
@@ -407,7 +495,7 @@ export async function restore(
           // Never wipe the live volume for an archive that is not there:
           // the existence check runs BEFORE the delete, inside the same
           // helper container that will extract.
-          `test -f /backup/${snapshotId}/${archive}.tar.gz && find /data -mindepth 1 -delete && tar xzf /backup/${snapshotId}/${archive}.tar.gz -C /data`,
+          `test -f /backup/${snapshotId}/${archive}.tar.gz && find /data -mindepth 1 -delete && tar xzf /backup/${snapshotId}/${archive}.tar.gz${tar.flags} -C /data`,
         ],
         timeoutS: archiveTimeoutSeconds(volume),
       });
@@ -415,6 +503,23 @@ export async function restore(
         throw new Error(
           `Restore of ${prefix}${volume} failed: ${result.stderr || result.stdout}\n` +
             '  The volume may be partially restored — re-run the restore before starting the stack.',
+        );
+      }
+    }
+    if (emptiedBlobStore) {
+      logger.step(
+        `Emptying ${prefix}${BLOB_VOLUME} (the snapshot's blobs are in ${prefix}${LEGACY_BLOB_VOLUME})...`,
+      );
+      const emptied = await runtime.oneShot({
+        image: BACKUP_HELPER_IMAGE,
+        mounts: [{ volume: `${prefix}${BLOB_VOLUME}`, target: '/data' }],
+        argv: ['sh', '-c', 'find /data -mindepth 1 -delete'],
+        timeoutS: archiveTimeoutSeconds(BLOB_VOLUME),
+      });
+      if (!emptied.success) {
+        throw new Error(
+          `Emptying ${prefix}${BLOB_VOLUME} failed: ${emptied.stderr || emptied.stdout}\n` +
+            `  The snapshot's blobs are restored in ${prefix}${LEGACY_BLOB_VOLUME}, and the next deploy would pass them over for what is left in ${prefix}${BLOB_VOLUME} — re-run the restore before starting the stack.`,
         );
       }
     }

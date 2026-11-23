@@ -14,6 +14,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { FileTranscriptionInfo } from '@/app/features/chat/hooks/use-file-transcription-status';
 import type { BlobRef } from '@/backend/core/lib/storage/blob_ref';
 import { CHAT_IMAGE_MODEL_MAX_SIZE } from '@/lib/shared/file-types';
+import { memoryLimitSentence } from '@/lib/shared/memory-limit';
 import { USAGE_LIMIT_REFUSAL_PREFIX } from '@/lib/shared/usage-limit';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { i18n } from '@/tests/utils/i18n-all-languages';
@@ -78,6 +79,40 @@ describe('a staged recording whose transcription failed', () => {
     ).toBeVisible();
     await checkAccessibility(container);
   });
+
+  it.each(['en', 'de', 'fr'])(
+    'says the recording needs more memory than a file is given, with the limit and the setting (%s)',
+    async (locale) => {
+      localStorage.setItem(LOCALE_STORAGE_KEY, locale);
+      await i18n.changeLanguage(locale);
+      const words = i18n.getFixedT(locale, 'chat');
+      const { container } = renderChip({
+        status: 'failed',
+        error: memoryLimitSentence(96),
+      });
+
+      const label = screen.getByText(words('transcription.tooHeavy'));
+      expect(label).toBeVisible();
+      const hint = label.getAttribute('title') ?? '';
+      expect(hint).toBe(
+        words('transcription.tooHeavyHint', {
+          limit: 96,
+          setting: 'HEAVY_SLOT_MEMORY_MB',
+        }),
+      );
+      // The limit and the setting are in the sentence, whatever the language.
+      expect(hint).toContain('96');
+      expect(hint).toContain('HEAVY_SLOT_MEMORY_MB');
+      // Never the server's own sentence, outside English.
+      if (locale !== 'en') {
+        expect(hint).not.toContain('This file needs more memory');
+      }
+      expect(
+        screen.getByRole('button', { name: words('transcription.retry') }),
+      ).toBeVisible();
+      await checkAccessibility(container);
+    },
+  );
 
   it('keeps any other failure’s reason on hover', () => {
     renderChip({ status: 'failed', error: 'The audio could not be decoded.' });

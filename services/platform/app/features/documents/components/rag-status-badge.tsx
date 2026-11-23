@@ -14,9 +14,11 @@ import { useAbility } from '@/app/hooks/use-ability';
 import { failureDetail } from '@/app/lib/backend/adapters';
 import {
   RAG_ERROR_EMBEDDING_NOT_CONFIGURED,
+  RAG_ERROR_MEMORY_LIMIT,
   RAG_ERROR_USAGE_LIMIT,
 } from '@/backend/core/knowledge/rag_error_codes';
 import { useT } from '@/lib/i18n/client';
+import { MEMORY_LIMIT_SETTING, memoryLimitOf } from '@/lib/shared/memory-limit';
 import type { RagStatus } from '@/types/documents';
 
 import { useRetryRagIndexing } from '../hooks/actions';
@@ -216,6 +218,11 @@ export function RagStatusBadge({
 
   // Show failed status with inline retry button
   if (effectiveStatus === 'failed') {
+    // The file needs more memory than this server gives one file: said in
+    // the reader's language beside the stored sentence, with the limit that
+    // sentence names (`lib/shared/memory-limit.ts`).
+    const memoryLimitMb =
+      errorCode === RAG_ERROR_MEMORY_LIMIT ? memoryLimitOf(error) : undefined;
     return (
       <span className="inline-flex items-center gap-1.5">
         <button
@@ -246,6 +253,14 @@ export function RagStatusBadge({
             </pre>
             {errorCode === RAG_ERROR_EMBEDDING_NOT_CONFIGURED && (
               <EmbeddingNotConfiguredGuidance />
+            )}
+            {memoryLimitMb !== undefined && (
+              <Text className="mt-4">
+                {t('rag.dialog.failed.memoryLimit.hint', {
+                  limit: memoryLimitMb,
+                  setting: MEMORY_LIMIT_SETTING,
+                })}
+              </Text>
             )}
           </div>
         </ViewDialog>

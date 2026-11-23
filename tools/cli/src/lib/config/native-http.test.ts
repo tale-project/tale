@@ -304,9 +304,19 @@ describe('bounded native JSON', () => {
 
   test('oversized streamed responses are cancelled even when Content-Length understates bytes', async () => {
     let cancelled = false;
+    let pieces = 0;
     const response = new Response(
       new ReadableStream({
         pull(controller) {
+          // A thousand times the bound, and then an end: a reader that lost
+          // its bound fails below for not having cancelled, where a stream
+          // without an end would have it read until the machine was out of
+          // memory.
+          if (pieces === 1024) {
+            controller.close();
+            return;
+          }
+          pieces += 1;
           controller.enqueue(new Uint8Array(33));
         },
         cancel() {

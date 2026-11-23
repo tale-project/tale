@@ -3,17 +3,20 @@ managed-baseline:
     - tale-pi-run
     - --workdir
     - /agent/workspace
+    - --rpc
   env:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
-  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
-    test","settings":{"enableInstallTelemetry":false},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{}}'
-  stdinMode: close
+  stdin: |
+    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all","defaultThinkingLevel":"high","httpIdleTimeoutMs":900000},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{}}
+    {"type":"prompt","message":"Golden battery prompt: fix the flaky login test"}
+  stdinMode: hold
 managed-model-opus:
   argv:
     - tale-pi-run
     - --workdir
     - /agent/workspace
+    - --rpc
     - --provider
     - tale-gateway
     - --model
@@ -21,14 +24,16 @@ managed-model-opus:
   env:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
-  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
-    test","settings":{"enableInstallTelemetry":false},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN","models":[{"id":"claude-opus-4-6"}]}}},"mcp":{}}'
-  stdinMode: close
+  stdin: |
+    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all","defaultThinkingLevel":"high","httpIdleTimeoutMs":900000},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN","models":[{"id":"claude-opus-4-6","input":["text"]}]}}},"mcp":{}}
+    {"type":"prompt","message":"Golden battery prompt: fix the flaky login test"}
+  stdinMode: hold
 managed-model-gateway-ref:
   argv:
     - tale-pi-run
     - --workdir
     - /agent/workspace
+    - --rpc
     - --provider
     - tale-gateway
     - --model
@@ -36,14 +41,16 @@ managed-model-gateway-ref:
   env:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
-  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
-    test","settings":{"enableInstallTelemetry":false},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN","models":[{"id":"openrouter/anthropic/claude-sonnet-4.6"}]}}},"mcp":{}}'
-  stdinMode: close
+  stdin: |
+    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all","defaultThinkingLevel":"high","httpIdleTimeoutMs":900000},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN","models":[{"id":"openrouter/anthropic/claude-sonnet-4.6","input":["text"]}]}}},"mcp":{}}
+    {"type":"prompt","message":"Golden battery prompt: fix the flaky login test"}
+  stdinMode: hold
 managed-model-default:
   argv:
     - tale-pi-run
     - --workdir
     - /agent/workspace
+    - --rpc
     - --provider
     - tale-gateway
     - --model
@@ -51,14 +58,16 @@ managed-model-default:
   env:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
-  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
-    test","settings":{"enableInstallTelemetry":false},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN","models":[{"id":"default"}]}}},"mcp":{}}'
-  stdinMode: close
+  stdin: |
+    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all","defaultThinkingLevel":"high","httpIdleTimeoutMs":900000},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN","models":[{"id":"default","input":["text"]}]}}},"mcp":{}}
+    {"type":"prompt","message":"Golden battery prompt: fix the flaky login test"}
+  stdinMode: hold
 managed-model-context-window:
   argv:
     - tale-pi-run
     - --workdir
     - /agent/workspace
+    - --rpc
     - --provider
     - tale-gateway
     - --model
@@ -66,128 +75,148 @@ managed-model-context-window:
   env:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
-  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
-    test","settings":{"enableInstallTelemetry":false},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN","models":[{"id":"golden-local/golden-small-model","contextWindow":32768}]}}},"mcp":{}}'
-  stdinMode: close
+  stdin: |
+    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all","defaultThinkingLevel":"high","httpIdleTimeoutMs":900000},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN","models":[{"id":"golden-local/golden-small-model","contextWindow":32768,"maxTokens":12288,"input":["text"],"reasoning":true}]}}},"mcp":{}}
+    {"type":"prompt","message":"Golden battery prompt: fix the flaky login test"}
+  stdinMode: hold
 managed-plan:
   argv:
     - tale-pi-run
     - --workdir
     - /agent/workspace
+    - --rpc
   env:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
-  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
-    test","settings":{"enableInstallTelemetry":false},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{}}'
-  stdinMode: close
+  stdin: |
+    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all","defaultThinkingLevel":"high","httpIdleTimeoutMs":900000},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{}}
+    {"type":"prompt","message":"Golden battery prompt: fix the flaky login test"}
+  stdinMode: hold
 managed-act:
   argv:
     - tale-pi-run
     - --workdir
     - /agent/workspace
+    - --rpc
   env:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
-  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
-    test","settings":{"enableInstallTelemetry":false},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{}}'
-  stdinMode: close
+  stdin: |
+    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all","defaultThinkingLevel":"high","httpIdleTimeoutMs":900000},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{}}
+    {"type":"prompt","message":"Golden battery prompt: fix the flaky login test"}
+  stdinMode: hold
 managed-resume:
   argv:
     - tale-pi-run
     - --workdir
     - /agent/workspace
+    - --rpc
     - --resume
     - golden-resume-handle
   env:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
-  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
-    test","settings":{"enableInstallTelemetry":false},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{}}'
-  stdinMode: close
+  stdin: |
+    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all","defaultThinkingLevel":"high","httpIdleTimeoutMs":900000},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{}}
+    {"type":"prompt","message":"Golden battery prompt: fix the flaky login test"}
+  stdinMode: hold
 managed-instructions:
   argv:
     - tale-pi-run
     - --workdir
     - /agent/workspace
+    - --rpc
   env:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
-  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
-    test","settings":{"enableInstallTelemetry":false},"system_prompt":"Golden
-    instructions: follow the org
-    runbook.","models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{}}'
-  stdinMode: close
+  stdin: |
+    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all","defaultThinkingLevel":"high","httpIdleTimeoutMs":900000},"system_prompt":"Golden instructions: follow the org runbook.","models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{}}
+    {"type":"prompt","message":"Golden battery prompt: fix the flaky login test"}
+  stdinMode: hold
 managed-dirs:
   argv:
     - tale-pi-run
     - --workdir
     - /agent/workspace
+    - --rpc
   env:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
-  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
-    test","settings":{"enableInstallTelemetry":false},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{}}'
-  stdinMode: close
+  stdin: |
+    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all","defaultThinkingLevel":"high","httpIdleTimeoutMs":900000},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{}}
+    {"type":"prompt","message":"Golden battery prompt: fix the flaky login test"}
+  stdinMode: hold
 managed-mcp-headless-bridge:
   argv:
     - tale-pi-run
     - --workdir
     - /agent/workspace
+    - --rpc
   env:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
-  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
-    test","settings":{"enableInstallTelemetry":false},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"],"exposure":"direct"},"connectors":{"command":"tale-connectors-mcp","env":{"TALE_CONNECTORS_URL":"http://platform.internal/bridge","TALE_CONNECTORS_TOKEN":"${TALE_GATEWAY_TOKEN}"},"exposure":"direct"}}}}'
-  stdinMode: close
+  stdin: |
+    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all","defaultThinkingLevel":"high","httpIdleTimeoutMs":900000},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"],"exposure":"direct"},"connectors":{"url":"http://platform.internal/bridge/mcp","headers":{"Authorization":"Bearer ${TALE_GATEWAY_TOKEN}"},"exposure":"direct"}}}}
+    {"type":"prompt","message":"Golden battery prompt: fix the flaky login test"}
+  stdinMode: hold
 managed-mcp-bridge-only:
   argv:
     - tale-pi-run
     - --workdir
     - /agent/workspace
+    - --rpc
   env:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
-  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
-    test","settings":{"enableInstallTelemetry":false},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{"mcpServers":{"connectors":{"command":"tale-connectors-mcp","env":{"TALE_CONNECTORS_URL":"http://platform.internal/bridge","TALE_CONNECTORS_TOKEN":"${TALE_GATEWAY_TOKEN}"},"exposure":"direct"}}}}'
-  stdinMode: close
+  stdin: |
+    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all","defaultThinkingLevel":"high","httpIdleTimeoutMs":900000},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{"mcpServers":{"connectors":{"url":"http://platform.internal/bridge/mcp","headers":{"Authorization":"Bearer ${TALE_GATEWAY_TOKEN}"},"exposure":"direct"}}}}
+    {"type":"prompt","message":"Golden battery prompt: fix the flaky login test"}
+  stdinMode: hold
 managed-vision:
   argv:
     - tale-pi-run
     - --workdir
     - /agent/workspace
+    - --rpc
   env:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
-  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
-    test","settings":{"enableInstallTelemetry":false},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"],"exposure":"direct"}}}}'
-  stdinMode: close
+  stdin: |
+    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all","defaultThinkingLevel":"high","httpIdleTimeoutMs":900000},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"],"exposure":"direct"}}}}
+    {"type":"prompt","message":"Golden battery prompt: fix the flaky login test"}
+  stdinMode: hold
 managed-vision-lane:
   argv:
     - tale-pi-run
     - --workdir
     - /agent/workspace
+    - --rpc
   env:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
-  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
-    test","settings":{"enableInstallTelemetry":false},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"],"exposure":"direct"}}}}'
-  stdinMode: close
+  stdin: |
+    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all","defaultThinkingLevel":"high","httpIdleTimeoutMs":900000},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"],"exposure":"direct"}}}}
+    {"type":"prompt","message":"Golden battery prompt: fix the flaky login test"}
+  stdinMode: hold
 managed-steer:
   argv:
     - tale-pi-run
     - --workdir
     - /agent/workspace
+    - --rpc
   env:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
-  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
-    test","settings":{"enableInstallTelemetry":false},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{}}'
-  stdinMode: close
+  stdin: |
+    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all","defaultThinkingLevel":"high","httpIdleTimeoutMs":900000},"models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN"}}},"mcp":{}}
+    {"type":"prompt","message":"Golden battery prompt: fix the flaky login test"}
+  stdinMode: hold
 managed-kitchen-sink:
   argv:
     - tale-pi-run
     - --workdir
     - /agent/workspace
+    - --rpc
     - --resume
     - golden-resume-handle
     - --provider
@@ -197,53 +226,59 @@ managed-kitchen-sink:
   env:
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
-  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
-    test","settings":{"enableInstallTelemetry":false},"system_prompt":"Golden
-    instructions: follow the org
-    runbook.","models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN","models":[{"id":"claude-opus-4-6"}]}}},"mcp":{"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"],"exposure":"direct"},"connectors":{"command":"tale-connectors-mcp","env":{"TALE_CONNECTORS_URL":"http://platform.internal/bridge","TALE_CONNECTORS_TOKEN":"${TALE_GATEWAY_TOKEN}"},"exposure":"direct"}}}}'
-  stdinMode: close
+  stdin: |
+    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all","defaultThinkingLevel":"high","httpIdleTimeoutMs":900000},"system_prompt":"Golden instructions: follow the org runbook.","models":{"providers":{"tale-gateway":{"baseUrl":"http://golden-gw:8080/openai/v1","api":"openai-completions","apiKey":"$TALE_GATEWAY_TOKEN","models":[{"id":"claude-opus-4-6","input":["text"]}]}}},"mcp":{"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"],"exposure":"direct"},"connectors":{"url":"http://platform.internal/bridge/mcp","headers":{"Authorization":"Bearer ${TALE_GATEWAY_TOKEN}"},"exposure":"direct"}}}}
+    {"type":"prompt","message":"Golden battery prompt: fix the flaky login test"}
+  stdinMode: hold
 byo-baseline:
   argv:
     - tale-pi-run
     - --workdir
     - /agent/workspace
+    - --rpc
   env:
     GOLDEN_BYO_KEY: golden-byo-credential-secret
   cwd: /agent/workspace
-  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
-    test","settings":{"enableInstallTelemetry":false},"mcp":{}}'
-  stdinMode: close
+  stdin: |
+    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all","defaultThinkingLevel":"high"},"mcp":{}}
+    {"type":"prompt","message":"Golden battery prompt: fix the flaky login test"}
+  stdinMode: hold
 byo-model:
   argv:
     - tale-pi-run
     - --workdir
     - /agent/workspace
+    - --rpc
     - --model
     - claude-opus-4-6
   env:
     GOLDEN_BYO_KEY: golden-byo-credential-secret
   cwd: /agent/workspace
-  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
-    test","settings":{"enableInstallTelemetry":false},"mcp":{}}'
-  stdinMode: close
+  stdin: |
+    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all","defaultThinkingLevel":"high"},"mcp":{}}
+    {"type":"prompt","message":"Golden battery prompt: fix the flaky login test"}
+  stdinMode: hold
 byo-model-default:
   argv:
     - tale-pi-run
     - --workdir
     - /agent/workspace
+    - --rpc
     - --model
     - default
   env:
     GOLDEN_BYO_KEY: golden-byo-credential-secret
   cwd: /agent/workspace
-  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
-    test","settings":{"enableInstallTelemetry":false},"mcp":{}}'
-  stdinMode: close
+  stdin: |
+    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all","defaultThinkingLevel":"high"},"mcp":{}}
+    {"type":"prompt","message":"Golden battery prompt: fix the flaky login test"}
+  stdinMode: hold
 byo-kitchen-sink:
   argv:
     - tale-pi-run
     - --workdir
     - /agent/workspace
+    - --rpc
     - --resume
     - golden-resume-handle
     - --model
@@ -251,8 +286,7 @@ byo-kitchen-sink:
   env:
     GOLDEN_BYO_KEY: golden-byo-credential-secret
   cwd: /agent/workspace
-  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
-    test","settings":{"enableInstallTelemetry":false},"system_prompt":"Golden
-    instructions: follow the org
-    runbook.","mcp":{"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"],"exposure":"direct"}}}}'
-  stdinMode: close
+  stdin: |
+    {"settings":{"enableInstallTelemetry":false,"cacheWarming":"off","steeringMode":"all","defaultThinkingLevel":"high"},"system_prompt":"Golden instructions: follow the org runbook.","mcp":{"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"],"exposure":"direct"}}}}
+    {"type":"prompt","message":"Golden battery prompt: fix the flaky login test"}
+  stdinMode: hold

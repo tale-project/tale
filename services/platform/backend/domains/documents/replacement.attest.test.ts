@@ -1,8 +1,12 @@
 // @vitest-environment node
 
-import { describe, expect, it } from 'vitest';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 
-import { attestReplacementBytes } from './replacement.ts';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
+import { attestReplacementFile } from './replacement.ts';
 import { DocumentError } from './service.ts';
 
 /**
@@ -14,18 +18,30 @@ import { DocumentError } from './service.ts';
  * (`record.replace.contentMismatch`). This seam is where the two vocabularies
  * meet.
  */
-describe('attestReplacementBytes', () => {
-  const encoder = new TextEncoder();
+describe('attestReplacementFile', () => {
+  let dir: string;
+  beforeAll(() => {
+    dir = mkdtempSync(path.join(tmpdir(), 'attest-replacement-'));
+  });
+  afterAll(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+  /** A staged file holding `text`, as the door reads one from the disk. */
+  const staged = (name: string, text: string): string => {
+    const filePath = path.join(dir, name);
+    writeFileSync(filePath, text);
+    return filePath;
+  };
 
   it('answers the attested MIME for bytes that match the extension', async () => {
     await expect(
-      attestReplacementBytes(encoder.encode('# notes\n'), 'notes.md'),
+      attestReplacementFile(staged('a', '# notes\n'), 'notes.md'),
     ).resolves.toBe('text/markdown');
   });
 
   it('refuses a mismatch as the coded 400 the door maps', async () => {
-    const refused = await attestReplacementBytes(
-      encoder.encode('not a PDF'),
+    const refused = await attestReplacementFile(
+      staged('b', 'not a PDF'),
       'spoofed.pdf',
     ).then(
       () => null,

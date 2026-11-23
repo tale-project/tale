@@ -8,6 +8,7 @@
     "./automation-name": "./src/automation-name.ts",
     "./automation-replay": "./src/automation-replay.ts",
     "./docker-engine": "./src/docker-engine.ts",
+    "./memory-budget": "./src/memory-budget.ts",
     "./task-limits": "./src/task-limits.ts",
     "./time-zone": "./src/time-zone.ts",
     "./db/retry": "./src/db/retry.ts",

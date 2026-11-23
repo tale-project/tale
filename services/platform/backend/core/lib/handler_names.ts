@@ -347,6 +347,7 @@ interface HandlerNames {
       getAgentLanguageContext: FunctionRef;
       getTaskAgentRunAuthority: FunctionRef;
       getTaskAgentRunForDrive: FunctionRef;
+      getTaskAgentRunHarnessReason: FunctionRef;
       getTaskBriefForAgentRun: FunctionRef;
       listStaleTaskInputMirrors: FunctionRef;
       markTaskAgentRunFailed: FunctionRef;

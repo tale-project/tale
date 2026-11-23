@@ -10,8 +10,8 @@
 //      before it expires (RENEW);
 //   3. serve the session calls the hub forwards — in-process, through the
 //      same handlers the spawner's HTTP API uses;
-//   4. answer its sessions' calls to `backend-api` / `sandbox-llm-gateway`
-//      (the relay listeners) by relaying them through the tunnel;
+//   4. answer its sessions' calls to `backend-api` — its doors and its model
+//      relay — (the relay listeners) by relaying them through the tunnel;
 //   5. follow the server's release: when the ticket answer names a newer
 //      release, launch the updater (apply.ts) and let it replace this process.
 //
@@ -742,8 +742,8 @@ export class DeviceAgent {
     );
   }
 
-  /** Answer the platform addresses (`backend-api:3005`,
-   * `sandbox-llm-gateway:8080`) this device's sessions call. */
+  /** Answer the platform addresses (`backend-api:3005`, the model relay's
+   * `backend-api:8080`) this device's sessions call. */
   private startRelays(): void {
     for (const relay of this.opts.config.relays) {
       const { port } = relayEndpoint(relay.url);

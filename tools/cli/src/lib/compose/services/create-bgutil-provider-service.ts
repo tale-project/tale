@@ -1,12 +1,41 @@
+import { preconditionError } from '../../../utils/fail';
 import { getProjectId } from '../../../utils/load-env';
 import type { ComposeService, ServiceConfig } from '../types';
 import { DEFAULT_LOGGING } from '../types';
 
+/** The variable that turns the bundled PO-token provider on. */
+const POT_PROVIDER_VARIABLE = 'VIDEO_INGEST_POT_PROVIDER';
+
+/**
+ * Whether the deployment asked for the bundled PO-token provider: `true` in
+ * its `.env`, which the backend reads the same way (`potProviderOn` in
+ * services/platform/backend/core/video_links/ytdlp.ts). Off unless it says
+ * so. The provider is a container of about 60 MiB at rest (58 to 66 where
+ * tale-project/tale#4942 measured it) that only YouTube links from an
+ * address YouTube challenges have a use for, and without it a walled video
+ * says which setting turns it on.
+ *
+ * A word that is neither is refused before anything is pulled: `yes` would
+ * otherwise read as off on both sides, and the video links would say so only
+ * when YouTube next walls one.
+ */
+export function potProviderAsked(
+  read: (name: string) => string | undefined = (name) => process.env[name],
+): boolean {
+  const asked = (read(POT_PROVIDER_VARIABLE) ?? '').trim().toLowerCase();
+  if (asked === '' || asked === 'false') return false;
+  if (asked === 'true') return true;
+  throw preconditionError(
+    `${POT_PROVIDER_VARIABLE} must be true, false, or unset; got: ${JSON.stringify(read(POT_PROVIDER_VARIABLE)?.trim())}`,
+  );
+}
+
 /**
  * bgutil PO-token provider — serves GVS proof-of-origin tokens to the yt-dlp
- * bgutil plugin baked into the platform image, so video-link ingestion survives
- * YouTube's "confirm you're not a bot" wall on datacenter/flagged IPs with zero
- * operator config.
+ * bgutil plugin of a video's sandbox session, which asks it through the
+ * backend, so video-link ingestion survives YouTube's "confirm you're not a
+ * bot" wall on datacenter/flagged IPs. Part of a deployment only where it
+ * asked for it ({@link potProviderAsked}).
  *
  * Third-party image (not a `tale-*` build), so it is NOT part of the
  * always-roll stateful tier (whose deploy pulls `tale-<name>:<version>`).
@@ -14,7 +43,7 @@ import { DEFAULT_LOGGING } from '../types';
  * services are healthy, and video ingest degrades gracefully (no token) if it
  * never starts, so it can never fail a deploy. Reached only by the backend over the `internal` network (no published
  * ports). The image tag MUST match `BGUTIL_POT_VERSION` in
- * services/platform/Dockerfile — bump both together.
+ * services/sandbox-runtime/Dockerfile — bump both together.
  */
 export function createBgutilProviderService(
   _config: ServiceConfig,

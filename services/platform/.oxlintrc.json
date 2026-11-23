@@ -87,6 +87,7 @@
     "out",
     "build",
     "dist",
+    "backend-dist*",
     "**/_generated",
     "**/connectors/**/_generated",
     "lib/shared",

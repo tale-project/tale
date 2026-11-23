@@ -178,8 +178,7 @@ describe('a session started cold', () => {
       // environment
       'environment.HTTPS_PROXY': `http://${INCUS_TEST_ADDRESS}:3128`,
       'environment.HTTP_PROXY': `http://${INCUS_TEST_ADDRESS}:3128`,
-      'environment.NO_PROXY':
-        '127.0.0.1,localhost,sandbox-llm-gateway,backend-api,backend-relay',
+      'environment.NO_PROXY': '127.0.0.1,localhost,backend-api,backend-relay',
       'environment.HOME': '/agent/.runtime/home',
       'environment.TALE_EXEC_STALL_MS': '2700000',
       'environment.TALE_EXEC_ADMISSION_MEMORY_PERCENT': '90',
@@ -324,6 +323,41 @@ describe('a session started cold', () => {
     expect(body.config['environment.TALE_SHM_SIZE']).toBeUndefined();
   });
 
+  // A download the platform runs in a render-profile session may come to
+  // more than the profile's 100 MiB: its creator says how much.
+  test('the render profile takes the per-file size its creator asked for, and nothing else with it', () => {
+    const plain = buildSessionInstance(incusTestConfig(), {
+      ...input,
+      profile: 'default',
+    });
+    const asked = buildSessionInstance(incusTestConfig(), {
+      ...input,
+      profile: 'default',
+      maxFileBytes: 1_073_741_824,
+    });
+    expect(asked.config['limits.kernel.fsize']).toBe('1073741824');
+    expect(plain.config['limits.kernel.fsize']).toBe('104857600');
+    const besidesTheFileSize = (config: typeof plain.config) =>
+      Object.entries(config).filter(([key]) => key !== 'limits.kernel.fsize');
+    expect(besidesTheFileSize(asked.config)).toEqual(
+      besidesTheFileSize(plain.config),
+    );
+    expect({ ...asked, config: null }).toEqual({ ...plain, config: null });
+  });
+
+  test('an agent keeps the configured per-file cap whatever its creator asked', () => {
+    const plain = buildSessionInstance(incusTestConfig(), input);
+    expect(
+      buildSessionInstance(incusTestConfig(), {
+        ...input,
+        maxFileBytes: 1_073_741_824,
+      }),
+    ).toEqual(plain);
+    expect(plain.config['limits.kernel.fsize']).toBe(
+      String(TEST_SESSION_CONFIG.agentProfile.fsizeBytes),
+    );
+  });
+
   test("without transparent egress and with the image's /dev/shm the session boots as its own user", () => {
     const cfg = incusTestConfig(
       {},
@@ -415,7 +449,7 @@ describe('a session started cold', () => {
           profile,
         });
         expect(config['environment.NO_PROXY']).toBe(
-          '127.0.0.1,localhost,sandbox-llm-gateway,backend-api,backend-relay',
+          '127.0.0.1,localhost,backend-api,backend-relay',
         );
         expect(
           Object.keys(config).filter((key) =>
@@ -429,7 +463,7 @@ describe('a session started cold', () => {
       const plain = buildSessionInstance(incusTestConfig(), input).config;
       const set = buildSessionInstance(withCaches(), input).config;
       expect(set['environment.NO_PROXY']).toBe(
-        '127.0.0.1,localhost,sandbox-llm-gateway,backend-api,backend-relay,10.200.41.8,10.200.41.9',
+        '127.0.0.1,localhost,backend-api,backend-relay,10.200.41.8,10.200.41.9',
       );
       expect(set['environment.TALE_REGISTRY_CACHE_NPM']).toBe(CACHES.npm);
       expect(set['environment.TALE_REGISTRY_CACHE_PYPI']).toBe(CACHES.pypi);

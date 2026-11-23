@@ -71,15 +71,6 @@ function mutations(docker: RuntimeDockerFixture) {
   );
 }
 
-function gatewayOf(docker: RuntimeDockerFixture) {
-  return docker.containers.find(
-    (container) =>
-      (container.Config as { Labels: Record<string, string> }).Labels[
-        'com.docker.compose.service'
-      ] === 'sandbox-llm-gateway',
-  )!;
-}
-
 // The managed CLI refuses NTFS: runtime custody includes POSIX file modes.
 describePosix('a runtime bundle for the Incus runtime', () => {
   /** The prepared Docker bundle rewritten as an Incus one: `runtime: incus`,
@@ -504,165 +495,18 @@ describePosix('managed source-Compose runtime adoption', () => {
     );
   });
 
-  // What the deployment's recovery-point check reads: whether the store's
-  // volume exists, which gateway image the rollout starts, and whether the
-  // store has run that image already.
-  test('a preview reports the gateway store, the image it would start and whether the store has run it', async () => {
-    const fresh = await create();
-    expect((await fresh.apply(true)).gateway).toMatchObject({
-      volume: false,
-      newImage: true,
-      running: null,
-    });
-    // An existing gateway started on the bundle's own image has run it.
-    const adopted = await create(true);
-    expect((await adopted.apply(true)).gateway).toMatchObject({
-      volume: true,
-      newImage: false,
-    });
-    // A source-Compose gateway runs a tag; its image's digest decides.
-    const adoptedGateway = gatewayOf(adopted.docker).Config as {
-      Image: string;
-    };
-    const targetImage = adopted.docker.imageMetadata.get(adoptedGateway.Image)!;
-    const tag = 'ghcr.io/tale-project/tale/tale-sandbox-llm-gateway:0.5.16';
-    adoptedGateway.Image = tag;
-    adopted.docker.imageMetadata.set(tag, targetImage);
-    expect((await adopted.apply(true)).gateway).toMatchObject({
-      newImage: false,
-      running: tag,
-    });
-    adopted.docker.imageMetadata.set(tag, {
-      ...targetImage,
-      RepoDigests: [
-        `ghcr.io/tale-project/tale/tale-sandbox-llm-gateway@sha256:${'0'.repeat(64)}`,
-      ],
-    });
-    expect((await adopted.apply(true)).gateway.newImage).toBe(true);
-    // A ready runtime has run its gateway image, stopped or not.
-    const run = await create();
-    await run.apply();
-    const target = (gatewayOf(run.docker).Config as { Image: string }).Image;
-    expect((await run.apply(true)).gateway).toEqual({
-      volume: true,
-      newImage: false,
-      target,
-      running: target,
-    });
-    (gatewayOf(run.docker).State as { Running: boolean }).Running = false;
-    expect((await run.apply(true)).gateway).toMatchObject({
-      newImage: false,
-      running: null,
-    });
-    const stopped = gatewayOf(run.docker);
-    run.docker.containers = run.docker.containers.filter(
-      (container) => container !== stopped,
-    );
-    expect((await run.apply(true)).gateway).toMatchObject({
-      volume: true,
-      newImage: false,
-      running: null,
-    });
-    run.docker.containers.push(stopped);
-    // The next release's gateway image is new to that store.
-    run.fixture.git('tag', 'v0.5.17');
-    run.docker.variantTag = '0.5.17';
-    const release = join(run.fixture.directory, 'release-runtime');
-    await prepareRuntime(
-      {
-        repoRoot: run.fixture.repoRoot,
-        revision: run.fixture.revision,
-        output: release,
-        platform: 'linux/amd64',
-      },
-      run.docker.dependencies(),
-    );
-    run.docker.calls = [];
-    const next = (
-      await applyRuntime(
-        { ...run.fixture.options, bundleDirectory: release, dryRun: true },
-        run.docker.dependencies(),
-      )
-    ).gateway;
-    expect(next.newImage).toBe(true);
-    expect(next.target).not.toBe(target);
-    expect(mutations(run.docker)).toEqual([]);
-    // With the rollout pending, only the container says whether the store has
-    // run the target: a stopped one that started has; one Compose created but
-    // never started has not.
-    const interrupted = await create();
-    interrupted.docker.upFailure = true;
-    await expect(interrupted.apply()).rejects.toThrow('could not complete');
-    (gatewayOf(interrupted.docker).State as { Running: boolean }).Running =
-      false;
-    expect((await interrupted.apply(true)).gateway).toMatchObject({
-      newImage: false,
-      running: null,
-    });
-    Object.assign(gatewayOf(interrupted.docker).State as object, {
-      StartedAt: '0001-01-01T00:00:00Z',
-    });
-    expect((await interrupted.apply(true)).gateway).toMatchObject({
-      volume: true,
-      newImage: true,
-      running: null,
-    });
-  });
-
-  // A stopped container has started only by a start time in Moby's
-  // RFC3339Nano contract after the Unix epoch, fraction included: Docker's
-  // zero time, or a value outside the contract or the calendar that a lenient
-  // date parser would still read, is none.
-  test.each([
-    ['2026-09-30T08:01:07.123456789Z', true],
-    ['2026-09-30T08:01:07Z', true],
-    ['2026-09-30T10:01:07+02:00', true],
-    ['1970-01-01T00:00:00.001Z', true],
-    ['1970-01-01T01:00:00.001+01:00', true],
-    ['1969-12-31T23:00:00.5-01:00', true],
-    ['1970-01-01T00:00:00.000000001Z', true],
-    ['1970-01-01T00:00:00.000Z', false],
-    ['1969-12-31T23:59:59.999999999Z', false],
-    ['0001-01-01T00:00:00Z', false],
-    ['', false],
-    ['1', false],
-    ['not-a-timestamp', false],
-    ['2026-09-30', false],
-    ['2026-09-30T08:01Z', false],
-    ['2026-09-30T08:01:07.1234567891Z', false],
-    ['2026-02-30T00:00:00Z', false],
-    ['2026-09-30T24:00:00Z', false],
-    ['2026-09-30T08:01:07+24:00', false],
-  ] as const)(
-    'a stopped gateway container whose start time reads %p has started: %p',
-    async (startedAt, started) => {
-      const interrupted = await create();
-      interrupted.docker.upFailure = true;
-      await expect(interrupted.apply()).rejects.toThrow('could not complete');
-      Object.assign(gatewayOf(interrupted.docker).State as object, {
-        Running: false,
-        StartedAt: startedAt,
-      });
-      expect((await interrupted.apply(true)).gateway).toMatchObject({
-        volume: true,
-        newImage: !started,
-        running: null,
-      });
-    },
-  );
-
   // A listing is read only once every line is a record with a name, as
   // Docker's formatter writes it: filtered as it came, a malformed one would
-  // hide the gateway store. `listing` is the host's own, one record per line.
+  // hide a data volume. `listing` is the host's own, one record per line.
   const INVALID = 'Docker returned invalid runtime metadata.';
   const INCOMPLETE = 'Docker volume metadata is incomplete.';
   test.each([
     [
       'the bare names `{{.Name}}` prints',
-      () => 'tale_db-data\ntale_llm-gateway-data',
+      () => 'tale_db-data\ntale_config-data',
       INVALID,
     ],
-    ['a truncated record', () => '{"Name":"tale_llm-gateway-data"', INVALID],
+    ['a truncated record', () => '{"Name":"tale_config-data"', INVALID],
     [
       'a blank line between records',
       (listing: string) => listing.replace('\n', '\n\n'),
@@ -670,7 +514,7 @@ describePosix('managed source-Compose runtime adoption', () => {
     ],
     [
       'a JSON array of records',
-      () => '[{"Name":"tale_llm-gateway-data"}]',
+      () => '[{"Name":"tale_config-data"}]',
       INCOMPLETE,
     ],
     ['null', () => 'null', INCOMPLETE],
@@ -714,24 +558,19 @@ describePosix('managed source-Compose runtime adoption', () => {
   );
 
   // A name is the volume driver's, so a plugin's is read as it is, however
-  // unlike a local volume's it looks.
+  // unlike a local volume's it looks, and another project's volume is none of
+  // this one's: neither keeps a fresh runtime from starting, nor reads as a
+  // volume an existing one does not declare.
   test('an empty volume listing, and plugin and foreign volume names, read as they are', async () => {
     const fresh = await create();
-    expect((await fresh.apply(true)).gateway.volume).toBe(false);
+    expect((await fresh.apply(true)).existing).toBe(false);
     fresh.docker.pluginVolumes.push('foreign/plugin-data', 'x');
-    expect((await fresh.apply(true)).gateway.volume).toBe(false);
+    expect((await fresh.apply(true)).existing).toBe(false);
     const run = await create();
     await run.apply();
     run.docker.pluginVolumes.push('foreign/plugin-data', 'x');
-    run.docker.volumes.push('other-project_llm-gateway-data', 'a'.repeat(64));
-    expect((await run.apply(true)).gateway).toMatchObject({
-      volume: true,
-      newImage: false,
-    });
-    run.docker.volumes = run.docker.volumes.filter(
-      (name) => name !== 'tale_llm-gateway-data',
-    );
-    expect((await run.apply(true)).gateway.volume).toBe(false);
+    run.docker.volumes.push('other-project_config-data', 'a'.repeat(64));
+    expect((await run.apply(true)).existing).toBe(true);
   });
 
   test('fresh and existing previews do not create files or call any Docker mutation', async () => {
@@ -837,6 +676,8 @@ describePosix('managed source-Compose runtime adoption', () => {
       readFileSync(join(fixture.options.stateDirectory, 'secrets.env')),
     ).toEqual(before);
     const keys = parseRuntimeEnvironment(before.toString(), 'secrets');
+    // No gateway admin password: a fresh runtime has no gateway to sign in
+    // to. The control token is one of them (the control door's bearer).
     expect(Object.keys(keys)).toHaveLength(9);
     const ready = readFileSync(
       join(fixture.options.stateDirectory, '.tale/runtime.json'),

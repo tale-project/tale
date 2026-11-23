@@ -5,7 +5,7 @@ description: Start with the failing action, inspect the right service, and recov
 
 Record the time, affected organization, URL or action, and error code before restarting anything. Check whether the failure affects one item, one organization, or the whole deployment. That distinction determines whether to inspect a file, an organization connection, or shared infrastructure.
 
-For a workspace deployment, start with `tale status` and `tale logs <service> --tail 200`. In your own Compose project, use `docker compose ps` and `docker compose logs --tail=200 <service>`. Service names such as `platform` and `backend-api` differ from generated container names.
+For a workspace deployment, start with `tale status` and `tale logs <service> --tail 200`. In your own Compose project, use `docker compose ps` and `docker compose logs --tail=200 <service>`. Service names such as `platform` and `backend-api` differ from generated container names, and a workspace that runs the application as [one process](/self-hosted/operate/upgrades#one-process) has `platform` where this page says `backend-api` or `backend-worker`: `tale logs` reads its log under any of the three names.
 
 ## Public URL, certificate, or sign-in fails
 
@@ -38,6 +38,7 @@ Start by comparing the server's response with the browser's request to the presi
 | `object store (ignored)` | The file is operator-managed. Inspect `default/object-storage/connection.json`; environment reconciliation deliberately leaves it alone. |
 | `seeded` or `reconciled` | The default connection was written or updated from the environment. This does not prove every object permission or browser route works. |
 | Store probe is down | Check endpoint, connectivity, credentials, bucket existence, and the detailed backend error. |
+| `The blobs stay in MinIO …` during `tale deploy` | The move to versitygw stopped before the switch, and MinIO serves the files as before. The line ends with the reason: a missing `OBJECT_STORE_SECRET_KEY`, too little room where `blob-data` lives, or a filesystem without extended attributes. Fix it and run `tale deploy --stop` again; see [Files move from MinIO to versitygw](/self-hosted/operate/upgrades#blob-store). |
 | Server connection test passes but browser upload fails | Check the public endpoint, certificate trust, and bucket CORS for the actual browser origin. Include `GET`, `PUT`, and `HEAD` as required by the file flow. |
 
 `tale_backend_store_up` covers deployment defaults and measures reachability, not a complete upload. An object-store `403` can still produce an up value. Verify an actual controlled upload and download after fixing the connection. [Data residency](/self-hosted/configuration/data-residency) explains connection changes and file migration.
@@ -78,7 +79,7 @@ The non-concurrent command can block work. Coordinate it with your database oper
 
 Check the run or chat error and the owning API/worker logs. A provider `429`, credential refusal, execution timeout, approval wait, and disconnected browser stream are distinct states. An approval wait needs a decision, not a service restart. A disconnected stream can hide an operation that still runs; inspect its stored result before retrying.
 
-For provider failures, check the selected credential's quota and permissions, and the provider's status. Change models only if the replacement is allowed and suitable for the task. For agent runtime failures, inspect `sandbox`, `sandbox-llm-gateway`, the runtime image, and session logs.
+For provider failures, check the selected credential's quota and permissions, and the provider's status. Change models only if the replacement is allowed and suitable for the task. For agent runtime failures, inspect `sandbox`, the model relay's `[llm-relay]` lines in the `backend-api` log, the runtime image, and session logs. A session calls its model through the relay at `http://backend-api:8080`. A backend that stops at start with `[llm-relay] cannot start` says why: `SANDBOX_NETWORK_SUBNET` is not an IPv4 CIDR, or the container has no address in that network. The [environment reference](/self-hosted/configuration/environment-reference#model-relay) describes where the relay listens.
 
 ## An agent can't reach the sandbox service
 
@@ -101,6 +102,23 @@ When many sessions install packages or load pages at once and connections fail w
 When one session's connections fail with resets while other sessions still reach the same hosts, that session may already hold `SANDBOX_EGRESS_MAX_CONNECTIONS_PER_SESSION` connections (256 by default), and the proxy refuses its next ones until some close. Raise the value, or set `0` to turn the cap off, and recreate the egress service.
 
 A recreated `sandbox-egress` service (after a deploy or a stack restart) can come back at another address, while sessions that were already running keep sending their traffic to the old one and lose network access. The sandbox service recycles each such session as soon as it is released and idle, and logs `recycling <session>`; the next use starts it again with its workspace intact. A session still in use keeps failing until its work ends, and a pinned session keeps running until you unpin or stop it.
+
+## A stack trace names built files
+
+The backend runs as built JavaScript, so a stack trace in its log gives positions in `main.js` or a `chunk-….js` file, and short function names the build chose:
+
+```text
+    at KKo (file:///app/backend-dist/main.js:20807:3579)
+```
+
+The image carries the source maps beside that code, and the running backend never loads them. To read a trace as source lines, pass it through the program the image ships for that. It reads the trace from standard input and writes it back with each position replaced:
+
+```bash
+docker logs --tail 200 <backend-api-container> 2>&1 \
+  | docker exec -i <backend-api-container> node /app/backend-dist/symbolicate-trace.js
+```
+
+The same frame then reads `at KKo (backend/env.ts:295:20)`: a file, line and column of that release's sources. Function names stay as the build wrote them, and lines that are not part of a trace pass through unchanged. Use a container of the release that logged the trace, because every release has its own maps; where the application runs as one process, that container is `platform`. Include the mapped trace when you report a defect.
 
 ## Writes fail or storage fills up
 

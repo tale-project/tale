@@ -9,11 +9,13 @@ Eine Agent-Laufzeit ist das Coding-Programm, das die Sitzung eines Agenten in ei
 
 Öffne im Tab **Agenten** eines Projekts einen Agenten und wähle die **Agent-Laufzeit**. Bei einer Agent-Node heißt das Feld ebenfalls **Agent-Laufzeit**. Wähle danach Modell und Provider. Unter **Einstellungen > KI-Anbieter** zeigt **Agent-Laufzeiten**, welche Ausführungswege der Organisation derzeit zur Verfügung stehen.
 
+Eine Agent-Node auf **Standard (Pi)** läuft auf Pi. Stellt nur ein Abo ihr Modell bereit, läuft sie stattdessen auf der Agent-Laufzeit, an die dieses Abo gebunden ist, etwa auf Claude Code bei einem Claude-Abo. Der [Standard-Agent](/de/platform/admin/governance/content-models#standard-agent) der Organisation wählt seine Laufzeit genauso, sofern ein Admin keine für ihn festlegt. Das Agenten-Log eines Laufs nennt für jede Runde die Laufzeit und den Grund dafür. Soll eine Node auf Claude Code bleiben, wähle für sie **Claude Code**.
+
 Die Laufzeit braucht passende Zugangsdaten und [Sandbox-Kapazität](/de/platform/admin/sandboxes). Ein funktionierendes Chat-Modell genügt nicht. Fehlt die Laufzeit oder bietet sie keine Modelle an, prüfe ihren Status und die Provider-Zugangsdaten, bevor du den Aufgabenauftrag änderst. Ein Modell, das Tools nur über die Responses-API von OpenAI aufruft, etwa GPT-6 Astra oder GPT-6.1 Sol, läuft nur auf Codex; für andere Laufzeiten bietet die Modellauswahl es deshalb nicht an. Qwen Code kann kein Modell ausführen, das über die Messages-API von Anthropic bereitgestellt wird: kein Claude-Modell und kein Modell eines Providers mit dem **API-Format** **Anthropic-Messages-API**. Seine Tools ohne Argumente verlieren auf dieser API ihr Schema, sodass jeder Aufruf scheitern würde. Für Qwen Code bietet die Modellauswahl ein solches Modell nicht an, und Tale startet keinen Qwen-Code-Durchlauf, der eines nennt.
 
 ## Unterstützte Laufzeiten vergleichen
 
-„Verwaltet“ bedeutet, dass die Laufzeit Tale über das Modell-Gateway aufruft. „Direkt“ bedeutet, dass die Sitzung Zugangsdaten für die Werkzeuge des Providers erhält. Die mitgelieferten Definitionen unterstützen die folgenden Kombinationen; tatsächlich verfügbar ist, was Deployment und Zugangsdaten erlauben.
+„Verwaltet“ bedeutet, dass die Laufzeit ihre Modelle über Tale aufruft, das den Anbieter für sie aufruft. „Direkt“ bedeutet, dass die Sitzung Zugangsdaten für die Werkzeuge des Anbieters erhält. Die mitgelieferten Definitionen unterstützen die folgenden Kombinationen; tatsächlich verfügbar ist, was Deployment und Zugangsdaten erlauben.
 
 | Agent-Laufzeit | Zugangsweg | Neue Anweisungen im laufenden Prozess | MCP-Kanal von Tale |
 | --- | --- | --- | --- |
@@ -24,20 +26,20 @@ Die Laufzeit braucht passende Zugangsdaten und [Sandbox-Kapazität](/de/platform
 | Hermes | Verwaltet oder direkt | Nein | Nein |
 | OpenClaw | Verwaltet oder direkt | Nein | Ja |
 | OpenCode | Nur verwaltet | Nein | Ja |
-| Pi | Verwaltet oder direkt | Nein | Ja |
+| Pi | Verwaltet oder direkt | Ja | Ja |
 | Qwen Code | Verwaltet oder direkt | Nein | Ja |
 
 **Claude Code (compact prompt)** ist eine zusätzliche Wahl für klar abgegrenzte Workflows mit vollständigen Aufgabenanweisungen. Die Variante kürzt die eingebauten Anweisungen und einige Werkzeugbeschreibungen. Werkzeuge, Hooks, MCP und die von Tale ergänzten Hinweise bleiben erhalten. Prüfe Ergebnisse und Laufzeit mit deinem Modell, bevor du die Variante einsetzt; ein kürzerer Prompt garantiert keinen schnelleren Durchlauf. Mit **Claude Code** verwendest du beim nächsten neuen Durchlauf wieder den vollständigen Prompt. Ein auf Claude Code beschränktes Provider-Abonnement unterstützt die kompakte Variante nicht automatisch.
 
-Kommentiere eine Projektaufgabe und erwähne ihren Agenten, um die Arbeit zu lenken. Claude Code erhält den Hinweis beim nächsten Werkzeugübergang. Bei den anderen Laufzeiten beendet Tale den aktuellen Prozess und setzt dieselbe Unterhaltung mit dem Kommentar in einem neuen Prozess fort. Deshalb kann ein laufender Prozess nach einer neuen Anweisung neu starten.
+Kommentiere eine Projektaufgabe und erwähne ihren Agenten, um die Arbeit zu lenken. Claude Code erhält den Hinweis beim nächsten Werkzeugübergang, Pi sobald die Werkzeuge, die es gerade ausführt, fertig sind, vor seinem nächsten Modellaufruf. Bei den anderen Laufzeiten beendet Tale den aktuellen Prozess und setzt dieselbe Unterhaltung mit dem Kommentar in einem neuen Prozess fort. Deshalb kann ein laufender Prozess nach einer neuen Anweisung neu starten.
 
 Gemini CLI ist die Ausnahme: Tale setzt eine seiner Unterhaltungen nie fort. Ein späterer Kommentar, ein automatischer neuer Versuch oder die Antwort auf eine Frage des Agenten beginnt eine neue Unterhaltung im selben Arbeitsbereich, in der die Aufgabenbeschreibung und die bisherigen Runden erneut mitgegeben werden, weil die Laufzeit eine Unterhaltung mit einem Werkzeugaufruf nicht wiederaufnehmen kann. Dateien und Ausgaben bleiben erhalten; nur die Unterhaltung beginnt von vorn.
 
 ## Zugangsdaten und Kosten verstehen
 
-Bei einem gespeicherten API-Schlüssel oder einer Deployment-Umgebungsvariable stellt Tale einen sitzungsgebundenen Gateway-Schlüssel bereit. Der ursprüngliche Modell-Provider-Schlüssel bleibt bei der Plattform. Gateway-Aufrufe werden gemessen und unterliegen den geltenden Ausgabenregeln. Bereits an andere laufende Durchläufe vergebene Beträge werden berücksichtigt.
+Bei einem gespeicherten API-Schlüssel oder einer Deployment-Umgebungsvariable gibt Tale jedem Durchlauf einen eigenen Schlüssel, der für die Modelle des Durchlaufs und seinen Ausgabenrahmen gilt, Bilder eingeschlossen. Der ursprüngliche Schlüssel des Modellanbieters bleibt bei der Plattform: Tale ruft den Anbieter damit an dem Endpunkt auf, den die Definition des Anbieters nennt, für Claude Code an dem Endpunkt für Coding-Agenten, wo die Definition einen festlegt. Jeder Aufruf wird gemessen und unterliegt den geltenden Ausgabenregeln. Bereits an andere laufende Durchläufe vergebene Beträge werden berücksichtigt. Ein Aufruf, der vorzeitig endet, wird mit dem verbucht, was bis dahin gesendet und weitergereicht wurde: dem Prompt, in dem jedes Bild und jedes Dokument als ein Bild zählt, und der Ausgabe.
 
-Provider-Abonnements verwenden ihre unterstützte Agent-Laufzeit und erhalten den Abonnement-Zugang in der Sitzungsumgebung. Gemini ist die Ausnahme: Seine Google-Anmeldung wird für den Durchlauf als Datei im Home-Ordner der Sitzung abgelegt und am Ende des Durchlaufs wieder entfernt. Sie dienen weder als normale Chat-Zugangsdaten noch für inkompatible Agent-Laufzeiten, weil die Anbieter Abo-Tokens nur in ihrer eigenen Laufzeit erlauben; mehr dazu unter [KI-Anbieter](/de/platform/admin/providers#abos-in-aufgaben-nutzen-nicht-im-chat). Ihre direkten Aufrufe umgehen die Kostenmessung und Ausgabengrenzen des Tale-Gateways. Prüfe die Nutzung beim Abonnement-Provider.
+Provider-Abonnements verwenden ihre unterstützte Agent-Laufzeit und erhalten den Abonnement-Zugang in der Sitzungsumgebung. Gemini ist die Ausnahme: Seine Google-Anmeldung wird für den Durchlauf als Datei im Home-Ordner der Sitzung abgelegt und am Ende des Durchlaufs wieder entfernt. Sie dienen weder als normale Chat-Zugangsdaten noch für inkompatible Agent-Laufzeiten, weil die Anbieter Abo-Tokens nur in ihrer eigenen Laufzeit erlauben; mehr dazu unter [KI-Anbieter](/de/platform/admin/providers#abos-in-aufgaben-nutzen-nicht-im-chat). Deren direkte Aufrufe umgehen die Kostenmessung und die Ausgabengrenzen von Tale. Prüfe die Nutzung beim Abonnement-Provider.
 
 Diese Regeln für Modellzugänge bedeuten nicht, dass die Sandbox keinerlei Geheimnisse enthält. Ausdrücklich vergebene **Secrets** sowie der Git-Zugriff eines zugeordneten GitHub- oder Forgejo-Zugangs können darin verfügbar sein. Vergib nur den für die Aufgabe nötigen Zugriff.
 

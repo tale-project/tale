@@ -133,6 +133,7 @@ services/platform/lib/harnesses/*
 !services/platform/lib/harnesses/parsers/
 services/platform/lib/harnesses/parsers/*
 !services/platform/lib/harnesses/parsers/claude-stream-json.ts
+!services/platform/lib/harnesses/parsers/pi-jsonl.ts
 services/proxy/
 services/sandbox/
 services/sandbox-egress/

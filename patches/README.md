@@ -10,7 +10,7 @@ from the root manifests copies this directory (`COPY patches/ ./patches/`): the 
 `workspace-deps` stage and its pruner), web, docs, ui-docs, the session manager and the service
 template in `tools/plop`.
 
-One directory holds a patch Bun does not apply: `dumb-init/` patches a C program that six images
+One directory holds a patch Bun does not apply: `dumb-init/` patches a C program that five images
 build from source (see its entry below).
 
 ## `postgres@3.4.7.patch`
@@ -306,11 +306,11 @@ rewrite a signal to the image's stop signal (`--rewrite 30:2`), but 1.2.5 caps a
 real-time rewrite; [Yelp/dumb-init](https://github.com/Yelp/dumb-init) is asked for one.
 
 **What.** `MAXSIG` goes from 31 to 64 in `dumb-init.c`, so `--rewrite` takes every signal up to
-SIGRTMAX and the rewrite table covers them. The same stage in each of the six stack images' Dockerfiles
-(db, platform, proxy, sandbox, sandbox-egress, sandbox-llm-gateway) fetches the 1.2.5 source tarball
+SIGRTMAX and the rewrite table covers them. The same stage in each of the five stack images' Dockerfiles
+(db, platform, proxy, sandbox, sandbox-egress) fetches the 1.2.5 source tarball
 by its sha256, applies this patch, builds `/init` statically with musl, and copies it into the
 image; the label `dev.tale.init=dumb-init-1.2.5+maxsig64` says so.
-`tools/cli/scripts/oci-image-metadata.test.ts` holds the six stages byte-equal and pinned, the
+`tools/cli/scripts/oci-image-metadata.test.ts` holds the five stages byte-equal and pinned, the
 patch to that one change, and the copy and the label to every image.
 
 **Proof.** On Incus, the CLI starts each instance as `/init --single-child --rewrite 30:S

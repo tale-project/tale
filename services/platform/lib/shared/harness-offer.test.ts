@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  DEFAULT_HARNESS,
+  defaultHarnessFor,
+  offeredOnDefault,
   offeredToHarness,
   toModelOptions,
   type HarnessModelFacts,
@@ -107,6 +110,48 @@ describe('toModelOptions + offeredToHarness', () => {
       true,
     );
     expect(offeredToHarness(subscription, 'codex', CODEX)).toBe(false);
+  });
+
+  // A step that names no runtime runs on the default, Pi — but a model only
+  // a subscription serves runs on the runtime that subscription is bound
+  // to, never refused for being on Default (tale-project/tale#4942).
+  const PI = {
+    harness: 'pi',
+    toolCallingWire: 'openai-chat',
+    anthropicModels: true,
+  } as const;
+  const ROSTER = [
+    { harness: 'claude-code', toolCallingWire: 'anthropic' },
+    { harness: 'codex', toolCallingWire: 'openai-responses' },
+    PI,
+  ] as const;
+
+  it('runs a step on Default on Pi, or on the runtime its subscription is bound to', () => {
+    if (direct === undefined || subscription === undefined) {
+      throw new Error('missing option');
+    }
+    expect(DEFAULT_HARNESS).toBe('pi');
+    expect(defaultHarnessFor(direct)).toBe('pi');
+    expect(defaultHarnessFor(subscription)).toBe('claude-code');
+    expect(defaultHarnessFor(undefined)).toBe('pi');
+  });
+
+  it('offers a step on Default what its runtime runs', () => {
+    if (
+      direct === undefined ||
+      responsesOnly === undefined ||
+      subscription === undefined
+    ) {
+      throw new Error('missing option');
+    }
+    expect(offeredOnDefault(direct, ROSTER)).toBe(true);
+    // A Claude subscription's model, on Claude Code.
+    expect(offeredOnDefault(subscription, ROSTER)).toBe(true);
+    // Pi speaks Chat Completions: a Responses-only model is not moved to a
+    // runtime that can run it; a person names Codex for it.
+    expect(offeredOnDefault(responsesOnly, ROSTER)).toBe(false);
+    // A subscription bound to a runtime the roster does not run.
+    expect(offeredOnDefault(subscription, [PI])).toBe(false);
   });
 
   it("offers a model served through Anthropic's API to every harness but Qwen Code", () => {

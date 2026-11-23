@@ -15,27 +15,29 @@ Commence par la responsabilité de chaque service pour circonscrire une panne av
 | Jobs, automatisations planifiées ou imports bloqués | `backend-worker` | File d’attente, erreurs des jobs, identifiants et stockages nécessaires. |
 | Échecs de lecture ou d’écriture dans toute l’application | `db` ou base applicative externe | Connexion, espace disque, verrous et journaux de base. |
 | Impossible d’envoyer ou télécharger des fichiers | `backend-api`, puis `object-store` ou bucket externe | Connexion résolue de l’organisation, identifiants, point d’accès public et CORS du navigateur. |
-| Un environnement d’agent ne démarre pas ou n’atteint pas son modèle | `sandbox`, `sandbox-llm-gateway` | Création de session, authentification de la passerelle, disponibilité du modèle et image d’exécution. |
+| Un environnement d’agent ne démarre pas ou n’atteint pas son modèle | `sandbox`, `backend-api` | Création de session, lignes `[llm-relay]` du relais de modèles dans le journal de `backend-api`, disponibilité du modèle et image d’exécution. |
 | Accès réseau sandbox ou rendu de page en échec | `sandbox-egress`, `sandbox` | Hôte cible, ports autorisés, règles de sortie et journaux de session. |
-| Échec de récupération d’une transcription vidéo | `backend-worker`, `bgutil-provider` | Accès à la vidéo, erreurs de l’extracteur, proxy et état des sessions de navigateur. |
+| Échec de récupération d’une transcription vidéo | `backend-worker`, `sandbox`, `sandbox-egress`, `bgutil-provider` | Accès à la vidéo, erreurs de l’extracteur, session sandbox libre, sortie de la sandbox, proxy et état des sessions de navigateur. |
 
 Utilise les noms logiques avec `tale logs <service>`. Pour ton propre Compose, utilise `docker compose logs --tail=200 <service>`. Les noms de conteneurs générés peuvent inclure le projet, la couleur et le numéro de réplica.
 
+Un workspace exécute le service web, l’API et les workers dans un seul processus `platform`, tant que ses workers ne tournent pas à part. `backend-api` et `backend-worker` désignent alors ce processus dans ce tableau, et les trois écrivent dans le même log : `tale logs backend-api` et `tale logs backend-worker` le lisent et le signalent. `tale status` liste les conteneurs du workspace.
+
 ## Suivre une requête de chat interactive
 
-1. Le navigateur atteint `proxy`. Les fichiers web vont à `platform` ; les requêtes applicatives et d’authentification vont à `backend-api`.
+1. Le navigateur atteint `proxy`. Les fichiers web vont à `platform` ; les requêtes applicatives et d’authentification vont à `backend-api`, un nom auquel le processus `platform` répond aussi là où il est l’API.
 2. L’API vérifie session et organisation, résout le modèle et les identifiants choisis, puis exécute le tour interactif. Elle stocke sa progression dans la base applicative.
 3. Le navigateur lit cette progression via le flux du fil de discussion. `/events` transporte des notifications d’invalidation pour actualiser les données, pas les tokens de la réponse.
 4. Les outils de connaissance utilisent la connexion de l’organisation demandeuse. Les fichiers d’origine sont lus selon sa configuration de stockage.
-5. Un tour utilisant un environnement d’agent de codage demande une session sandbox et la passerelle de modèles. Tâches en file, jobs d’agents de workflow et tours de chat REST peuvent aussi dépendre des workers.
+5. Un tour utilisant un environnement d’agent de codage demande une session sandbox, dont l’agent appelle son modèle par le relais de modèles de `backend-api`. Tâches en file, jobs d’agents de workflow et tours de chat REST peuvent aussi dépendre des workers.
 
-Une panne de worker n’a donc pas la même portée qu’une panne d’API, mais elle ne permet pas d’affirmer que tout chat ou travail d’agent reste disponible. Vérifie le point d’entrée et le type d’exécution concernés. Conserve l’erreur initiale avant de relancer un tour qui peut consommer des tokens ou effectuer une action externe.
+Une panne de worker n’a donc pas la même portée qu’une panne d’API là où ce sont deux processus distincts, mais elle ne permet pas d’affirmer que tout chat ou travail d’agent reste disponible. Un processus qui est les deux tombe d’un seul bloc. Vérifie le point d’entrée et le type d’exécution concernés. Conserve l’erreur initiale avant de relancer un tour qui peut consommer des tokens ou effectuer une action externe.
 
 ## Comprendre les dépendances des sandbox
 
-`sandbox` est un spawner qui accède au daemon Docker de l’hôte. Il crée des conteneurs temporaires depuis l’image sandbox-runtime fixée et monte leurs espaces de travail. Les sessions utilisent un réseau isolé : les requêtes web passent par `sandbox-egress`, les appels aux modèles par les accès de session limités de la passerelle.
+`sandbox` est un spawner qui accède au daemon Docker de l’hôte. Il crée des conteneurs temporaires depuis l’image sandbox-runtime fixée et monte leurs espaces de travail. Les sessions utilisent un réseau isolé : les requêtes web passent par `sandbox-egress`, les appels aux modèles par le [relais de modèles](/fr/self-hosted/configuration/environment-reference#model-relay) sur le port 8080 de `backend-api`, avec une clé propre au tour.
 
-L’environnement fournit aussi Chromium et Playwright pour le rendu de pages et la génération de documents. Une interface web disponible ne prouve pas que ces exécutions fonctionnent. Vérifie les images, montages de workspace, jeton sandbox partagé et identifiants de passerelle avant d’examiner un script particulier.
+L’environnement fournit aussi Chromium et Playwright pour le rendu de pages et la génération de documents. Une interface web disponible ne prouve pas que ces exécutions fonctionnent. Vérifie les images, montages de workspace, jeton sandbox partagé et l’accès des sessions au relais de modèles avant d’examiner un script particulier.
 
 Le service de sortie bloque les destinations privées et de métadonnées et peut imposer une liste d’hôtes autorisés. Une sortie indisponible peut provoquer un refus ou une erreur réseau ; le message dépend de l’opération. [Durcissement](/fr/self-hosted/operate/security/hardening) décrit la politique et [Gérer Compose toi-même](/fr/self-hosted/install/own-compose) les capacités et montages requis.
 
@@ -61,11 +63,11 @@ Sous le [runtime Incus](/fr/self-hosted/install/incus), expérimental, les même
 | --- | --- | --- |
 | `names` | Le résolveur de la stack : il répond aux noms des services avec leurs adresses fixes sur le bridge et transmet tout autre nom au DNS du bridge. Chaque instance de la stack l’interroge. | Le DNS intégré de Docker |
 | `names-sessions` | Le résolveur des sessions : il ne répond qu’aux noms qu’une session peut atteindre. | Le DNS du réseau sandbox |
-| `switch` | Une deuxième instance de l’image proxy (`TALE_PROXY_ROLE=switch`). Les noms `platform` et `backend-api` pointent vers elle, et elle répartit chacun sur ses répliques, qu’elle admet par une sonde distincte (`/api/admission` sur la plateforme, `/admission` sur l’API backend). Un remplacement ne change donc jamais d’adresse. | Des alias réseau que les répliques rejoignent et quittent |
+| `switch` | Une deuxième instance de l’image proxy (`TALE_PROXY_ROLE=switch`). Les noms `platform` et `backend-api` pointent vers elle, et elle répartit chacun sur ses répliques, qu’elle admet par une sonde distincte (`/api/admission` sur la plateforme, `/admission` sur l’API backend), le relais de modèles des répliques de l’API backend sur le port 8080 compris. Un remplacement ne change donc jamais d’adresse. | Des alias réseau que les répliques rejoignent et quittent |
 
 Une requête suit le même chemin que plus haut, avec le switch entre `proxy` et les rôles applicatifs : le navigateur atteint `proxy`, qui envoie les ressources web à `platform` et les requêtes applicatives à `backend-api`, les deux par `switch`. Retrouve le service derrière une panne de la même manière. Les instances portent le nom de leur service, avec un numéro de réplique pour `platform-1`, `backend-api-1` et `backend-worker-1`, et leur sortie console est dans Incus, pas dans Docker : [Lire les logs et les plantages](/fr/self-hosted/install/incus#logs).
 
-La frontière de confiance passe du socket Docker à deux certificats restreints. Celui de la CLI n’atteint que le projet de la stack, celui du spawner que le projet des sessions ; aucun ne peut créer de projet ni toucher un autre projet, et une session n’en détient aucun. Le projet n’admet aucun conteneur privilégié, imbriqué ou de bas niveau, ni aucun disque de l’hôte, et des ACL réseau sur les deux bridges rejettent ce qu’aucune règle n’autorise. Les sessions atteignent l’API backend par `switch`, la passerelle de modèles, le proxy egress et `names-sessions`, et rien d’autre. Les [ACL réseau](/fr/self-hosted/install/incus#network-acls) listent chaque règle.
+La frontière de confiance passe du socket Docker à deux certificats restreints. Celui de la CLI n’atteint que le projet de la stack, celui du spawner que le projet des sessions ; aucun ne peut créer de projet ni toucher un autre projet, et une session n’en détient aucun. Le projet n’admet aucun conteneur privilégié, imbriqué ou de bas niveau, ni aucun disque de l’hôte, et des ACL réseau sur les deux bridges rejettent ce qu’aucune règle n’autorise. Les sessions atteignent l’API backend et son relais de modèles par `switch`, ainsi que le proxy egress et `names-sessions`, et rien d’autre. Les [ACL réseau](/fr/self-hosted/install/incus#network-acls) listent chaque règle.
 
 ## Reconnaître une réparation d’index de connaissances
 

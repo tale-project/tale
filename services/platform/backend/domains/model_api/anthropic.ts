@@ -39,7 +39,7 @@ import {
  *    ones and Anthropic's client-run `bash`, `text_editor`, `computer` and
  *    `memory` tools — are relayed;
  *  - a `service_tier` other than `auto` or `standard_only`, which the
- *    gateway would bill at a rate the catalog does not know.
+ *    provider would bill at a rate the catalog does not know.
  */
 
 const CLIENT_TOOL_PREFIXES = ['bash_', 'text_editor_', 'computer_', 'memory_'];
@@ -435,7 +435,7 @@ export function inspectAnthropicMessagesRequest(raw: unknown): WireRequest {
  * long-context rate once it passes 200k tokens. */
 const UNPRICED_BETA_PREFIXES = ['context-1m'];
 
-/** Refuse an `anthropic-beta` header naming a beta the gateway would bill
+/** Refuse an `anthropic-beta` header naming a beta the provider would bill
  * at a rate this endpoint does not meter. */
 export function refuseUnpricedAnthropicBetas(header: string | undefined): void {
   if (header === undefined) return;
@@ -451,13 +451,4 @@ export function refuseUnpricedAnthropicBetas(header: string | undefined): void {
       { param: 'anthropic-beta' },
     );
   }
-}
-
-/** The body the gateway receives: the caller's, with the model the door
- * resolved. */
-export function anthropicUpstreamBody(
-  request: WireRequest,
-  gatewayModel: string,
-): Record<string, unknown> {
-  return { ...request.body, model: gatewayModel };
 }

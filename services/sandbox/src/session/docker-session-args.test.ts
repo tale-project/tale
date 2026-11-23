@@ -42,6 +42,10 @@ const cfg: SpawnerConfig = {
   session: TEST_SESSION_CONFIG,
 };
 
+/** The values of every `--ulimit` in an argv. */
+const ulimits = (args: string[]): string[] =>
+  args.filter((_, i) => args[i - 1] === '--ulimit');
+
 const goodInput = {
   sessionId: 'ses-abc-123',
   organizationId: 'org_456',
@@ -303,11 +307,10 @@ describe('buildDockerSessionRunArgs', () => {
     expect(args).toContain('--cap-drop=ALL');
     expect(args).toContain('--read-only');
     expect(args).toContain('no-new-privileges');
-    // Gateway + backend origin reachable directly (not via tinyproxy) —
-    // `backend-api` is the bridge/staging host; the retired aliases stay
-    // one release for in-flight sessions.
+    // The backend origin reachable directly (not via tinyproxy) —
+    // `backend-api` is the model relay and the bridge/staging host.
     expect(args).toContain(
-      'NO_PROXY=127.0.0.1,localhost,sandbox-llm-gateway,backend-api,backend-relay',
+      'NO_PROXY=127.0.0.1,localhost,backend-api,backend-relay',
     );
     // Runnerd token in env.
     expect(args).toContain(`TALE_RUNNERD_TOKEN=${'a'.repeat(64)}`);
@@ -506,6 +509,56 @@ describe('buildDockerSessionRunArgs', () => {
     expect(args).toContain('--pids-limit=512');
     expect(args).toContain('65534:65534');
     expect(args).toContain('tale.profile=default');
+    // One file may weigh 100 MiB, as in a one-shot run.
+    expect(ulimits(args)).toContain('fsize=104857600');
+  });
+
+  // A download the platform runs in a default session (a video's sound,
+  // served in fragments of no declared size) may come to more than the
+  // profile's 100 MiB: its creator says how much.
+  test('a default session takes the per-file size its creator asked for, and nothing else with it', () => {
+    const plain = buildDockerSessionRunArgs(cfg, {
+      ...goodInput,
+      profile: 'default',
+    });
+    const asked = buildDockerSessionRunArgs(cfg, {
+      ...goodInput,
+      profile: 'default',
+      maxFileBytes: 1_073_741_824,
+    });
+    expect(ulimits(asked)).toContain('fsize=1073741824');
+    expect(ulimits(asked)).not.toContain('fsize=104857600');
+    expect(
+      asked.map((a) => (a === 'fsize=1073741824' ? 'fsize=104857600' : a)),
+    ).toEqual(plain);
+  });
+
+  test('an agent session keeps the configured per-file cap whatever its creator asked', () => {
+    const args = buildDockerSessionRunArgs(cfg, {
+      ...goodInput,
+      maxFileBytes: 1_073_741_824,
+    });
+    expect(ulimits(args)).toContain(
+      `fsize=${TEST_SESSION_CONFIG.agentProfile.fsizeBytes}`,
+    );
+  });
+
+  test('rejects a per-file size that is no whole number of bytes', () => {
+    for (const maxFileBytes of [
+      0,
+      -1,
+      1.5,
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+    ]) {
+      expect(() =>
+        buildDockerSessionRunArgs(cfg, {
+          ...goodInput,
+          profile: 'default',
+          maxFileBytes,
+        }),
+      ).toThrow(/per-file size/);
+    }
   });
 
   test('rejects unsafe sessionId', () => {

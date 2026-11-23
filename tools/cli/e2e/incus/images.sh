@@ -9,7 +9,7 @@
 # `runtime.incus.registryMirrors: {"ghcr.io": "<registry>"}`, so the CLI and
 # Incus read these images as `ghcr.io/tale-project/tale/...`, pinned by the
 # digests the registry proved. The stack's one image from another ghcr.io
-# repository (the object store) is copied there as it is.
+# repository (the object store, versitygw's) is copied there as it is.
 #
 # Run it twice with two revisions for the upgrade: the second build reuses
 # every layer, and only the labels (and so the digests) differ.
@@ -17,7 +17,10 @@
 #   BUILDER     the buildx builder (default: the current one)
 #   OUTPUT      extra image output options for a docker-container builder,
 #               such as compression=zstd,oci-mediatypes=true,registry.insecure=true
-#   CACHE_FROM  a registry prefix holding <prefix>/tale-<service>-buildcache:amd64
+#   PLATFORM    the platform to build for: linux/amd64 (default) or
+#               linux/arm64, natively on a runner of that architecture
+#   CACHE_FROM  a registry prefix holding <prefix>/tale-<service>-buildcache:<arch>,
+#               the release's layer caches of that architecture
 #   SERVICES    the services to build (default: all eight)
 #   TAG         the tag to push (default: sha-<revision>); a workspace deploys
 #               a release by its version, so its releases are tagged <version>
@@ -42,7 +45,17 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
   exit 2
 }
 
-read -ra services <<<"${SERVICES:-db platform proxy sandbox sandbox-egress sandbox-llm-gateway sandbox-runtime sandbox-buildkitd}"
+platform="${PLATFORM:-linux/amd64}"
+case "$platform" in
+  linux/amd64 | linux/arm64) ;;
+  *)
+    echo "images.sh: no image is built for $platform" >&2
+    exit 2
+    ;;
+esac
+arch="${platform#linux/}"
+
+read -ra services <<<"${SERVICES:-db platform proxy sandbox sandbox-egress sandbox-runtime sandbox-buildkitd}"
 protocol="$(sed -n 's/^export const ENGINE_PROTOCOL = \([1-9][0-9]*\);$/\1/p' "$root/services/platform/lib/engine/core/protocol.ts")"
 case "$protocol" in 1 | 2) ;; *)
   echo 'images.sh: unsupported automation writer protocol' >&2
@@ -53,7 +66,7 @@ esac
 for service in "${services[@]}"; do
   tag="$registry/tale-project/tale/tale-$service:${TAG:-sha-$revision}"
   args=(
-    --platform linux/amd64
+    --platform "$platform"
     --file "$root/services/$service/Dockerfile"
     --build-arg "VERSION=$version"
     --label "org.opencontainers.image.revision=$revision"
@@ -68,24 +81,29 @@ for service in "${services[@]}"; do
     )
   fi
   [ -z "${BUILDER:-}" ] || args+=(--builder "$BUILDER")
-  [ -z "${CACHE_FROM:-}" ] || args+=(--cache-from "type=registry,ref=$CACHE_FROM/tale-$service-buildcache:amd64")
+  [ -z "${CACHE_FROM:-}" ] || args+=(--cache-from "type=registry,ref=$CACHE_FROM/tale-$service-buildcache:$arch")
   if [ -n "${OUTPUT:-}" ]; then
     args+=(--output "type=image,name=$tag,push=true,$OUTPUT")
   else
     args+=(--tag "$tag" --push)
   fi
-  echo "images.sh: building tale-$service for $revision"
+  echo "images.sh: building tale-$service ($platform) for $revision"
   started=$SECONDS
   docker buildx build "${args[@]}" "$root"
   echo "images.sh: tale-$service pushed in $((SECONDS - started)) s"
 done
 
-# The object store: its own ghcr.io repository, pinned by tag in compose.yml.
-minio="$(sed -n 's/^ *image: \(ghcr\.io\/tale-project\/ops\/minio:[A-Za-z0-9_.-]*\)$/\1/p' "$root/compose.yml")"
-[ -n "$minio" ] || {
-  echo 'images.sh: compose.yml names no ghcr.io/tale-project/ops/minio image' >&2
+# The object store: versitygw's own image, from its own ghcr.io repository,
+# pinned by tag and digest in compose.yml. Copied with every architecture and
+# its digests as they are, so the digest compose.yml names resolves in the
+# lab's registry too. skopeo takes no reference with both a tag and a digest:
+# the source is read by its digest and written under its tag.
+store="$(sed -n 's/^ *image: \(ghcr\.io\/versity\/versitygw:[A-Za-z0-9_.-]*@sha256:[0-9a-f]\{64\}\)$/\1/p' "$root/compose.yml")"
+[ -n "$store" ] || {
+  echo 'images.sh: compose.yml names no ghcr.io/versity/versitygw image by tag and digest' >&2
   exit 1
 }
-echo "images.sh: copying $minio"
-skopeo copy --retry-times 3 --dest-tls-verify=false \
-  "docker://$minio" "docker://$registry/${minio#ghcr.io/}"
+tagged="${store%%@*}"
+echo "images.sh: copying $store"
+skopeo copy --all --preserve-digests --retry-times 3 --dest-tls-verify=false \
+  "docker://${tagged%:*}@${store#*@}" "docker://$registry/${tagged#ghcr.io/}"

@@ -47,6 +47,12 @@ export interface RunRow {
   agentId: string | null;
   sessionId: string | null;
   trigger: string | null;
+  /** The runtime the run executes on (`pi`, `claude-code`, …); for a run
+   * of the native engine, the one it hands over to. */
+  harness: string | null;
+  /** Which engine drives it: `harness` (the runtime in the agent's sandbox)
+   * or `native` (the engine a chat reply runs on). */
+  engine: string | null;
   failureCode: string | null;
   error: string | null;
   /** What the run answered at its end: its last turn's text. */
@@ -72,6 +78,8 @@ export function parseRunRows(body: unknown): RunRow[] {
       agentId: asString(row.agentId) ?? null,
       sessionId: asString(row.sessionId) ?? null,
       trigger: asString(row.trigger) ?? null,
+      harness: asString(row.harness) ?? null,
+      engine: asString(row.engine) ?? null,
       failureCode: asString(row.failureCode) ?? null,
       error: asString(row.error) ?? null,
       resultText: asString(row.resultText) ?? null,
@@ -120,6 +128,9 @@ export interface RunTrack {
   trigger: string | null;
   /** Where the last poll saw it. */
   place: RunPlace;
+  /** The runtime and the engine the last poll saw it run on. */
+  harness: string | null;
+  engine: string | null;
   failureCode: string | null;
   error: string | null;
   /** What the run answered, as the last poll saw it. */
@@ -166,6 +177,8 @@ export function newRunTrack(
     agentId: row.agentId,
     trigger: row.trigger,
     place: placeOf(row),
+    harness: row.harness,
+    engine: row.engine,
     failureCode: null,
     error: null,
     resultText: null,
@@ -197,6 +210,8 @@ export function observeRun(track: RunTrack, row: RunRow, nowMs: number): void {
       track.reasons.push(row.waitingReason);
     }
   }
+  track.harness = row.harness;
+  track.engine = row.engine;
   track.failureCode = row.failureCode;
   track.error = row.error;
   track.resultText = row.resultText;

@@ -155,6 +155,23 @@ export async function installedAutomationLedger(
   }
 }
 
+/**
+ * The services a container of the platform image runs as. `backend-api` and
+ * `backend-worker` write automation rows wherever they run. `platform` does
+ * where it is a backend process: the `api` and `all` roles of a colour whose
+ * one process is the API (compose/app-tier.ts). As the web tier alone it
+ * holds no database connection and is no writer.
+ */
+const BACKEND_SERVICES = new Set(['backend-api', 'backend-worker']);
+const PLATFORM_SERVICE = 'platform';
+
+/** What the census reads of a `platform` instance to tell which it is: its
+ *  identity and its role, and nothing a web tier need not have. */
+const platformRoleSchema = z.object({
+  id: z.string().regex(/^[a-f0-9]{64}$/),
+  role: z.enum(['web', 'api', 'worker', 'all']).optional(),
+});
+
 /** What the writer census demands of a backend instance's readback. */
 const backendIdentitySchema = z.object({
   id: z.string().regex(/^[a-f0-9]{64}$/),
@@ -169,7 +186,19 @@ const backendIdentitySchema = z.object({
   labels: z.record(z.string(), z.string()),
   environmentSize: z.number().int().max(2048),
   bundledDatabase: z.boolean(),
+  role: z.enum(['web', 'api', 'worker', 'all']).optional(),
 });
+
+type BackendIdentity = z.infer<typeof backendIdentitySchema>;
+
+/** Whether a writer answers the API, and whether it runs the jobs: the two
+ *  duties a complete inventory holds between its writers. */
+function writerDuties(value: BackendIdentity): { api: boolean; jobs: boolean } {
+  const service = value.labels['com.docker.compose.service'];
+  if (service === PLATFORM_SERVICE)
+    return { api: true, jobs: value.role === 'all' };
+  return { api: service === 'backend-api', jobs: service === 'backend-worker' };
+}
 
 /** The installed connection matters even after its old .env override is removed.
  * Docker output stays in the bounded silent reader; credentials are never emitted.
@@ -180,6 +209,7 @@ export async function bundledBackendIdentity(
 ) {
   const runtime = protocolAccess(dependencies);
   const ids: string[] = [];
+  const platforms: string[] = [];
   // Compose project names, colour projects included: a project ID may start
   // with a digit (`isValidProjectId`).
   requireRuntime(
@@ -189,14 +219,48 @@ export async function bundledBackendIdentity(
     'Invalid backend custody projects.',
   );
   for (const owner of projects) {
+    for (const { id, service } of await runtime.listServices(owner)) {
+      requireRuntime(
+        service !== null && /^[a-f0-9]{64}$/.test(id),
+        'Installed backend inventory is malformed.',
+      );
+      if (BACKEND_SERVICES.has(service)) ids.push(id);
+      else if (service === PLATFORM_SERVICE) platforms.push(id);
+    }
+  }
+  // A `platform` instance is a writer only as a backend process, which its
+  // role says and its name does not. The roles are read first and on their
+  // own, by what a web tier has too: the web tier of a colour of three
+  // services never enters the inventory, so nothing in its record can refuse
+  // the census, and the read of the writers stays the size it was. A
+  // container's identity names one environment for good, so the role read
+  // here is the role of the container the inventory then reads back.
+  if (platforms.length > 0) {
+    requireRuntime(
+      platforms.length <= 96 && new Set(platforms).size === platforms.length,
+      'Installed backend inventory is malformed.',
+    );
+    let roles: Array<z.infer<typeof platformRoleSchema>>;
+    try {
+      roles = z
+        .array(platformRoleSchema)
+        .length(platforms.length)
+        .parse(await runtime.inspect(platforms));
+    } catch {
+      // As below: Docker metadata contains credentials.
+      throw preconditionError(
+        'The installed backend database metadata is unreadable. Keep the existing runtime.',
+      );
+    }
+    requireRuntime(
+      new Set(roles.map((value) => value.id)).size === platforms.length &&
+        roles.every((value) => platforms.includes(value.id)),
+      'Installed backend identities changed.',
+    );
     ids.push(
-      ...(await runtime.listServices(owner)).flatMap(({ id, service }) => {
-        requireRuntime(
-          service !== null && /^[a-f0-9]{64}$/.test(id),
-          'Installed backend inventory is malformed.',
-        );
-        return ['backend-api', 'backend-worker'].includes(service) ? [id] : [];
-      }),
+      ...roles
+        .filter((value) => value.role === 'api' || value.role === 'all')
+        .map((value) => value.id),
     );
   }
   requireRuntime(
@@ -206,7 +270,7 @@ export async function bundledBackendIdentity(
       ids.every((id) => /^[a-f0-9]{64}$/.test(id)),
     'The installed backend database connection is unknown. Keep the existing runtime.',
   );
-  let values: Array<z.infer<typeof backendIdentitySchema>>;
+  let values: BackendIdentity[];
   try {
     values = z
       .array(backendIdentitySchema)
@@ -226,11 +290,15 @@ export async function bundledBackendIdentity(
   );
   for (const value of values) {
     const labels = value.labels;
+    const service = labels['com.docker.compose.service'];
     requireRuntime(
       projects.includes(labels['com.docker.compose.project']) &&
-        ['backend-api', 'backend-worker'].includes(
-          labels['com.docker.compose.service'],
-        ) &&
+        (BACKEND_SERVICES.has(service) ||
+          // A `platform` that entered as a backend process and reads back as
+          // another role, or under another name, is not the one listed.
+          (service === PLATFORM_SERVICE &&
+            platforms.includes(value.id) &&
+            (value.role === 'api' || value.role === 'all'))) &&
         /^[1-9][0-9]*$/.test(
           labels['com.docker.compose.container-number'] ?? '',
         ) &&
@@ -244,11 +312,13 @@ export async function bundledBackendIdentity(
       'Custom database connections require a separately verified protocol readback. This CLI cannot safely deploy or roll back that topology.',
     );
   }
-  for (const role of ['backend-api', 'backend-worker'])
-    requireRuntime(
-      values.some((v) => v.labels['com.docker.compose.service'] === role),
-      'The installed backend database inventory is incomplete.',
-    );
+  // Something answers the API and something runs the jobs: two services,
+  // or one process that is both.
+  const duties = values.map(writerDuties);
+  requireRuntime(
+    duties.some((duty) => duty.api) && duties.some((duty) => duty.jobs),
+    'The installed backend database inventory is incomplete.',
+  );
   // A created writer can still finish its first migration or be restarted. Its
   // immutable image therefore raises the floor even before the ledger commits.
   const imageIds = [...new Set(values.map((value) => value.image))].sort();

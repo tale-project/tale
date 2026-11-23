@@ -76,6 +76,7 @@ import {
 import { resolveFileType } from '../../../lib/shared/file-types';
 import { modelTimestamp } from '../../../lib/shared/model-timestamp';
 import { knowledgeDatabaseUnavailable } from '../../db/unavailable';
+import { extractInHeavySlot } from '../../lib/heavy-slot/documents';
 import { ModelEndpointRefusal } from '../governance/model_endpoint_gate';
 import {
   MISSING_EMAIL_MESSAGE,
@@ -97,7 +98,7 @@ import { internal } from '../lib/handler_names';
 import { orgSlugFromId } from '../lib/helpers/org_slug';
 import { ExtractionError } from '../lib/knowledge/extraction/errors';
 import { PDF_MAX_PAGES } from '../lib/knowledge/extraction/pdf';
-import { extractDocument } from '../lib/knowledge/extraction/router';
+import type { ExtractedDocument } from '../lib/knowledge/extraction/router';
 import { sniffDocumentExtension } from '../lib/knowledge/extraction/sniff';
 import type { Doc } from '../lib/rows';
 import { detectListingIntent } from '../lib/search';
@@ -190,6 +191,13 @@ const WEB_FETCH_RENDER_EXEC_MS = 60_000;
  * URL a page may give (`lib/knowledge/main-content.ts`); a redirect can lead
  * to a longer one. */
 const WEB_FETCH_MAX_URL_CHARS = 2_048;
+/**
+ * How long a fetched document may take to be read: its wait for the heavy
+ * slot, which reads one file at a time, and the reading. A chat turn is
+ * waiting for it; a document that cannot be read in this time is a tool
+ * call that says so, not a turn that hangs behind another file's reading.
+ */
+const WEB_DOCUMENT_READ_MS = 45_000;
 
 /** A page web_fetch asked for, and the bot check it still met, if any. */
 interface FetchedPage {
@@ -363,6 +371,10 @@ const WEB_DOCUMENT_NOT_KEPT =
  * scanned page is read (OCR cannot fit a tool call), and the result says
  * which pages that left without text. A document whose bytes do not parse,
  * or that holds no text at all, is a refusal that says why.
+ *
+ * Read in the heavy slot (`lib/heavy-slot`), ahead of the files a queue
+ * brought: a PDF of four megabytes costs its reader ten times that, which
+ * the process answering this chat turn must not be the one to hold.
  */
 async function readWebDocument(
   url: string,
@@ -371,16 +383,29 @@ async function readWebDocument(
 ): Promise<WebDocument | WebFetchFailure> {
   const name = documentNameForUrl(url, document.extension, document.filename);
   const type = document.extension.slice(1).toUpperCase();
-  let extracted: Awaited<ReturnType<typeof extractDocument>>;
+  let extracted: ExtractedDocument;
+  const outOfTime = new AbortController();
+  const inTime = outOfTime.signal;
+  const giveUp = setTimeout(() => {
+    outOfTime.abort(new Error('the document was not read in time'));
+  }, WEB_DOCUMENT_READ_MS);
   try {
-    extracted = await extractDocument(bytes, name, {
-      visionClient: null,
+    extracted = await extractInHeavySlot({ kind: 'bytes', bytes }, name, {
+      priority: 'interactive',
       processImages: false,
-    });
+      signal: inTime,
+    }).finally(() => clearTimeout(giveUp));
   } catch (error) {
     console.warn(
       `[chat] web_fetch: reading the ${type} at ${new URL(url).hostname} failed: ${describeError(error)}`,
     );
+    if (inTime.aborted) {
+      return webFetchFailure(
+        'error',
+        'unsupported_type',
+        `The ${type} document could not be read in the ${WEB_DOCUMENT_READ_MS / 1000} seconds a fetch is given: the server is reading other files. Fetch it again in a moment.`,
+      );
+    }
     return webFetchFailure(
       error instanceof ExtractionError ? 'unavailable' : 'error',
       'unsupported_type',
@@ -3450,10 +3475,9 @@ export function createChatToolExecutor(
     }
     if (kind.kind === 'document') {
       // A document is read as the page is: every window fetches and reads
-      // it again, and its offsets index the extracted text. The bytes to
-      // keep are copied first, since reading a PDF can take the buffer.
+      // it again, and its offsets index the extracted text.
       const keep = who.keepFetchedDocument;
-      const bytes = keep !== undefined ? fetched.bytes.slice() : null;
+      const bytes = keep !== undefined ? fetched.bytes : null;
       const document = await readWebDocument(
         response.finalUrl,
         fetched.bytes,

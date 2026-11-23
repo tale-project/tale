@@ -76,6 +76,25 @@ fault on the server's side is answered without its internal message.
 - **Example**: The file store is unreachable while Mia uploads → she is told the upload
   failed (`OBJECT_STORE_UNAVAILABLE`), and no internal error text reaches her browser.
 
+### FILE-R11 · A file over the size limit is refused, and none of it is kept
+
+A file a person uploads may be up to 512 MiB. One that announces more is refused before any
+of it is read; one that announces no size is refused the moment it passes the limit
+(`FILE_SIZE_INVALID`). A file within the limit goes to the store as it arrives: the server
+holds none of it on the way, however large it is.
+
+- **Example**: Mia drops a 600 MiB video on the documents page → the upload is refused at
+  once, with the limit in its message, and no part of the video is stored.
+
+### FILE-R12 · An upload that stops before it is whole stores nothing
+
+A file is stored whole or not at all. When an upload ends before the bytes it announced have
+arrived, because the browser was closed or the connection dropped, nothing of it is kept
+(`FILE_SIZE_INVALID`).
+
+- **Example**: Noah's laptop loses its connection halfway through a 200 MiB upload → there
+  is no half file in the store; he uploads it again.
+
 ## What is done with a registered file
 
 ### FILE-R8 · What a file is decides whether it is indexed, transcribed or left alone
@@ -123,7 +142,8 @@ such a file, what its code prints is marked as content from the web.
 
 - **Downloading**: partial downloads, and which address a download or upload link points at
   on a deployment served under several addresses (`service.ts`, `routes.ts`).
-- **Limits on a file's size and on a request body** (`bounded-body.ts`).
+- **The size limits of the other doors**: a product image, an attachment staged over the
+  API, a file imported from a drive (`bounded-body.ts`, and each door's own limit).
 - **Files moving to and from a sandbox** (`sandbox-blob-routes.ts`).
 - **Transcription** of audio and its cache (`transcription.ts`).
 - **A file whose content is gone**: what a reader is told; several integration lanes hold the

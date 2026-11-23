@@ -117,6 +117,7 @@ describePosix('the Incus runtime access', () => {
       status: 'running',
       environmentSize: 3,
       bundledDatabase: true,
+      role: 'api',
       networks: { talebr0: { address: '10.30.2.80' } },
       mounts: [{ type: 'volume', source: 'config-data', target: '/app/data' }],
     });
@@ -135,6 +136,14 @@ describePosix('the Incus runtime access', () => {
       'environment.DATABASE_URL'
     ] = `postgresql://tale:${SECRET}@external.invalid:5432/tale_app`;
     expect((await access.inspect([id]))[0]?.bundledDatabase).toBe(false);
+    // The role is the one word its environment names, or nothing.
+    const config = fixture.fake.instances.get('backend-api-1')!.config;
+    config['environment.TALE_ROLE'] = 'all';
+    expect((await access.inspect([id]))[0]?.role).toBe('all');
+    config['environment.TALE_ROLE'] = 'everything';
+    expect((await access.inspect([id]))[0]).not.toHaveProperty('role');
+    delete config['environment.TALE_ROLE'];
+    expect((await access.inspect([id]))[0]).not.toHaveProperty('role');
   });
 
   test('the metadata projection carries the identity, state, stack, service and mounts alone', async () => {

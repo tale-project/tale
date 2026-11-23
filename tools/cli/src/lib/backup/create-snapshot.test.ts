@@ -356,12 +356,17 @@ describe('createSnapshot', () => {
     ).rejects.toThrow('unparseable integrity output');
   });
 
-  describe('the model gateway store', () => {
+  // The model relay in the backend replaced the sandbox LLM gateway
+  // (tale-project/tale#4942). A deployment that ran it keeps its volume until
+  // its operator removes it, and no snapshot takes it any more; one taken
+  // while the gateway ran still restores it.
+  describe('the retired model gateway store', () => {
     /**
-     * The gateway volume and one other, each used by its own container, with
-     * every pause, unpause and archive recorded in order.
+     * The gateway volume an earlier release left and one other, each used by
+     * its own container, with every pause, unpause and archive recorded in
+     * order.
      */
-    function seedGatewayStack(failGatewayArchive = false) {
+    function seedGatewayStack() {
       volumeExistsMock.mockImplementation((name: string) =>
         Promise.resolve(['p_db-data', 'p_llm-gateway-data'].includes(name)),
       );
@@ -386,58 +391,12 @@ describe('createSnapshot', () => {
         const tar = /tar czf \/backup\/[^/]+\/([a-z-]+)\.tar\.gz/.exec(script);
         if (!tar) return Promise.resolve(ok());
         events.push(`tar ${tar[1]}`);
-        if (failGatewayArchive && tar[1] === 'llm-gateway-data') {
-          return Promise.resolve(failed('no space left on device'));
-        }
         return Promise.resolve(ok(`${SHA}  ${tar[1]}.tar.gz\n4096`));
       });
       return events;
     }
 
-    // The volume the gateway migrates forward-only when a newer one starts:
-    // without its archive, a pre-upgrade snapshot cannot return it.
-    test('is captured under its stable volume name and a restore accepts it', async () => {
-      seedLocalStack([connectionRow('default', BUNDLED_CONNECTION)]);
-
-      const manifest = await createSnapshot({
-        prefix: 'p_',
-        trigger: 'deploy',
-        platformVersion: '0.5.64',
-      });
-
-      expect(manifest?.volumes['llm-gateway-data']).toEqual({
-        sha256: SHA,
-        sizeBytes: 4096,
-      });
-      const { RESTORABLE_ARCHIVES, restoreTargetVolume } =
-        await import('./constants');
-      expect(RESTORABLE_ARCHIVES).toContain('llm-gateway-data');
-      expect(restoreTargetVolume('llm-gateway-data')).toBe('llm-gateway-data');
-    });
-
-    // SQLite keeps committed writes in `<db>-wal` until a checkpoint, so the
-    // database file alone is not the store: the whole volume root goes into
-    // one archive, read-only, while its writer is paused.
-    test('archives the whole volume root read-only, so each database goes with its WAL and shared-memory files', async () => {
-      seedGatewayStack();
-
-      await createSnapshot({
-        prefix: 'p_',
-        trigger: 'manual',
-        platformVersion: null,
-      });
-
-      const archive = execMock.mock.calls.find((call) =>
-        String(call[1][call[1].length - 1]).includes('llm-gateway-data.tar.gz'),
-      );
-      expect(archive?.[1]).toContain('p_llm-gateway-data:/data:ro');
-      expect(archive?.[1][archive[1].length - 1]).toContain('tar czf /backup/');
-      expect(archive?.[1][archive[1].length - 1]).toContain(
-        'llm-gateway-data.tar.gz -C /data . &&',
-      );
-    });
-
-    test('pauses the gateway around its own archive only, then writes the manifest', async () => {
+    test('is not taken where a deployment keeps it, and its gateway is never paused', async () => {
       const events = seedGatewayStack();
 
       const manifest = await createSnapshot({
@@ -450,57 +409,22 @@ describe('createSnapshot', () => {
         'pause db1',
         'tar db-data',
         'unpause db1',
-        'pause gw1',
-        'tar llm-gateway-data',
-        'unpause gw1',
         'manifest',
       ]);
-      expect(Object.keys(manifest?.volumes ?? {})).toEqual([
-        'db-data',
-        'llm-gateway-data',
-      ]);
+      expect(Object.keys(manifest?.volumes ?? {})).toEqual(['db-data']);
+      expect(
+        dockerMock.mock.calls.some((call) =>
+          call.some((arg) => String(arg).includes('llm-gateway-data')),
+        ),
+      ).toBe(false);
     });
 
-    test('unpauses the gateway when its archive fails, and writes no manifest', async () => {
-      const events = seedGatewayStack(true);
-
-      await expect(
-        createSnapshot({
-          prefix: 'p_',
-          trigger: 'deploy',
-          platformVersion: null,
-        }),
-      ).rejects.toThrow(
-        'Snapshot of volume p_llm-gateway-data failed: no space left on device',
-      );
-
-      expect(events).toEqual([
-        'pause db1',
-        'tar db-data',
-        'unpause db1',
-        'pause gw1',
-        'tar llm-gateway-data',
-        'unpause gw1',
-      ]);
-    });
-
-    test('is skipped without complaint when a deployment has no gateway volume', async () => {
-      seedLocalStack([connectionRow('default', BUNDLED_CONNECTION)]);
-      volumeExistsMock.mockImplementation((name: string) =>
-        Promise.resolve(name !== 'p_llm-gateway-data'),
-      );
-
-      const manifest = await createSnapshot({
-        prefix: 'p_',
-        trigger: 'manual',
-        platformVersion: null,
-      });
-
-      expect(manifest?.volumes['llm-gateway-data']).toBeUndefined();
-      expect(tarredVolumes()).not.toContain('llm-gateway-data');
-      expect(Object.keys(manifest?.volumes ?? {})).toHaveLength(7);
-      expect(loggerWarnMock).not.toHaveBeenCalled();
-      expect(loggerNoticeMock).not.toHaveBeenCalled();
+    test('an archive of it in an older snapshot is still one a restore accepts, into its own volume', async () => {
+      const { RESTORABLE_ARCHIVES, restoreTargetVolume, SNAPSHOT_VOLUMES } =
+        await import('./constants');
+      expect(SNAPSHOT_VOLUMES).not.toContain('llm-gateway-data');
+      expect(RESTORABLE_ARCHIVES).toContain('llm-gateway-data');
+      expect(restoreTargetVolume('llm-gateway-data')).toBe('llm-gateway-data');
     });
   });
 
@@ -515,20 +439,19 @@ describe('createSnapshot', () => {
       });
 
       expect(Object.keys(manifest?.volumes ?? {}).sort()).toEqual([
+        'blob-data',
         'caddy-config',
         'caddy-data',
         'config-data',
         'db-data',
         'knowledge-db-data',
-        'llm-gateway-data',
-        'object-store-data',
         'proxy-data',
       ]);
-      expect(manifest?.volumes['object-store-data']).toEqual({
+      expect(manifest?.volumes['blob-data']).toEqual({
         sha256: SHA,
         sizeBytes: 4096,
       });
-      expect(tarredVolumes()).toContain('object-store-data');
+      expect(tarredVolumes()).toContain('blob-data');
       // The config store is read read-only, from the SAME volume the backend
       // resolves connection files from.
       const inspection = execMock.mock.calls.find((call) =>
@@ -539,9 +462,7 @@ describe('createSnapshot', () => {
       expect(inspection?.[1]).toContain('p_config-data:/data:ro');
       // Blobs are proportional to the store: the tar gets the wider bound.
       const blobTar = execMock.mock.calls.find((call) =>
-        String(call[1][call[1].length - 1]).includes(
-          'object-store-data.tar.gz',
-        ),
+        String(call[1][call[1].length - 1]).includes('blob-data.tar.gz'),
       );
       expect(blobTar?.[2]?.timeout).toBeGreaterThan(1800);
       expect(loggerNoticeMock).not.toHaveBeenCalled();
@@ -556,9 +477,9 @@ describe('createSnapshot', () => {
         platformVersion: '0.5.7',
       });
 
-      expect(manifest?.volumes['object-store-data']).toBeUndefined();
-      expect(tarredVolumes()).not.toContain('object-store-data');
-      expect(Object.keys(manifest?.volumes ?? {})).toHaveLength(7);
+      expect(manifest?.volumes['blob-data']).toBeUndefined();
+      expect(tarredVolumes()).not.toContain('blob-data');
+      expect(Object.keys(manifest?.volumes ?? {})).toHaveLength(6);
       const notices = loggerNoticeMock.mock.calls.map((call) =>
         String(call[0]),
       );
@@ -581,7 +502,7 @@ describe('createSnapshot', () => {
         platformVersion: '0.5.7',
       });
 
-      expect(manifest?.volumes['object-store-data']).toBeDefined();
+      expect(manifest?.volumes['blob-data']).toBeDefined();
       const notices = loggerNoticeMock.mock.calls.map((call) =>
         String(call[0]),
       );
@@ -611,7 +532,7 @@ describe('createSnapshot', () => {
         platformVersion: null,
       });
 
-      expect(manifest?.volumes['object-store-data']).toBeDefined();
+      expect(manifest?.volumes['blob-data']).toBeDefined();
       const warnings = loggerWarnMock.mock.calls.map((call) => String(call[0]));
       expect(warnings.some((line) => line.includes('permission denied'))).toBe(
         true,
@@ -629,7 +550,7 @@ describe('createSnapshot', () => {
         platformVersion: null,
       });
 
-      expect(manifest?.volumes['object-store-data']).toBeDefined();
+      expect(manifest?.volumes['blob-data']).toBeDefined();
       expect(loggerWarnMock).toHaveBeenCalled();
     });
 
@@ -642,8 +563,130 @@ describe('createSnapshot', () => {
         platformVersion: null,
       });
 
-      expect(manifest?.volumes['object-store-data']).toBeDefined();
+      expect(manifest?.volumes['blob-data']).toBeDefined();
       expect(loggerNoticeMock).not.toHaveBeenCalled();
+    });
+
+    // versitygw keeps what S3 says of an object (its content type, its ETag)
+    // in the file's extended attributes: busybox's tar leaves them behind, so
+    // an archive of it would restore every object without them.
+    test('is archived with its extended attributes, by a tar that keeps them', async () => {
+      seedLocalStack([connectionRow('default', BUNDLED_CONNECTION)]);
+
+      await createSnapshot({
+        prefix: 'p_',
+        trigger: 'manual',
+        platformVersion: '0.6.0',
+      });
+
+      const tarOf = (volume: string) =>
+        execMock.mock.calls.find((call) =>
+          String(call[1][call[1].length - 1]).includes(`${volume}.tar.gz `),
+        )?.[1] as string[] | undefined;
+      const blob = tarOf('blob-data');
+      expect(blob?.at(-1)).toContain('tar czf /backup/');
+      expect(blob?.at(-1)).toContain(
+        "blob-data.tar.gz --xattrs --xattrs-include='user.*' -C /data .",
+      );
+      expect(blob).toContain(
+        'debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587',
+      );
+      // Every other volume as before: no attribute of theirs is data.
+      const db = tarOf('db-data');
+      expect(db?.at(-1)).toContain('db-data.tar.gz -C /data .');
+      expect(db?.at(-1)).not.toContain('--xattrs');
+      expect(db).toContain('alpine:3.22');
+    });
+
+    /** A deployment whose blobs are still in MinIO's volume: the probe of
+     * `object-store-data` finds content, the one of `blob-data` none. */
+    function seedStackOnMinio() {
+      seedLocalStack([connectionRow('default', BUNDLED_CONNECTION)]);
+      const seeded = execMock.getMockImplementation();
+      execMock.mockImplementation((cmd: string, args: string[]) => {
+        const script = args[args.length - 1];
+        if (script.includes('-print -quit')) {
+          return Promise.resolve(
+            ok(
+              args.includes('p_object-store-data:/data:ro')
+                ? '/data/.minio.sys'
+                : '',
+            ),
+          );
+        }
+        return seeded?.(cmd, args);
+      });
+    }
+
+    test("is MinIO's volume on a deployment that still runs MinIO, archived as it always was", async () => {
+      seedStackOnMinio();
+
+      const manifest = await createSnapshot({
+        prefix: 'p_',
+        trigger: 'deploy',
+        platformVersion: '0.5.9',
+      });
+
+      // `blob-data` exists there too (every volume of the stack is created
+      // on every run) and holds nothing: it is not what the blobs are in.
+      expect(manifest?.volumes['object-store-data']).toEqual({
+        sha256: SHA,
+        sizeBytes: 4096,
+      });
+      expect(manifest?.volumes['blob-data']).toBeUndefined();
+      expect(tarredVolumes()).not.toContain('blob-data');
+      const tar = execMock.mock.calls.find((call) =>
+        String(call[1][call[1].length - 1]).includes(
+          'object-store-data.tar.gz ',
+        ),
+      );
+      expect(tar?.[1]).toContain('alpine:3.22');
+      expect(String(tar?.[1].at(-1))).not.toContain('--xattrs');
+      expect(tar?.[2]?.timeout).toBeGreaterThan(1800);
+    });
+
+    test("is versitygw's volume once it holds blobs, and MinIO's is archived no more", async () => {
+      seedLocalStack([connectionRow('default', BUNDLED_CONNECTION)]);
+      const seeded = execMock.getMockImplementation();
+      // A deployment that was moved: both volumes hold something.
+      execMock.mockImplementation((cmd: string, args: string[]) =>
+        String(args[args.length - 1]).includes('-print -quit')
+          ? Promise.resolve(ok('/data/tale-blobs'))
+          : seeded?.(cmd, args),
+      );
+
+      const manifest = await createSnapshot({
+        prefix: 'p_',
+        trigger: 'deploy',
+        platformVersion: '0.6.0',
+      });
+
+      expect(manifest?.volumes['blob-data']).toBeDefined();
+      expect(manifest?.volumes['object-store-data']).toBeUndefined();
+      expect(tarredVolumes()).not.toContain('object-store-data');
+    });
+
+    test('fails rather than guess when the blob volumes cannot be looked into', async () => {
+      seedLocalStack([connectionRow('default', BUNDLED_CONNECTION)]);
+      const seeded = execMock.getMockImplementation();
+      execMock.mockImplementation((cmd: string, args: string[]) =>
+        String(args[args.length - 1]).includes('-print -quit')
+          ? Promise.resolve(failed('cannot connect to the Docker daemon'))
+          : seeded?.(cmd, args),
+      );
+
+      await expect(
+        createSnapshot({
+          prefix: 'p_',
+          trigger: 'deploy',
+          platformVersion: '0.6.0',
+        }),
+      ).rejects.toThrow(
+        /Could not inspect p_blob-data for existing blobs: cannot connect to the Docker daemon/,
+      );
+      // Nothing was archived: a snapshot without the blobs would read as one
+      // with them.
+      expect(tarredVolumes()).toEqual([]);
     });
   });
 });

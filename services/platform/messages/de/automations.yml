@@ -692,7 +692,10 @@ editor:
     Änderung oder verwirf sie.
   agent:
     equipmentLabel: Ausrüstung
-    harnessDefault: Standard (Claude Code)
+    harnessDefault: Standard (Pi)
+    # Unter dem Laufzeit-Feld eines Schritts auf Standard, dessen Modell
+    # nur ein Abo bereitstellt: Der Schritt läuft dort, wo das Abo funktioniert.
+    harnessDefaultBound: 'Dieser Schritt läuft auf {runtime}: Nur ein Abo stellt sein Modell bereit, und dieses Abo funktioniert nur dort.'
     modelUnlisted: 'Kein verbundener Anbieter bietet das gespeicherte Modell
       "{model}" für diese Agent-Laufzeit an — wähle eines aus der Liste.'
   # Die Modellauswahl der llm-Node: was die Anbieter der Organisation
@@ -1006,6 +1009,16 @@ runs:
     retry: Erneut versuchen
     servedBy: 'Diese Runde lief auf {model}.'
     visionModel: 'Bilder in diesem Lauf hat {model} gelesen.'
+    # Warum die Runde auf ihrer Agent-Laufzeit lief, wie der Start, der die
+    # Laufzeit gewählt hat, es entschieden und die Runde es festgehalten hat
+    # (`lib/shared/harness-reason.ts`). `owner` ist, wer eine Laufzeit
+    # festlegt: ein Agent bei einer Aufgabe, ein Schritt in einer Automation.
+    harnessReason:
+      pinned: 'Diese Runde lief auf {runtime}, der Agent-Laufzeit, die {owner, select, agent {dieser Agent} other {dieser Schritt}} festlegt.'
+      default: 'Diese Runde lief auf {runtime}, der voreingestellten Agent-Laufzeit.'
+      subscriptionBound: 'Diese Runde lief auf {runtime}, weil nur ein Abo ihr Modell bereitstellt und dieses Abo nur in {runtime} funktioniert.'
+      policy: 'Diese Runde lief auf {runtime}, der Agent-Laufzeit, die unter Richtlinien für den Standard-Agenten der Organisation festgelegt ist.'
+      modelBound: 'Diese Runde lief auf {runtime}, weil die voreingestellte Agent-Laufzeit ihr Modell nicht ausführen kann.'
   approval:
     title: 'Wartet auf deine Freigabe: {operation}'
     node: 'Angefragt von Node "{node}" — mit der Freigabe führt sie den Schritt sofort aus; eine Ablehnung lässt ihn fehlschlagen.'

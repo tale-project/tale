@@ -3,7 +3,12 @@ import { isAbsolute } from 'node:path';
 import { getProjectId } from '../../../utils/load-env';
 import type { ComposeService, ServiceConfig } from '../types';
 import { BUILDKITD_MIRROR_IMAGE, DEFAULT_LOGGING, imageRef } from '../types';
-import { reservedMemoryMib } from './memory-env';
+import {
+  composeSize,
+  memoryReservation,
+  reservedMemoryMib,
+  SANDBOX_MEMORY_LIMIT_MIB,
+} from './memory-env';
 import { sandboxLabels } from './traefik-labels';
 
 /**
@@ -41,7 +46,7 @@ import { sandboxLabels } from './traefik-labels';
  * (`tale deploy prepare`) gets the Incus shape from the CLI instead: it drops
  * the socket and session-root mounts, mounts the three PEM files
  * (SANDBOX_INCUS_*_FILE) read-only from `<stateDirectory>/sandbox-incus`, and
- * publishes the backend API and the LLM gateway on the declared address
+ * publishes the backend API and its model relay on the declared address
  * (deployment/runtime-sandbox.ts).
  */
 export function createSandboxService(config: ServiceConfig): ComposeService {
@@ -85,7 +90,11 @@ export function createSandboxService(config: ServiceConfig): ComposeService {
     // containers it spawns (those get their own). pids_limit bounds the
     // docker-CLI fanout under a fork-bomb regression; the nofile bump leaves
     // room for many in-flight SSE streams.
-    mem_limit: '1g',
+    mem_limit: composeSize(SANDBOX_MEMORY_LIMIT_MIB),
+    // Its share of the host's memory, spared by reclaim while the sessions
+    // it starts press on host memory, where the engine runs cgroup v2.
+    // Mirrored in compose.yml.
+    ...memoryReservation('sandbox', config),
     pids_limit: 1024,
     ulimits: {
       nofile: { soft: 4096, hard: 8192 },
@@ -99,10 +108,11 @@ export function createSandboxService(config: ServiceConfig): ComposeService {
           }
         : {}),
       SANDBOX_RUNTIME: '${SANDBOX_RUNTIME:-runc}',
-      // What the database and the application tier reserve on this host: the
-      // least memory admission leaves free unless SANDBOX_MIN_FREE_MEMORY is
-      // set. Derived from their reservations, so `.env` cannot set it apart.
-      SANDBOX_RESERVED_MEMORY: `${reservedMemoryMib()}m`,
+      // What the stack's services reserve on this host, this spawner and its
+      // egress proxy included: the least memory admission leaves free unless
+      // SANDBOX_MIN_FREE_MEMORY is set. Derived from their reservations, so
+      // `.env` cannot set it apart.
+      SANDBOX_RESERVED_MEMORY: `${reservedMemoryMib(config.appTier)}m`,
       // The device hub: organizations connect their own machines here to run
       // their sandboxes (Settings → Sandboxes → Devices). The proxy publishes
       // it at /sandbox/tunnel; nothing else of the spawner leaves `internal`.

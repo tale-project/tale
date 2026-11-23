@@ -1,26 +1,28 @@
 'use node';
 
+import { join } from 'node:path';
+
 import { checkProviderHostPolicy } from '../../../lib/net/host-policy';
+import { newJobDir, removeJobDir } from '../../lib/heavy-slot/job-dir';
 import type { ActionCtx } from '../lib/ctx';
 import { classifyTranscriptionError } from '../lib/errors/classify_transcription_error';
 import { internal } from '../lib/handler_names';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import { resolveTranscriptionModel } from '../lib/providers/resolve_transcription_model';
-import { readBlobBytes } from '../lib/storage/blob_access';
+import { readBlobToFile } from '../lib/storage/blob_access';
 import type { BlobRef } from '../lib/storage/blob_ref';
 import {
   chunkCompressedAudio,
   compressAudio,
   CHUNK_TRIGGER_BYTES,
   type AudioChunk,
-  type CompressedAudio,
 } from './audio_preprocess';
 import {
   joinSegmentsWithParagraphs,
   WHISPER_PROFILE,
   type ParagraphSegment,
 } from './paragraphize';
-import { transcriptionCacheHash } from './transcription_cache';
+import { transcriptionCacheHasher } from './transcription_cache';
 import {
   requestTranscription,
   type TranscriptionSegment,
@@ -141,18 +143,32 @@ async function patchProgress(
   );
 }
 
-/** The audio blob's bytes from the org's store; the org slug addresses the
- * bucket, so an unresolvable org cannot read anything. */
-async function readAudioBytes(
+/**
+ * The recording, read from the org's store into `filePath` as it arrives:
+ * a recording is hundreds of megabytes, and none of it is held here
+ * (tale-project/tale#4942). `onChunk` sees every byte on its way past. The
+ * org slug addresses the bucket, so an unresolvable org cannot read
+ * anything.
+ */
+async function readAudioToFile(
   orgSlug: string | null,
   ref: BlobRef,
-): Promise<Uint8Array> {
+  filePath: string,
+  onChunk: (chunk: Uint8Array) => void,
+): Promise<void> {
   if (orgSlug === null) {
     throw new Error(
       `[transcribeAudio] org unresolvable; cannot read audio blob ${ref}`,
     );
   }
-  return readBlobBytes(orgSlug, ref);
+  await readBlobToFile(orgSlug, ref, filePath, { onChunk });
+}
+
+/** The extension ffmpeg is given the recording under: the file's own, when
+ * it is one a path can carry. */
+function recordingExtension(fileName: string): string {
+  const extension = fileName.split('.').pop()?.toLowerCase() ?? '';
+  return /^[a-z0-9]{1,8}$/.test(extension) ? extension : 'bin';
 }
 
 /** A transcription's model and price, as its hold and booking name them. */
@@ -255,6 +271,9 @@ export async function transcribeAudioImpl(
     organizationId: string;
     attempt?: number;
   },
+  /** The job's own cancel: it ends the wait for the heavy slot and the
+   * conversion in it. */
+  work: { signal?: AbortSignal } = {},
 ): Promise<null> {
   {
     const attempt = args.attempt ?? 0;
@@ -263,10 +282,9 @@ export async function transcribeAudioImpl(
 
     const orgSlug = await orgSlugFromIdOrNull(ctx, args.organizationId);
 
-    let compressed: CompressedAudio | undefined;
-    let chunked:
-      | { chunks: AudioChunk[]; cleanup: () => Promise<void> }
-      | undefined;
+    /** Where this attempt keeps the recording and what ffmpeg makes of
+     * it: on disk, and gone when the attempt ends. */
+    let workDir: string | undefined;
 
     // Early-exit check: user may have cancelled (removed the attachment or
     // clicked Skip) between this action being scheduled and firing. Skip all
@@ -360,8 +378,18 @@ export async function transcribeAudioImpl(
       // Reuse the same bytes only within this org and transcription target.
       // The versioned hash is stamped before lookup so the next upload can
       // find it. Old bytes-only keys naturally miss without a data rewrite.
-      const bytes = await readAudioBytes(orgSlug, args.storageId);
-      const contentHash = transcriptionCacheHash(bytes, modelData);
+      // Hashed as it is read: the recording passes through once, into a
+      // file ffmpeg reads it from.
+      workDir = await newJobDir();
+      const recording = join(
+        workDir,
+        `recording.${recordingExtension(args.fileName)}`,
+      );
+      const hasher = transcriptionCacheHasher(modelData);
+      await readAudioToFile(orgSlug, args.storageId, recording, (chunk) =>
+        hasher.update(chunk),
+      );
+      const contentHash = hasher.digest();
       await ctx.runMutation(
         internal.file_metadata.internal_mutations.updateFileTranscription,
         { storageId: args.storageId, contentHash },
@@ -400,17 +428,14 @@ export async function transcribeAudioImpl(
 
       await patchProgress(ctx, args.storageId, 'compressing');
 
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a Uint8Array is a valid BlobPart at runtime (TS 5.7 ArrayBufferLike variance)
-      const origBlob = new Blob([bytes as BlobPart], {
-        type: args.contentType || 'application/octet-stream',
-      });
-
-      compressed = await compressAudio(origBlob, args.fileName);
+      // ffmpeg converts the file in the heavy slot: when its turn comes,
+      // and under the slot's memory cap. What it writes is read back from
+      // disk a piece at a time as it is sent to the provider.
+      const compressed = await compressAudio(recording, workDir, work);
 
       let chunks: AudioChunk[];
       if (compressed.sizeBytes > CHUNK_TRIGGER_BYTES) {
-        chunked = await chunkCompressedAudio(compressed.blob);
-        chunks = chunked.chunks;
+        chunks = await chunkCompressedAudio(compressed.path, workDir, work);
       } else {
         chunks = [
           {
@@ -678,12 +703,7 @@ export async function transcribeAudioImpl(
       );
       return null;
     } finally {
-      if (compressed) {
-        await compressed.cleanup();
-      }
-      if (chunked) {
-        await chunked.cleanup();
-      }
+      if (workDir !== undefined) await removeJobDir(workDir);
       await ctx.runMutation(
         internal.file_metadata.internal_mutations.releaseTranscriptionLock,
         { storageId: args.storageId, runId: requestId },

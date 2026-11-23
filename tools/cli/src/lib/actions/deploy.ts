@@ -6,13 +6,24 @@ import { join } from 'node:path';
 import { externalDepError, preconditionError } from '../../utils/fail';
 import {
   getProjectId,
-  getReplicaCounts,
   type DeploymentEnv,
+  type ReplicaCounts,
 } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
 import { runStepsInParallel } from '../../utils/progress';
+import { BLOB_VOLUME, LEGACY_BLOB_VOLUME } from '../backup/constants';
 import { createSnapshot } from '../backup/create-snapshot';
 import { rotateSnapshots } from '../backup/rotate-snapshots';
+import {
+  apiService,
+  appTierFor,
+  askedAppTier,
+  describeReplicas,
+  THREE_WAY,
+  tierReplicaCounts,
+  unusedReplicaVariables,
+  type AppTier,
+} from '../compose/app-tier';
 import { REQUIRED_VOLUMES } from '../compose/generators/constants';
 import { generateColorCompose } from '../compose/generators/generate-color-compose';
 import { generateStatefulCompose } from '../compose/generators/generate-stateful-compose';
@@ -20,19 +31,27 @@ import {
   selectDefaultServices,
   servicesKeepingHost,
 } from '../compose/select-services';
-import { memoryReservationNotice } from '../compose/services/memory-env';
+import { potProviderAsked } from '../compose/services/create-bgutil-provider-service';
+import { askedDbProfile } from '../compose/services/create-db-service';
+import {
+  memoryReservationNotice,
+  reservedMemoryMib,
+  unusedMemoryReservations,
+} from '../compose/services/memory-env';
 import {
   type RotatableService,
   type ServiceName,
   type ServiceConfig,
   type StatefulService,
   type StopGatedService,
+  ALWAYS_ROLL_SERVICES,
   STOP_GATED_SERVICES,
   imageRef,
   isRotatableService,
   isStatefulService,
 } from '../compose/types';
 import type { RunOrigin } from '../config/dev-origin';
+import { imageServesApp } from '../deployment/app-tier-image';
 import { requireAutomationProtocol } from '../deployment/automation-protocol';
 import {
   assessTagAutomationCutover,
@@ -45,6 +64,12 @@ import {
   admitTagAutomationImage,
   tagDeploymentProtocol,
 } from '../deployment/tag-automation-protocol';
+import { readSandboxNetworkSubnet } from '../docker/ensure-network';
+import { migrateBlobStore } from '../docker/migrate-blob-store';
+import {
+  minioNotice,
+  resolveObjectStore,
+} from '../docker/resolve-object-store';
 import { probeCgroupVersion } from '../docker/setup-checks';
 import { discoverOrgs } from '../project/org-dirs';
 import { IncusRuntime } from '../runtime/incus/incus-runtime';
@@ -66,9 +91,11 @@ import {
   colorLooksUp,
   colorPlatformVersion,
   colorProject,
-  isUnfinishedColorFlip,
+  colorTier,
+  planColorFlip,
   retireColor,
   startColor,
+  type ColorFlip,
 } from './color-lifecycle';
 import {
   BACKEND_API_LABEL,
@@ -83,7 +110,16 @@ import {
   type WorkspacePlan,
 } from './incus-deploy';
 import { reseedAllOrgsFromBuiltin } from './reseed-all-orgs';
+import {
+  gatewayRetired,
+  keepGatewayPassword,
+  retireGateway,
+} from './retire-gateway';
 import { retireLegacyBackendTier } from './retire-legacy-backend';
+
+/** What a deploy says of the PO-token provider it does not run. */
+const POT_PROVIDER_OFF =
+  'video links get no PO tokens for YouTube unless VIDEO_INGEST_POT_PROVIDER=true is in .env.';
 
 async function ensureInfrastructure(
   prefix: string,
@@ -323,7 +359,12 @@ export async function deploy(options: DeployOptions): Promise<void> {
           : null;
       let cutover: TagCutoverPlan | null = null;
 
-      // Determine which services to deploy
+      // Determine which services to deploy. Of the application tier this
+      // names what was ASKED for: all of it on a default deploy, the services
+      // `--services` listed otherwise. Which services the tier has is its
+      // image's to say (compose/app-tier.ts) and is settled once the image is
+      // on this host, below; until then the list only says that the platform
+      // image is needed.
       let rotatableToUpdate: RotatableService[];
       let statefulToUpdate: StatefulService[];
 
@@ -333,12 +374,11 @@ export async function deploy(options: DeployOptions): Promise<void> {
         statefulToUpdate = services.filter(isStatefulService);
       } else {
         // Default deploy uses the three-tier policy (see select-services.ts):
-        // rotatable (platform) blue-green; the always-roll tier (backend-api,
-        // backend-worker, sandbox-llm-gateway, sandbox, sandbox-egress) rolls
-        // in-place via the
-        // stateful compose (sandbox drained first via /v1/drain); stop-gated
-        // (db, proxy) only when stopped / first deploy / --stop, else left
-        // running with a hint.
+        // the application tier (platform, backend-api, backend-worker)
+        // blue-green; the always-roll tier (sandbox, sandbox-egress) rolls
+        // in place via the stateful compose (sandbox drained first via
+        // /v1/drain); stop-gated (db, proxy) only when stopped / first
+        // deploy / --stop, else left running with a hint.
         const runningState = new Map<StopGatedService, boolean>();
         for (const service of STOP_GATED_SERVICES) {
           runningState.set(
@@ -367,18 +407,6 @@ export async function deploy(options: DeployOptions): Promise<void> {
         }
       }
 
-      const keepHost = origin
-        ? servicesKeepingHost([...rotatableToUpdate, ...statefulToUpdate])
-        : [];
-      if (origin && keepHost.length > 0) {
-        logger.warn(
-          `--host ${origin.host} does not reach ${keepHost.join(', ')}: not recreated by this deploy, they keep the host they were started with. ` +
-            (services && services.length > 0
-              ? 'Add them to --services to recreate them.'
-              : 'Re-run with `tale deploy --stop` to recreate them (brief downtime).'),
-        );
-      }
-
       if (rotatableToUpdate.length === 0 && statefulToUpdate.length === 0) {
         logger.error('No valid services to deploy');
         throw new Error('No services specified');
@@ -392,21 +420,37 @@ export async function deploy(options: DeployOptions): Promise<void> {
         logger.info('Mode: Blue-green deployment');
       }
       logger.info(
-        `Rotatable services: ${rotatableToUpdate.join(', ') || 'none'}`,
-      );
-      logger.info(
         `Stateful services: ${statefulToUpdate.join(', ') || 'none'}`,
       );
 
+      // Which blob store this deployment runs is what its volumes hold,
+      // read before the pull: the image depends on it. Blobs in MinIO's
+      // volume move to versitygw on a deploy that replaces the store
+      // (`--stop`, a store that is not running, `--services object-store`):
+      // the move pauses the application, as replacing a stop-gated service
+      // stops it. Any other deploy keeps MinIO.
+      const blobsIn = await resolveObjectStore(`${getProjectId()}_`, runtime);
+      const moveBlobs =
+        blobsIn === 'minio' && statefulToUpdate.includes('object-store');
+      if (blobsIn === 'minio' && !moveBlobs) {
+        logger.info(
+          `${minioNotice(`${getProjectId()}_`)} \`tale deploy --stop\` moves the blobs to versitygw, pausing the application for the last copy.`,
+        );
+      }
       const serviceConfig: ServiceConfig = {
         version,
         registry: env.GHCR_REGISTRY,
         cgroupVersion: await probeCgroupVersion(),
+        objectStore: moveBlobs ? 'versitygw' : blobsIn,
       };
       const reservationNotice = memoryReservationNotice(serviceConfig);
       if (reservationNotice) logger.warn(reservationNotice);
-      // How many replicas of each colour-rolled role to run (default 1 each).
-      const replicas = getReplicaCounts();
+      // A shape named by a word that is none is refused here, like a size
+      // above: before this deploy pulls, retags or snapshots anything. So is
+      // a database profile the image does not know.
+      askedAppTier();
+      askedDbProfile();
+      const potProvider = potProviderAsked();
 
       // Pull all required images first. The sandbox tier (sandbox +
       // sandbox-egress) is now a stateful always-roll singleton, so its images
@@ -457,6 +501,13 @@ export async function deploy(options: DeployOptions): Promise<void> {
         imagesToPull.push(buildkitdImageRemote);
       }
 
+      // Whether the platform image serves the app from its backend process
+      // (`io.tale.app-in-backend`), which decides the services a colour of it
+      // runs. Null until the image is on this host: for good where this
+      // deploy needs no platform image, and through a dry run of one that is
+      // not pulled yet.
+      let appInBackend: boolean | null = null;
+
       // Set by a dry run whose target image is not on this host yet: the real
       // deploy reads its protocol after the pull, so until then there is no
       // target to compare the installed writer with.
@@ -468,6 +519,103 @@ export async function deploy(options: DeployOptions): Promise<void> {
           serviceConfig.platformImage === undefined ? 1 : 2,
         );
       };
+
+      // The shape of the application tier this deploy leaves live, which
+      // every generator below builds from (`serviceConfig.appTier`).
+      //
+      // A NEW colour takes the shape its image runs and the deployment asked
+      // for. An in-place update replaces containers of the live colour AS IT
+      // IS, so it keeps that colour's shape and names services it has. A
+      // deploy that touches no application service still tells the sandbox
+      // what the live colour reserves.
+      //
+      // Called once the platform image has said what it runs, and before this
+      // deploy retags, snapshots or replaces anything: what it refuses, it
+      // refuses with the host as it found it.
+      const settleAppTier = async (): Promise<{
+        tier: AppTier;
+        replicas: ReplicaCounts;
+      }> => {
+        const liveTier = async () =>
+          currentColor === null ? null : colorTier(currentColor, runtime);
+        let tier: AppTier;
+        if (rotatableToUpdate.length === 0) {
+          // Nothing of the tier is touched. Where no colour is up either,
+          // the three services stand in: the larger reservation, which the
+          // next deploy of the tier replaces with its own.
+          tier = (await liveTier()) ?? THREE_WAY;
+        } else {
+          const live = inPlaceUpdate ? await liveTier() : null;
+          if (live === null) {
+            tier = appTierFor({ appInBackend: appInBackend ?? true });
+            if (appInBackend === null)
+              logger.info(
+                `${prefix}${imageRef(serviceConfig, 'platform')} is not on this host yet, and the image says which services its colour runs. This preview shows the ones an image of this release runs; one from before the app moved into the backend process runs platform, backend-api and backend-worker.`,
+              );
+          } else {
+            if (appInBackend === false && live.shape !== 'three-way')
+              // Its `platform` would start in a role that image does not
+              // serve the app from, and never report healthy.
+              throw preconditionError(
+                `The live ${currentColor} colour runs the application as ${live.services.join(' and ')}, which ${imageRef(serviceConfig, 'platform')} cannot: that image is from before the app moved into the backend process. Run \`tale deploy\` without --services: it starts a colour in the shape the image runs and switches to it.`,
+              );
+            tier = live;
+          }
+          if (!inPlaceUpdate) {
+            rotatableToUpdate = [...tier.services];
+          } else if (currentColor !== null) {
+            // With no colour recorded there is nothing to update in place,
+            // which the update itself says, below.
+            const absent = rotatableToUpdate.filter(
+              (service) => !tier.services.includes(service),
+            );
+            if (absent.length > 0)
+              throw preconditionError(
+                `The ${currentColor} colour runs ${tier.services.join(', ')}: it has no ${absent.join(' or ')} to update. Name a service it runs, or run \`tale deploy\` without --services to start a colour of another shape.`,
+              );
+          }
+        }
+        serviceConfig.appTier = tier;
+        // The sizes were read once before the pull, for a colour of three
+        // services. Read again for this shape, where `platform` may be a
+        // backend process under the backend's memory limit, so a size Docker
+        // would refuse still fails here, not at `compose up`.
+        reservedMemoryMib(tier);
+        logger.info(
+          `Rotatable services: ${rotatableToUpdate.join(', ') || 'none'}`,
+        );
+        // Set for a service this colour does not run: said once, so a count
+        // that scales nothing or a reservation that protects nothing is not
+        // mistaken for one that does.
+        const unused = [
+          ...unusedReplicaVariables(tier),
+          ...unusedMemoryReservations(tier),
+        ];
+        if (rotatableToUpdate.length > 0 && unused.length > 0)
+          logger.warn(
+            `${unused.join(', ')} ${unused.length === 1 ? 'is' : 'are'} set for a service this colour does not run (it runs ${tier.services.join(' and ')}) and ${unused.length === 1 ? 'has' : 'have'} no effect. TALE_PLATFORM_REPLICAS and PLATFORM_MEMORY_RESERVATION size platform.`,
+          );
+        const keepHost = origin
+          ? servicesKeepingHost(
+              [...rotatableToUpdate, ...statefulToUpdate],
+              tier,
+            )
+          : [];
+        if (origin && keepHost.length > 0) {
+          logger.warn(
+            `--host ${origin.host} does not reach ${keepHost.join(', ')}: not recreated by this deploy, they keep the host they were started with. ` +
+              (services && services.length > 0
+                ? 'Add them to --services to recreate them.'
+                : 'Re-run with `tale deploy --stop` to recreate them (brief downtime).'),
+          );
+        }
+        // How many replicas of each of the colour's services to run.
+        return { tier, replicas: tierReplicaCounts(tier) };
+      };
+      let settled: Awaited<ReturnType<typeof settleAppTier>>;
+      // What a flip does with the colour it promotes; null in a dry run and
+      // where this deploy flips nothing.
+      let flip: ColorFlip | null = null;
 
       if (dryRun) {
         for (const image of imagesToPull) {
@@ -513,6 +661,15 @@ export async function deploy(options: DeployOptions): Promise<void> {
           }
         }
         await checkInstalledWriter();
+        if (rotatableToUpdate.length > 0) {
+          // The image says which services its colour runs, and a dry run
+          // pulls nothing: one already here is read as the deploy would read
+          // it, one not pulled yet is previewed as this release's image.
+          const target = imageRef(serviceConfig, 'platform');
+          if (await runtime.imagePresent(target))
+            appInBackend = await imageServesApp(target);
+        }
+        settled = await settleAppTier();
         if (runtimeImageRemote) {
           logger.info(
             `${prefix}Would tag: ${runtimeImageRemote} -> tale-sandbox-runtime:latest`,
@@ -570,16 +727,59 @@ export async function deploy(options: DeployOptions): Promise<void> {
             stop,
             inPlace: Boolean(inPlaceUpdate),
           });
+          // Read under the reference the colour's compose will name: the
+          // digest just admitted, where the image is a protocol-2 one.
+          appInBackend = await imageServesApp(
+            imageRef(serviceConfig, 'platform'),
+          );
+        }
+        settled = await settleAppTier();
+        if (rotatableToUpdate.length > 0) {
           const pending = await getFlipPending(env.DEPLOY_DIR);
-          const promoting = pending?.promoting ?? getNextColor(currentColor);
-          if (
-            await colorLooksUp(promoting, rotatableToUpdate, replicas, runtime)
-          )
-            await admitPendingAutomationColor(
-              colorProject(promoting),
-              serviceConfig.platformImage,
-              installedProtocol,
-            );
+          if (inPlaceUpdate) {
+            // The idle colour takes no part in an update in place, but
+            // writers an earlier deploy left running there are held to the
+            // admitted image all the same.
+            const idle = pending?.promoting ?? getNextColor(currentColor);
+            if (
+              await colorLooksUp(
+                idle,
+                rotatableToUpdate,
+                settled.replicas,
+                runtime,
+              )
+            )
+              await admitPendingAutomationColor(
+                colorProject(idle),
+                serviceConfig.platformImage,
+                installedProtocol,
+                {},
+                rotatableToUpdate,
+              );
+          } else {
+            // What the flip does with the colour it promotes is decided
+            // once, here, so the check below and the bring-up further down
+            // cannot disagree: a colour that is used as it stands, because
+            // it is up as asked or because it already holds the traffic, has
+            // every writer inspected against the admitted image, not only
+            // the image just pulled.
+            flip = await planColorFlip({
+              pending,
+              current: currentColor,
+              next: getNextColor(currentColor),
+              tier: settled.tier,
+              replicas: settled.replicas,
+              runtime,
+            });
+            if (flip.step !== 'start')
+              await admitPendingAutomationColor(
+                colorProject(flip.promoting),
+                serviceConfig.platformImage,
+                installedProtocol,
+                {},
+                flip.services,
+              );
+          }
         }
         await checkInstalledWriter();
         if (runtimeImageRemote) {
@@ -605,6 +805,8 @@ export async function deploy(options: DeployOptions): Promise<void> {
           }
         }
       }
+
+      const { tier, replicas } = settled;
 
       // Pre-mutation volume snapshot — the recovery point for forward-only
       // migrations. Taken whenever this deploy can change data: a version
@@ -648,6 +850,63 @@ export async function deploy(options: DeployOptions): Promise<void> {
       // services.
       await checkInstalledWriter();
       await ensureInfrastructure(prefix, dryRun, runtime);
+      // The model relay in the app tier binds its address in the sandbox
+      // network alone, which exists from here on.
+      if (!dryRun) {
+        const subnet = await readSandboxNetworkSubnet();
+        if (subnet !== undefined) serviceConfig.sandboxNetworkSubnet = subnet;
+      }
+
+      // The move of the blobs from MinIO to versitygw, with both volumes
+      // there now and before the stateful services converge
+      // (docker/migrate-blob-store.ts). A move that does not happen leaves
+      // the store MinIO for this deploy, and says why.
+      if (moveBlobs) {
+        const minioVolume = `${getProjectId()}_${LEGACY_BLOB_VOLUME}`;
+        if (dryRun) {
+          logger.info(
+            `${prefix}Would move the blobs from ${minioVolume} to versitygw on ${getProjectId()}_${BLOB_VOLUME}, pausing the application for the last copy`,
+          );
+        } else {
+          const store = `${getProjectId()}-object-store`;
+          const move = await migrateBlobStore({
+            prefix: `${getProjectId()}_`,
+            project: getProjectId(),
+            accessKey: process.env.OBJECT_STORE_ACCESS_KEY?.trim() || 'tale',
+            secretKey: process.env.OBJECT_STORE_SECRET_KEY?.trim() ?? '',
+            convergeStore: async (engine) => {
+              const up = await runtime.converge(
+                {
+                  stack: getProjectId(),
+                  compose: generateStatefulCompose(
+                    { ...serviceConfig, objectStore: engine },
+                    hostAlias,
+                    origin,
+                  ),
+                  cwd: env.DEPLOY_DIR,
+                },
+                { services: ['object-store'], forceRecreate: false },
+              );
+              if (!up.success) {
+                logger.warn(
+                  `${prefix}The store did not start as ${engine}: ${up.stderr.trim().slice(0, 300) || 'no stderr captured'}`,
+                );
+                return false;
+              }
+              return runtime.waitHealthy(store, {
+                timeout: env.HEALTH_CHECK_TIMEOUT,
+                streamLogs,
+              });
+            },
+          });
+          if (!move.moved) {
+            serviceConfig.objectStore = 'minio';
+            logger.warn(
+              `${prefix}The blobs stay in MinIO (${minioVolume}), which serves them as before: ${move.reason}.`,
+            );
+          }
+        }
+      }
 
       // Deploy stateful services if any
       if (statefulToUpdate.length > 0) {
@@ -656,6 +915,14 @@ export async function deploy(options: DeployOptions): Promise<void> {
           serviceConfig,
           hostAlias,
           origin,
+        );
+
+        // Where the always-roll tier converges, the model gateway an earlier
+        // release left is retired once the backend says no key it minted is
+        // open (retire-gateway.ts). It is no service of the stateful document
+        // any more, so the converge below leaves its container as it is.
+        const rollsAlwaysRollTier = ALWAYS_ROLL_SERVICES.some((service) =>
+          statefulToUpdate.includes(service),
         );
 
         // Will this deploy actually recreate the sandbox spawner? Same logic as
@@ -675,9 +942,19 @@ export async function deploy(options: DeployOptions): Promise<void> {
           for (const service of statefulToUpdate) {
             logger.info(`${prefix}Would deploy stateful service: ${service}`);
           }
-          logger.info(
-            `${prefix}Would deploy bgutil-provider sidecar (separate, non-blocking)`,
-          );
+          if (potProvider) {
+            logger.info(
+              `${prefix}Would deploy bgutil-provider sidecar (separate, non-blocking)`,
+            );
+          } else if (
+            await runtime.exists(`${getProjectId()}-bgutil-provider`)
+          ) {
+            logger.info(
+              `${prefix}Would remove the bgutil-provider sidecar: ${POT_PROVIDER_OFF}`,
+            );
+          }
+          if (rollsAlwaysRollTier)
+            await retireGateway({ dryRun: true, runtime });
         } else {
           // Drain in-flight sandbox executions before the single spawner is
           // recreated below (the tier dropped blue-green — one container rolled
@@ -728,29 +1005,60 @@ export async function deploy(options: DeployOptions): Promise<void> {
             }
           }
 
-          // bgutil PO-token provider — brought up SEPARATELY and best-effort
-          // after the core services are healthy. It's a third-party image (not
-          // a `tale-*` build in the always-roll tier), so a pull/start failure
-          // must never fail the core deploy, and YouTube ingestion degrades
-          // gracefully (no PO token) if it never starts. Always attempted —
-          // it's the zero-config path, not opt-in.
-          const bgutilUp = await runtime.converge(
-            {
-              stack: getProjectId(),
-              compose: statefulCompose,
-              cwd: env.DEPLOY_DIR,
-            },
-            {
-              services: ['bgutil-provider'],
-              forceRecreate: Boolean(options.forceRecreate),
-            },
-          );
-          if (!bgutilUp.success) {
-            logger.warn(
-              `${prefix}bgutil-provider sidecar did not start (YouTube ingestion falls back to no PO token): ${bgutilUp.stderr.trim().slice(0, 300) || 'no stderr captured'}`,
+          // bgutil PO-token provider — where the deployment asked for it,
+          // brought up SEPARATELY and best-effort after the core services are
+          // healthy. It's a third-party image (not a `tale-*` build in the
+          // always-roll tier), so a pull/start failure must never fail the
+          // core deploy, and YouTube ingestion degrades gracefully (no PO
+          // token) if it never starts.
+          const sidecar = `${getProjectId()}-bgutil-provider`;
+          if (potProvider) {
+            const bgutilUp = await runtime.converge(
+              {
+                stack: getProjectId(),
+                compose: statefulCompose,
+                cwd: env.DEPLOY_DIR,
+              },
+              {
+                services: ['bgutil-provider'],
+                forceRecreate: Boolean(options.forceRecreate),
+              },
             );
+            if (!bgutilUp.success) {
+              logger.warn(
+                `${prefix}bgutil-provider sidecar did not start (YouTube ingestion falls back to no PO token): ${bgutilUp.stderr.trim().slice(0, 300) || 'no stderr captured'}`,
+              );
+            }
+          } else if (await runtime.exists(sidecar)) {
+            // One an earlier deploy started, when every deployment had one.
+            // Nothing in the stateful document names it any more, so nothing
+            // else would ever stop it.
+            const removed = await runtime.remove(sidecar);
+            if (removed) {
+              logger.info(
+                `${prefix}Removed the bgutil-provider sidecar: ${POT_PROVIDER_OFF}`,
+              );
+            } else {
+              logger.warn(
+                `${prefix}Could not remove the bgutil-provider sidecar, which this deployment no longer uses. Remove the container ${sidecar} by hand.`,
+              );
+            }
           }
+
+          // After the tier is healthy: a converge that failed above left the
+          // gateway as it was.
+          if (rollsAlwaysRollTier)
+            await retireGateway({ dryRun: false, runtime });
         }
+      }
+
+      // Whether the gateway an earlier release ran is gone now, which every
+      // backend role this deploy starts is told: the step above may just
+      // have retired it. While it is there, they need its admin password.
+      if (!dryRun && rotatableToUpdate.length > 0) {
+        serviceConfig.gatewayRetired = await gatewayRetired(runtime);
+        if (!serviceConfig.gatewayRetired)
+          await keepGatewayPassword({ runtime, deployDir: env.DEPLOY_DIR });
       }
 
       // Deploy rotatable services
@@ -794,7 +1102,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
             logger.warn(
               `In-place update of the live ${currentColor} colour: these replicas are replaced while they serve. A default deploy (no --services) rolls a whole colour instead.`,
             );
-            const drainLiveApi = rotatableToUpdate.includes('backend-api');
+            const drainLiveApi = rotatableToUpdate.includes(apiService(tier));
             if (drainLiveApi) {
               await drainBackend({
                 dryRun: false,
@@ -866,11 +1174,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
 
           logger.info(`Current color: ${currentColor ?? 'none'}`);
           logger.info(`Deploying to: ${nextColor}`);
-          logger.info(
-            `Replicas: ${rotatableToUpdate
-              .map((service) => `${service}×${replicas[service]}`)
-              .join(', ')}`,
-          );
+          logger.info(`Replicas: ${describeReplicas(tier, replicas)}`);
 
           // The running version becomes the rollback target only after the
           // new colour is healthy and traffic has switched (below) — a failed
@@ -896,27 +1200,24 @@ export async function deploy(options: DeployOptions): Promise<void> {
               );
             }
           } else {
-            const pending = await getFlipPending(env.DEPLOY_DIR);
-            const resume =
-              pending !== null &&
-              (await isUnfinishedColorFlip(
-                env.DEPLOY_DIR,
-                pending,
-                rotatableToUpdate,
-                replicas,
-                runtime,
-              ));
-            const promoting =
-              resume && pending !== null ? pending.promoting : nextColor;
-            const retiring =
-              resume && pending !== null ? pending.retiring : currentColor;
+            if (flip === null)
+              // Unreachable: every deploy that is no dry run and no update in
+              // place planned its flip above. Stated so a colour is never
+              // started on a guess.
+              throw new Error('The colour flip was not planned');
+            const { promoting, retiring } = flip;
 
-            if (!resume) {
-              if (pending !== null) await clearFlipPending(env.DEPLOY_DIR);
+            if (!flip.resumed) {
+              if ((await getFlipPending(env.DEPLOY_DIR)) !== null)
+                await clearFlipPending(env.DEPLOY_DIR);
               await setFlipPending(env.DEPLOY_DIR, {
                 promoting,
                 retiring,
               });
+            } else if (flip.step === 'start') {
+              logger.info(
+                `Resuming the interrupted flip onto ${promoting}: it serves nothing as it stands, so it is started again.`,
+              );
             } else {
               logger.info(
                 `Resuming the interrupted flip onto ${promoting} (will not recreate a colour that is already up).`,
@@ -938,20 +1239,21 @@ export async function deploy(options: DeployOptions): Promise<void> {
               });
             }
 
-            const alreadyUp = await colorLooksUp(
-              promoting,
-              rotatableToUpdate,
-              replicas,
-              runtime,
-            );
-            if (alreadyUp) {
+            if (flip.step !== 'start') {
+              if (flip.runsInstead !== null)
+                // It holds the traffic, so it is not touched: what this run
+                // asks for beyond it is the next deploy's, with a flip of
+                // its own.
+                logger.warn(
+                  `The ${promoting} colour already holds the traffic and runs ${flip.runsInstead}, where this deploy asks for ${describeReplicas(tier, replicas)}. It is left as it is while the interrupted flip finishes. Run \`tale deploy\` again to apply the difference.`,
+                );
               // Resuming onto a colour that is already up: a deploy that
               // timed out waiting for it may have left it still migrating.
               // It takes traffic only once every replica is healthy.
               await awaitRunningColorHealthy({
                 color: promoting,
-                services: rotatableToUpdate,
-                replicas,
+                services: flip.services,
+                replicas: flip.replicas,
                 healthTimeout: env.HEALTH_CHECK_TIMEOUT,
                 streamLogs,
                 runtime,
@@ -985,7 +1287,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
             await retireLegacyBackendTier(runtime);
 
             logger.step(`Switching traffic to ${promoting}...`);
-            await runtime.admit(colorProject(promoting), rotatableToUpdate);
+            await runtime.admit(colorProject(promoting), flip.services);
             await setCurrentColor(env.DEPLOY_DIR, promoting);
             if (currentPlatformVersion) {
               await setPreviousVersion(env.DEPLOY_DIR, currentPlatformVersion);

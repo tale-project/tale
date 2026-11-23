@@ -129,7 +129,7 @@ jobs:
           SUITES: ${{ inputs.suites }}
         run: bash tools/cli/e2e/incus/suites.sh "$SUITES" | tee -a "$GITHUB_OUTPUT"
 
-      # Eight image builds and the node's pool need the room the Build
+      # Seven image builds and the node's pool need the room the Build
       # workflow's runtime build does.
       - name: Reclaim disk space
         env:

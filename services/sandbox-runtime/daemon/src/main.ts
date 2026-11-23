@@ -33,6 +33,7 @@ import { ExecManager } from './exec-manager.ts';
 import {
   deletePaths,
   listDir,
+  fileReadLimit,
   streamWorkspaceFile,
   type StageOptions,
   stageFiles,
@@ -72,7 +73,6 @@ import {
 } from './session-memory.ts';
 let execConsumers = 0;
 const MAX_EXEC_CONSUMERS = 8;
-const FILE_READ_MAX_BYTES = 20 * 1024 * 1024;
 const MAX_STAGING_OPERATIONS = 2;
 let stagingOperations = 0;
 
@@ -839,16 +839,29 @@ async function handleOperation(
     return;
   }
   if (req.method === 'GET' && path === '/fs/read') {
-    const stream = await streamWorkspaceFile(
+    const limit = fileReadLimit(url.searchParams.get('maxBytes'));
+    if (limit === null) {
+      sendJson(res, 400, {
+        error: 'bad_request',
+        message: 'maxBytes must be a whole number of bytes above 0',
+      });
+      return;
+    }
+    const file = await streamWorkspaceFile(
       url.searchParams.get('path') ?? '',
-      FILE_READ_MAX_BYTES,
+      limit,
     );
-    if (stream === null) {
+    if (file === null) {
       sendJson(res, 404, { error: 'not_found' });
       return;
     }
-    res.writeHead(200, { 'content-type': 'application/octet-stream' });
-    await pipeline(stream, res);
+    // The length is the file's as it was opened, and what is sent: a
+    // reader that passes the bytes on needs it before the first of them.
+    res.writeHead(200, {
+      'content-type': 'application/octet-stream',
+      'content-length': file.size,
+    });
+    await pipeline(file.stream, res);
     return;
   }
   sendJson(res, 404, { error: 'not_found' });

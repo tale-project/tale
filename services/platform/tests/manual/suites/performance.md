@@ -1,6 +1,6 @@
 # Performance (cross-cutting)
 
-> **Prefix** `PERF-` · **Reset** none · **Cost** 37 boxes
+> **Prefix** `PERF-` · **Reset** none · **Cost** 39 boxes
 
 Spot-check the load and interaction budgets — cold load to first paint, chat
 time-to-first-token (TTFT), thread/route switching, warm-transition prefetch,
@@ -118,14 +118,15 @@ magnitude:
   `video-links/thread` request every 5 s appears; once it settles, the tab
   is silent again.
 - [ ] `PERF-P9` · **Validated reads through the proxy** — From a shell,
-  `curl -sS --compressed -D - -o /dev/null` an API list of at least 512 bytes
+  `curl -sS --compressed -D - -o /dev/null` an API list of at least 1 KiB
   through the proxy (e.g. `{SITE_URL}/api/v1/contacts?limit=200` with a
   Bearer key), then repeat it with `-H 'If-None-Match: <the ETag it
-  answered>'`. → The first answer carries `Content-Encoding: gzip` or
-  `zstd`, `Vary: Accept-Encoding`, an `ETag` ending in `-gzip`/`-zstd` and
-  `Cache-Control: private, no-cache`; the repeat answers **304** with no
-  body and the unsuffixed `ETag`; the same repeat without `--compressed`
-  still answers 304.
+  answered>'`. → The first answer carries `Content-Encoding: gzip` (never
+  `zstd` or `br`), `Vary: Accept-Encoding`, the `ETag` the same read
+  answers without `--compressed` and `Cache-Control: private, no-cache`;
+  the repeat answers **304** with no body and the same `ETag`; the same
+  repeat without `--compressed`, and one that sends the tag with `-gzip`
+  added before its closing quote, still answer 304.
 - [ ] `PERF-P10` · **Cold /log-in JS budget** — In a brand-new browser
   context (empty cache) open `/log-in`, then read
   `performance.getEntriesByType('resource')` filtered to `.js` → The page
@@ -164,6 +165,14 @@ magnitude:
   open paints promptly (DevTools → Performance: the click's interaction
   near 100 ms or under, never near 200 ms), and the image shows over the
   dimmed page, which stays sharp behind it.
+- [ ] `PERF-P22` · **A download keeps its size through the proxy** — Upload
+  a PDF of a few megabytes to a project, then from a shell
+  `curl -sS --compressed -D - -o /dev/null` its content through the proxy
+  (`{SITE_URL}/api/v1/projects/{id}/files/{documentId}/content` with a
+  Bearer key), and repeat with `-H 'Range: bytes=0-1023'`. → The first
+  answer is **200** with the file's `Content-Length`, `Accept-Ranges: bytes`
+  and no `Content-Encoding`; the second is **206** with `Content-Range` and
+  a `Content-Length` of 1024.
 
 ## Response-time SLAs
 
@@ -291,6 +300,7 @@ single warm sample.
 - [ ] `PERF-B11` · **Reply when the api restarts** — Follow `docker compose logs -f backend-api`, send a prompt that makes the model write a long answer (1,500 words), and while it streams run `docker compose restart backend-api`. → The reply does not spin for ten minutes: within the api's drain window (`SHUTDOWN_DRAIN_MS`, 15 s by default) it either finishes or ends as failed with "Couldn't generate a response. Try again.", and the log shows `[backend] 1 chat turn(s) still running at shutdown — settled as interrupted` before the api exits. Once the api is back the thread has no generation in progress, the composer reads **Send message**, and a new prompt in the same thread is answered.
 - [ ] `PERF-B12` · **Reply as the database restarts** — Follow `docker compose logs -f backend-api`, send a prompt that makes the model write a long answer (1,500 words), run `docker compose stop db` while it streams, and `docker compose start db` about ten seconds after the answer has stopped streaming. → The api does not give up on the finished reply: its log shows `database unavailable` lines and no error stack, and once `db` answers the reply is stored whole. Reload the tab: the thread shows the full answer (not a failed or empty one), its composer reads **Send message**, and Settings → Usage counts the reply once.
 - [ ] `PERF-B13` · **A database restart does not sign you out** — With a tab signed in to an account that belongs to two organizations, run `docker compose restart db` and, while it is away, switch organization from the user menu and create an API key (Settings → API keys). → Each action fails with a retryable message (the Better Auth routes answer `503` `DATABASE_UNAVAILABLE` with `Retry-After`, never `401` `UNAUTHORIZED`) and the tab is not taken to the sign-in page; once `db` is healthy the same tab switches organization and creates the key without signing in again.
+- [ ] `PERF-B14` · **A stopping web replica answers until the edge has let go** — Follow `docker compose logs -f platform`, run `docker compose exec platform sh -c 'while sleep 1; do curl -s -o /dev/null -w "%{http_code} " http://localhost:3000/api/health; done'` in a second terminal, and reload a dashboard page every second or so while you run `docker compose stop platform` in a third. → The log shows `[web] SIGTERM received — answering for 6000 ms more, then closing` at once, and the health loop prints `503` from that moment while the page still loads for a few seconds: the replica keeps serving until the edge's own check has taken it out. About six seconds on the listener closes, the page shows the edge's unavailable answer and not a half-loaded app, and `docker compose ps -a platform` reads `Exited (0)`, never `Exited (137)`: the container stopped on its own, inside its stop grace.
 
 ## Accessibility (WCAG 2.1 AA)
 

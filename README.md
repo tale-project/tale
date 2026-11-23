@@ -110,7 +110,7 @@ cd my-project
 tale dev
 ```
 
-You need Docker with Compose, space for several GB of images and your data, and a model provider credential for your first reply. Docker Desktop includes the amd64 emulation needed by the bundled object store on Apple Silicon. On ARM64 Linux, configure emulation before starting.
+You need Docker with Compose, space for several GB of images and your data, and a model provider credential for your first reply. Tale runs natively on amd64 and ARM64, Apple Silicon included. Only a workspace that still keeps its files in MinIO needs amd64 emulation for it, until the files [move to versitygw](https://docs.tale.dev/self-hosted/operate/upgrades#blob-store).
 
 The CLI can help install or start Docker. On startup, open the printed URL, create the first account and organization, then add a credential under **Settings > AI providers** and [send your first message](https://docs.tale.dev/get-started/quickstart).
 

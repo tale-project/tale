@@ -191,7 +191,12 @@ function TaskAgentRunTimelineDetail({
       )}
       {reportedBlock}
       {op !== null ? (
-        <ExecutionLogView op={op} hideHeader className="max-h-[60vh]" />
+        <ExecutionLogView
+          op={op}
+          hideHeader
+          runtimeOwner="agent"
+          className="max-h-[60vh]"
+        />
       ) : readStatus === 'failed' ? (
         <div ref={retryFocus.ref}>
           <Alert variant="destructive" title={t('agentRun.logReadFailed')}>

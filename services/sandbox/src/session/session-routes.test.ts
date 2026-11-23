@@ -77,10 +77,14 @@ let fakeServer: ReturnType<typeof Bun.serve>;
 let fakeBaseUrl = '';
 let largeReplayCancelled = false;
 const created = new Set<string>();
+// What the backend was asked to launch, by session.
+const createdSpecs = new Map<string, SessionSpec>();
 const destroyed = new Set<string>();
 const stopped = new Set<string>();
 const stdinWrites: Array<{ execId: string; b64?: string; eof?: boolean }> = [];
 const stageBodies: unknown[] = [];
+/** The query of every file read the runtime was asked for. */
+const fileReads: string[] = [];
 let stageFailure: string | undefined;
 // Each POST /execs/:id/cancel runnerd received, path and query.
 const cancelRequests: string[] = [];
@@ -526,6 +530,26 @@ beforeAll(() => {
         });
       }
       if (url.pathname === '/fs/read') {
+        fileReads.push(url.search);
+        // A runtime from before a read declared its length: the body comes
+        // in chunks, a turn apart, so that no server can count it first.
+        if (url.searchParams.get('path') === 'repo/undeclared.bin') {
+          let sent = false;
+          return new Response(
+            new ReadableStream<Uint8Array>({
+              async pull(controller) {
+                await Bun.sleep(1);
+                if (sent) {
+                  controller.close();
+                  return;
+                }
+                sent = true;
+                controller.enqueue(new TextEncoder().encode('file-bytes'));
+              },
+            }),
+            { headers: { 'content-type': 'application/octet-stream' } },
+          );
+        }
         return new Response('file-bytes', {
           headers: { 'content-type': 'application/octet-stream' },
         });
@@ -689,6 +713,7 @@ const fakeBackend: SessionBackend = {
   kind: 'docker',
   async createSession(spec: SessionSpec) {
     created.add(spec.sessionId);
+    createdSpecs.set(spec.sessionId, spec);
     stopped.delete(spec.sessionId);
     return { resumed: resumedSessions.has(spec.sessionId) };
   },
@@ -777,6 +802,7 @@ async function readSse(res: Response): Promise<{ events: SseEvent[] }> {
 // into another test's assertions). fakeServer/fakeBaseUrl stay (beforeAll-owned).
 beforeEach(() => {
   created.clear();
+  createdSpecs.clear();
   backendStopThrows.clear();
   destroyed.clear();
   stopped.clear();
@@ -1153,6 +1179,94 @@ describe('SessionRoutes (fake runnerd)', () => {
       expect(created.size).toBe(0);
     },
   );
+
+  // A download the platform runs in a default session may come to more than
+  // the profile's 100 MiB a file: the create says how much, and the launcher
+  // is told.
+  test('a default session is launched with the per-file size its creator asked for', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    const asked = await routes.handleCreate(
+      JSON.stringify({
+        sessionId: 'file-size-asked',
+        organizationId: 'org_files',
+        maxFileBytes: 1_073_741_824,
+      }),
+    );
+    expect(asked.status).toBe(201);
+    expect(createdSpecs.get('file-size-asked')?.maxFileBytes).toBe(
+      1_073_741_824,
+    );
+
+    const plain = await routes.handleCreate(
+      JSON.stringify({
+        sessionId: 'file-size-plain',
+        organizationId: 'org_files',
+      }),
+    );
+    expect(plain.status).toBe(201);
+    const spec = createdSpecs.get('file-size-plain');
+    expect(spec).toBeDefined();
+    expect(spec !== undefined && 'maxFileBytes' in spec).toBe(false);
+  });
+
+  test('an agent session is launched without the per-file size its creator asked for', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    const response = await routes.handleCreate(
+      JSON.stringify({
+        sessionId: 'file-size-agent',
+        organizationId: 'org_files',
+        profile: 'agent',
+        maxFileBytes: 1_073_741_824,
+      }),
+    );
+    expect(response.status).toBe(201);
+    const spec = createdSpecs.get('file-size-agent');
+    expect(spec?.profile).toBe('agent');
+    expect(spec !== undefined && 'maxFileBytes' in spec).toBe(false);
+  });
+
+  test.each([
+    { maxFileBytes: 0 },
+    { maxFileBytes: -5 },
+    { maxFileBytes: 1.5 },
+    { maxFileBytes: '1073741824' },
+    { maxFileBytes: null },
+    { maxFileBytes: 2 * 1024 * 1024 * 1024 + 1 },
+  ])(
+    'rejects a per-file size that is none, or past the ceiling: %j',
+    async (invalid) => {
+      const routes = new SessionRoutes(cfg, fakeBackend);
+      const response = await routes.handleCreate(
+        JSON.stringify({
+          sessionId: 'file-size-bad',
+          organizationId: 'org_files',
+          ...invalid,
+        }),
+      );
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({
+        error: 'bad_request',
+        message:
+          'maxFileBytes must be a whole number of bytes from 1 to 2147483648',
+      });
+      expect(created.size).toBe(0);
+    },
+  );
+
+  test('takes the ceiling itself as a per-file size', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    const response = await routes.handleCreate(
+      JSON.stringify({
+        sessionId: 'file-size-ceiling',
+        organizationId: 'org_files',
+        maxFileBytes: 2 * 1024 * 1024 * 1024,
+      }),
+    );
+    expect(response.status).toBe(201);
+    expect(createdSpecs.get('file-size-ceiling')?.maxFileBytes).toBe(
+      2_147_483_648,
+    );
+  });
 
   test('staging preserves only a safe admission refusal as retryable busy', async () => {
     const routes = new SessionRoutes(cfg, fakeBackend);
@@ -2201,12 +2315,34 @@ describe('SessionRoutes (fake runnerd)', () => {
     };
     expect(listed.entries[0]).toMatchObject({ name: 'README.md' });
 
-    // file content (raw bytes).
+    // file content (raw bytes), with how many they are said first.
+    fileReads.length = 0;
     const contentRes = await routes.handleFileContent('s2', 'repo/README.md');
     expect(contentRes.headers.get('content-type')).toBe(
       'application/octet-stream',
     );
+    expect(contentRes.headers.get('x-tale-file-size')).toBe('10');
     expect(await contentRes.text()).toBe('file-bytes');
+    expect(fileReads).toEqual(['?path=repo%2FREADME.md']);
+
+    // A caller that passes the bytes on names how much it takes, and the
+    // runtime is asked for that much.
+    const streamedRes = await routes.handleFileContent(
+      's2',
+      'repo/README.md',
+      undefined,
+      104_857_600,
+    );
+    expect(await streamedRes.text()).toBe('file-bytes');
+    expect(fileReads[1]).toBe('?path=repo%2FREADME.md&maxBytes=104857600');
+
+    // A runtime that declares no length has none passed on for it.
+    const undeclared = await routes.handleFileContent(
+      's2',
+      'repo/undeclared.bin',
+    );
+    expect(undeclared.headers.get('x-tale-file-size')).toBeNull();
+    expect(await undeclared.text()).toBe('file-bytes');
 
     // attach re-stream.
     const attachRes = await routes.handleExecAttach(
@@ -7666,8 +7802,8 @@ describe('memory-aware admission', () => {
   });
 
   test("the stack's reservations raise the reserve a create must leave", async () => {
-    // SANDBOX_MIN_FREE_MEMORY unset: the 4 GiB the database and the
-    // application tier reserve outweigh both a tenth of the host and 1 GiB.
+    // SANDBOX_MIN_FREE_MEMORY unset: the 4 GiB the stack's services reserve
+    // outweigh both a tenth of the host and 1 GiB.
     let available = 4.25;
     const routes = new SessionRoutes(
       { ...cfg, session: { ...cfg.session, reservedMemoryBytes: 4 * GIB } },

@@ -77,6 +77,7 @@ import {
 } from './core/tasks/helpers.ts';
 import { setUrlSafetyResolverForTests } from './core/video_links/url_safety.ts';
 import { createBootDatabaseWait } from './db/boot-wait.ts';
+import { checkHarnessReasonUpgrade } from './db/harness-reason-upgrade.integration.ts';
 import { runBootMigrations } from './db/migrate.ts';
 import { createSql } from './db/sql.ts';
 import { checkAgentConnections } from './domains/agent_connections/agent-connections.integration.ts';
@@ -124,6 +125,7 @@ import { checkAutomationMessages } from './domains/connectors/notify.integration
 import { checkConnectorOauthIntent } from './domains/connectors/oauth-intent.integration.ts';
 import { setMailTransportForTesting } from './domains/connectors/service.ts';
 import { checkTaskListStep } from './domains/connectors/task-list.integration.ts';
+import { checkControlGatewayKeys } from './domains/control/gateway-keys.integration.ts';
 import { checkConversationApi } from './domains/conversations/api-sync.integration.ts';
 import { checkErasureReviewHandoverRaces } from './domains/erasure/review-handover.integration.ts';
 import { checkRagWatchdogBatch } from './domains/file_metadata/watchdogs.integration.ts';
@@ -156,6 +158,10 @@ import {
   checkConcurrentEntryRenameAndCreate,
   checkConcurrentEntryUpdates,
 } from './domains/knowledge_entries/write-races.integration.ts';
+import {
+  checkModelRelay,
+  laneRelay,
+} from './domains/llm_relay/relay.integration.ts';
 import { checkMemberAccountAuthority } from './domains/members/authority.integration.ts';
 import { checkMemberLookup } from './domains/members/lookup.integration.ts';
 import { checkMemberSearch } from './domains/members/search.integration.ts';
@@ -15276,7 +15282,8 @@ async function checkAutomationRunLifecycle(
   );
 
   // ---- #5: the live-op query identifies an in-flight agent turn (adopt, not
-  // re-kick) and returns null once it settles.
+  // re-kick) with the harness its op records, and returns null once it
+  // settles.
   const opRun = await sql.begin(async (fixtureTx) => {
     await markAutomationWriterInTx(fixtureTx);
     return fixtureTx<{ id: string }[]>`
@@ -15294,11 +15301,11 @@ async function checkAutomationRunLifecycle(
   const opSessionId = naming.sessionIdForWorkflowExecution(opRunId);
   await sql`
     INSERT INTO app.sandbox_session_ops (
-      org_id, session_id, exec_id, kind, status, model_ref, deadline_ms,
-      heartbeat_at_ms, started_at_ms
+      org_id, session_id, exec_id, kind, status, model_ref, harness,
+      deadline_ms, heartbeat_at_ms, started_at_ms
     ) VALUES (
       ${orgId}, ${opSessionId}, 'exec-live-1', 'workflow-agent', 'running',
-      'anthropic/claude-sonnet-4-20250514', ${Date.now() + 600_000},
+      'anthropic/claude-sonnet-4-20250514', 'codex', ${Date.now() + 600_000},
       ${Date.now()}, ${Date.now()}
     )
   `;
@@ -15314,6 +15321,7 @@ async function checkAutomationRunLifecycle(
       deadlineAt: z.number(),
       providerSlug: z.string(),
       gatewayModel: z.string(),
+      harness: z.string().optional(),
     })
     .safeParse(liveOp);
   await sql`
@@ -15324,18 +15332,137 @@ async function checkAutomationRunLifecycle(
   const settledOp = opHandler
     ? await opHandler({ organizationId: orgId, runId: opRunId })
     : 'no-handler';
+  // Leave nothing behind: a settled op that names its harness is a turn of
+  // that harness to the org's harness-health read, which a later lane counts.
+  await sql`
+    DELETE FROM app.sandbox_session_ops
+    WHERE org_id = ${orgId} AND session_id = ${opSessionId}
+  `;
   await sql.begin(async (fixtureTx) => {
     await markAutomationWriterInTx(fixtureTx);
     return fixtureTx`DELETE FROM app.automation_runs WHERE id = ${opRunId}`;
   });
   record(
-    'live-op query adopts an in-flight agent turn and clears once settled',
+    'live-op query adopts an in-flight agent turn on its own harness and clears once settled',
     liveOpView.success &&
       liveOpView.data.execId === 'exec-live-1' &&
       liveOpView.data.providerSlug === 'anthropic' &&
       liveOpView.data.gatewayModel === 'claude-sonnet-4-20250514' &&
+      liveOpView.data.harness === 'codex' &&
       settledOp === null,
-    `running→${liveOpView.success ? `${liveOpView.data.providerSlug}/${liveOpView.data.gatewayModel}` : 'ERR'}, settled→${settledOp === null ? 'null' : JSON.stringify(settledOp)}`,
+    `running→${liveOpView.success ? `${liveOpView.data.providerSlug}/${liveOpView.data.gatewayModel} on ${liveOpView.data.harness ?? 'no harness'}` : 'ERR'}, settled→${settledOp === null ? 'null' : JSON.stringify(settledOp)}`,
+  );
+
+  // ---- #5a: why a turn runs on its harness (migrations 0240, 0241). The
+  // host's open records the rule it applied, a later write of the same turn
+  // that names none keeps it, the step's agent-node read answers it with the
+  // harness's name, and the column refuses a rule it does not know — but
+  // admits 0241's `model_bound` (the default cannot run the model).
+  const { agentTurnShimHandlers } =
+    await import('./domains/tasks/agent-turn-shim.ts');
+  const { getAgentNodeSandboxOp } =
+    await import('./domains/sandbox/sessions.ts');
+  const reasonRun = await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx<{ id: string }[]>`
+    INSERT INTO app.automation_runs (
+      org_id, name, version, status, mode, started_by, input, checkpoints,
+      wake_at_ms, claim_epoch, started_at_ms
+    ) VALUES (
+      ${orgId}, 'ops/lifecycle', 1, 'running', 'live', 'itest:reason',
+      ${sql.json({})}, ${sql.json({ nodes: {}, executions: 0 })},
+      ${null}, 1, ${Date.now()}
+    ) RETURNING id
+  `;
+  });
+  const reasonRunId = reasonRun[0]?.id ?? '';
+  const reasonSessionId = naming.sessionIdForWorkflowExecution(reasonRunId);
+  const upsertOp =
+    agentTurnShimHandlers(sql)['sandbox/session_mutations:upsertSessionOp'];
+  const reasonOp = {
+    organizationId: orgId,
+    sessionId: reasonSessionId,
+    execId: 'exec-reason-1',
+    kind: 'workflow-agent',
+    status: 'running',
+    modelRef: 'anthropic/claude-sonnet-4-6',
+    harness: 'claude-code',
+  };
+  await upsertOp?.({ ...reasonOp, harnessReason: 'subscription_bound' });
+  // The start's merge and every progress flush write the turn again,
+  // naming no reason.
+  await upsertOp?.({ ...reasonOp, heartbeatAt: Date.now() });
+  const reasonView = z
+    .object({
+      harness: z.string(),
+      harnessLabel: z.string(),
+      harnessReason: z.string(),
+    })
+    .safeParse(
+      await getAgentNodeSandboxOp(sql, {
+        organizationId: orgId,
+        runId: reasonRunId,
+      }),
+    );
+  let unknownRule = 'accepted';
+  try {
+    await sql`
+      UPDATE app.sandbox_session_ops SET harness_reason = 'a-rule-nobody-wrote'
+      WHERE session_id = ${reasonSessionId} AND exec_id = 'exec-reason-1'
+    `;
+  } catch (error) {
+    unknownRule =
+      error instanceof Error && 'code' in error ? String(error.code) : 'threw';
+  }
+  await sql`
+    DELETE FROM app.sandbox_session_ops WHERE session_id = ${reasonSessionId}
+  `;
+  // A turn the standard agent ran on Codex because the default cannot run
+  // its model (0241): opened by the host's write, read with its name.
+  let modelBoundOpen = 'accepted';
+  try {
+    await upsertOp?.({
+      ...reasonOp,
+      execId: 'exec-reason-2',
+      harness: 'codex',
+      harnessReason: 'model_bound',
+    });
+  } catch (error) {
+    modelBoundOpen =
+      error instanceof Error && 'code' in error ? String(error.code) : 'threw';
+  }
+  const modelBoundView = z
+    .object({
+      harness: z.string(),
+      harnessLabel: z.string(),
+      harnessReason: z.string(),
+    })
+    .safeParse(
+      await getAgentNodeSandboxOp(sql, {
+        organizationId: orgId,
+        runId: reasonRunId,
+      }),
+    );
+  await sql`
+    DELETE FROM app.sandbox_session_ops WHERE session_id = ${reasonSessionId}
+  `;
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`DELETE FROM app.automation_runs WHERE id = ${reasonRunId}`;
+  });
+  record(
+    'a turn records why it runs on its harness: kept across later writes, read with the harness name, an unknown rule refused, model_bound admitted',
+    reasonView.success &&
+      reasonView.data.harness === 'claude-code' &&
+      reasonView.data.harnessLabel === 'Claude Code' &&
+      reasonView.data.harnessReason === 'subscription_bound' &&
+      unknownRule === '23514' &&
+      modelBoundOpen === 'accepted' &&
+      modelBoundView.success &&
+      modelBoundView.data.harness === 'codex' &&
+      modelBoundView.data.harnessLabel === 'Codex' &&
+      modelBoundView.data.harnessReason === 'model_bound',
+    `read=${reasonView.success ? `${reasonView.data.harnessLabel}/${reasonView.data.harnessReason}` : 'ERR'} (want Claude Code/subscription_bound), unknown rule=${unknownRule} (want 23514), model_bound open=${modelBoundOpen} read=${modelBoundView.success ? `${modelBoundView.data.harnessLabel}/${modelBoundView.data.harnessReason}` : 'ERR'} (want accepted, Codex/model_bound)`,
   );
 
   // ---- #5b: the agent node's folder mounts list through the run's shim —
@@ -37667,19 +37794,21 @@ async function checkOneDriveSync(
       });
     }
     if (leaf === '/content') {
-      const content = node.content ?? '';
+      // The length in bytes, as a vendor declares it: the import counts the
+      // body against it, and a text is longer in bytes than in characters.
+      const content = Buffer.from(node.content ?? '');
       return new Response(content, {
         status: 200,
         headers: {
           'content-type': node.mime ?? 'application/octet-stream',
-          'content-length': String(content.length),
+          'content-length': String(content.byteLength),
         },
       });
     }
     return jsonResponse({
       id: node.id,
       name: node.name,
-      size: (node.content ?? '').length,
+      size: Buffer.byteLength(node.content ?? ''),
       lastModifiedDateTime: node.modified,
       file: { mimeType: node.mime, hashes: { quickXorHash: node.hash } },
     });
@@ -39131,19 +39260,20 @@ async function checkGoogleDriveSync(
       return jsonResponse({ error: { code: 404, message: 'notFound' } }, 404);
     }
     if (url.searchParams.get('alt') === 'media') {
-      const content = node.content ?? '';
+      // In bytes, as the OneDrive stub declares it.
+      const content = Buffer.from(node.content ?? '');
       return new Response(content, {
         status: 200,
         headers: {
           'content-type': node.mime ?? 'application/octet-stream',
-          'content-length': String(content.length),
+          'content-length': String(content.byteLength),
         },
       });
     }
     return jsonResponse({
       id: node.id,
       name: node.name,
-      size: String((node.content ?? '').length),
+      size: String(Buffer.byteLength(node.content ?? '')),
       mimeType: node.mime,
       md5Checksum: node.hash,
     });
@@ -42246,7 +42376,10 @@ if [[ "$*" == *" -J "* || "\${args[0]}" == "-J" || "$*" == *"-J --"* ]]; then
   esac
 fi
 if [[ "$*" == *"--write-subs"* ]]; then
-  cat > "$home_dir/capt1.en.vtt" <<'VTT'
+  # A track as the platform serves it, under the name the lane asks for.
+  [[ "$*" == *"-o subs.%(ext)s"* ]] || { echo "Missing the subtitle output template" >&2; exit 1; }
+  [[ "$*" != *"--convert-subs"* ]] || { echo "A run converts nothing" >&2; exit 1; }
+  cat > "$home_dir/subs.en.vtt" <<'VTT'
 WEBVTT
 
 00:00:00.000 --> 00:00:04.000
@@ -42257,16 +42390,31 @@ Second cue with more caption words for the transcript body.
 VTT
   exit 0
 fi
-if [[ "$*" == *" -x "* || "\${args[0]}" == "-x" ]]; then
+if [[ "$*" == *"-o media.%(ext)s"* ]]; then
+  # The sound as a platform serves it: a download, and nothing done to it.
+  [[ "$*" == *"-f bestaudio/"* ]] || { echo "Missing the format selection" >&2; exit 1; }
+  [[ "$*" == *"--fixup never"* ]] || { echo "A run fixes nothing up" >&2; exit 1; }
+  [[ "$*" == *"-S lang,size:200M"* ]] || { echo "Missing the size the sound is chosen for" >&2; exit 1; }
+  [[ "$*" == *"--max-filesize 1000M"* ]] || { echo "Missing the size limit" >&2; exit 1; }
+  [[ " $* " != *" -x "* ]] || { echo "A run extracts nothing" >&2; exit 1; }
   # Distinct audio per video: the transcription lane reuses a completed
   # transcript for identical bytes within an org, and whis2's injected
   # provider failure must actually reach the provider.
   freq=440
   case "$vid" in whis2) freq=660;; esac
-  # Exercise the production toolchain's resolved executable, including
-  # Homebrew paths on macOS; the child deliberately has a stripped PATH.
+  # The fake has no platform to download from: it makes the stream with the
+  # toolchain's resolved executable, including Homebrew paths on macOS; the
+  # child deliberately has a stripped PATH.
   [[ -n "$ffmpeg_bin" ]] || { echo "Missing --ffmpeg-location" >&2; exit 1; }
-  "$ffmpeg_bin" -hide_banner -loglevel error -f lavfi -i "sine=frequency=$freq:duration=2" -b:a 32k "$home_dir/whis1.mp3" || exit $?
+  if [[ "$vid" == whis2 ]]; then
+    # A platform that serves its stream in MPEG-TS segments. A run has no
+    # ffmpeg to make an MP4 of them, so yt-dlp writes them as they come,
+    # under the .mp4 its format is named by. The transcription lane has to
+    # read that file by what is in it.
+    "$ffmpeg_bin" -hide_banner -loglevel error -f lavfi -i "sine=frequency=$freq:duration=2" -c:a aac -b:a 64k -f mpegts "$home_dir/media.mp4" || exit $?
+    exit 0
+  fi
+  "$ffmpeg_bin" -hide_banner -loglevel error -f lavfi -i "sine=frequency=$freq:duration=2" -c:a libopus -b:a 32k "$home_dir/media.webm" || exit $?
   exit 0
 fi
 echo "ERROR: itest fake yt-dlp got unexpected args: $*" >&2
@@ -42275,6 +42423,10 @@ exit 1
   await writeFile(path.join(binDir, 'yt-dlp'), fakeYtdlp, { mode: 0o755 });
   const savedBinDir = process.env.VIDEO_INGEST_BIN_DIR;
   process.env.VIDEO_INGEST_BIN_DIR = binDir;
+  // The fake stands on this machine: the lane runs it here, where a
+  // deployment runs yt-dlp in a sandbox session.
+  const savedLane = process.env.VIDEO_INGEST_LANE;
+  process.env.VIDEO_INGEST_LANE = 'local';
   const savedFfmpegLocation = process.env.VIDEO_INGEST_FFMPEG_LOCATION;
 
   try {
@@ -42840,6 +42992,25 @@ exit 1
         (whis2After.attempts ?? 0) === 1,
       `failedRow=${whis2Failed?.status}/${whis2Failed?.errorReasonCode} (want failed/whisperFailed) error=${jobError(whis2Failed)}, retryDoor=${retryDoor.status} (want 200; the un-retryable dead-end 409s), afterRetry=${whis2After?.status} attempts=${whis2After?.attempts}`,
     );
+    // That video's sound came as MPEG-TS under an `.mp4` name (the fake
+    // above), which is how a run without ffmpeg leaves a stream served in
+    // such segments. It was stored so, and transcribed all the same.
+    const whis2Stored = whis2After?.storageRef
+      ? await sql<{ contentType: string | null; fileName: string | null }[]>`
+          SELECT content_type AS "contentType", file_name AS "fileName"
+          FROM app.file_metadata
+          WHERE org_id = ${orgId} AND storage_ref = ${whis2After.storageRef}
+          LIMIT 1
+        `
+      : [];
+    record(
+      'video links: MPEG-TS under an .mp4 name is stored as it came and transcribed',
+      whis2After?.status === 'completed' &&
+        whis2After.transcriptSource === 'whisper' &&
+        whis2Stored[0]?.contentType === 'video/mp4' &&
+        (whis2Stored[0].fileName ?? '').endsWith('.mp4'),
+      `job=${whis2After?.status}/${whis2After?.transcriptSource} stored=${whis2Stored[0]?.contentType}/${whis2Stored[0]?.fileName}`,
+    );
 
     // 5. REGRESSION (slot cap): parked-but-settled handoff rows (the debt
     //    shape existing deployments carry) are reconciled terminal by the
@@ -42911,6 +43082,11 @@ exit 1
     }
   } finally {
     whisperServer.close();
+    if (savedLane === undefined) {
+      delete process.env.VIDEO_INGEST_LANE;
+    } else {
+      process.env.VIDEO_INGEST_LANE = savedLane;
+    }
     if (savedBinDir === undefined) {
       delete process.env.VIDEO_INGEST_BIN_DIR;
     } else {
@@ -43407,11 +43583,56 @@ async function checkApprovalsSurface(
 
 /**
  * The task-agent TURN, end to end on the REUSED 0.4 host: kick → session
- * ensure (fake spawner) → gateway VK mint (fake bifrost) → exec streaming a
- * canned claude-code stream-json turn → harvest (fake workspace file → real
- * MinIO blob) → settle choreography (outputs attached, agent comment,
- * in_review park, VK revoked, op finalized).
+ * ensure (fake spawner) → the turn's relay key → exec streaming a canned
+ * claude-code stream-json turn → harvest (fake workspace file → real MinIO
+ * blob) → settle choreography (outputs attached, agent comment, in_review
+ * park, key closed, op finalized).
  */
+/** A turn's relay key as the relay sees it (tale-project/tale#4942). */
+interface RelayKeyReading {
+  /** The key its op carries. */
+  keyId: string;
+  /** The key's session tokens, and how many of them still admit a call. */
+  tokens: number;
+  live: number;
+}
+
+/** The relay key of a session's op: the given exec's, else the latest. */
+async function readRelayKey(
+  sql: Sql,
+  sessionId: string,
+  execId?: string,
+): Promise<RelayKeyReading> {
+  const op = (
+    await sql<{ keyId: string | null }[]>`
+      SELECT minted_key_id AS "keyId" FROM app.sandbox_session_ops
+      WHERE session_id = ${sessionId}
+        AND (${execId ?? null}::text IS NULL OR exec_id = ${execId ?? null})
+      ORDER BY started_at_ms DESC LIMIT 1
+    `
+  )[0];
+  const keyId = op?.keyId ?? '';
+  const tokens = (
+    await sql<{ tokens: number; live: number }[]>`
+      SELECT count(*)::int AS tokens,
+             (count(*) FILTER (WHERE revoked_at_ms IS NULL))::int AS live
+      FROM app.sandbox_session_tokens
+      WHERE llm_gateway_key_id = ${keyId}
+    `
+  )[0];
+  return { keyId, tokens: tokens?.tokens ?? 0, live: tokens?.live ?? 0 };
+}
+
+/** A relay key was minted, and once its turn settled or stood down none of
+ * its tokens admits a call any more. */
+function relayKeyClosed(key: RelayKeyReading): boolean {
+  return key.keyId.startsWith('tr_') && key.tokens > 0 && key.live === 0;
+}
+
+function relayKeyText(key: RelayKeyReading): string {
+  return `${key.keyId.startsWith('tr_') ? 'tr_' : JSON.stringify(key.keyId)}/tokens=${key.tokens}/live=${key.live}`;
+}
+
 async function checkTaskAgentTurnDrive(
   sql: Sql,
   base: string,
@@ -43433,7 +43654,9 @@ async function checkTaskAgentTurnDrive(
   const SPAWNER_TOKEN = 'itest-drive-spawner';
   const REPORT_BYTES = '# Report\n\nAll good.';
   const FINAL_TEXT = 'Wrote the report to the box.';
-  const gatewayCalls = { minted: 0, revoked: 0 };
+  // Each exec's harness makes one model call through the relay, with the
+  // token the host put in its env: 3 cents, booked on the turn's op.
+  const relay = laneRelay(sql, 3);
   let boxTaskDir = '';
 
   // The session whose canned turn ends SUCCESSFULLY with an EMPTY result —
@@ -43518,59 +43741,67 @@ async function checkTaskAgentTurnDrive(
         // The canned claude-code stream-json turn, then the exec result. The
         // reportless session's turn ends SUCCESSFULLY with an empty result —
         // the parser then sets no finalText, which is the no-report signal.
-        res.setHeader('content-type', 'text/event-stream');
-        const line = (obj: unknown): string => `${JSON.stringify(obj)}\n`;
-        const reportless = (exec[1] ?? '') === reportlessSessionId;
-        const conv = reportless ? 'conv-43' : 'conv-42';
-        const events = [
-          line({
-            type: 'system',
-            subtype: 'init',
-            session_id: conv,
-            model: 'itest-agent-model',
-          }),
-          line({
-            type: 'assistant',
-            message: {
-              id: 'm1',
+        const writeTurn = (): void => {
+          res.setHeader('content-type', 'text/event-stream');
+          const line = (obj: unknown): string => `${JSON.stringify(obj)}\n`;
+          const reportless = (exec[1] ?? '') === reportlessSessionId;
+          const conv = reportless ? 'conv-43' : 'conv-42';
+          const events = [
+            line({
+              type: 'system',
+              subtype: 'init',
+              session_id: conv,
               model: 'itest-agent-model',
-              content: [
-                {
-                  type: 'text',
-                  text: reportless
-                    ? 'Mapping the table structure…'
-                    : 'Working on the report…',
-                },
-              ],
-              usage: { input_tokens: 120, output_tokens: 40 },
-            },
-          }),
-          line({
-            type: 'result',
-            subtype: 'success',
-            session_id: conv,
-            result: reportless ? '' : FINAL_TEXT,
-            duration_ms: 850,
-          }),
-        ];
-        let seq = 0;
-        for (const text of events) {
-          seq += 1;
+            }),
+            line({
+              type: 'assistant',
+              message: {
+                id: 'm1',
+                model: 'itest-agent-model',
+                content: [
+                  {
+                    type: 'text',
+                    text: reportless
+                      ? 'Mapping the table structure…'
+                      : 'Working on the report…',
+                  },
+                ],
+                usage: { input_tokens: 120, output_tokens: 40 },
+              },
+            }),
+            line({
+              type: 'result',
+              subtype: 'success',
+              session_id: conv,
+              result: reportless ? '' : FINAL_TEXT,
+              duration_ms: 850,
+            }),
+          ];
+          let seq = 0;
+          for (const text of events) {
+            seq += 1;
+            res.write(
+              `event: stdout\ndata: ${JSON.stringify({ text, seq })}\n\n`,
+            );
+          }
           res.write(
-            `event: stdout\ndata: ${JSON.stringify({ text, seq })}\n\n`,
+            `event: result\ndata: ${JSON.stringify({
+              status: 'completed',
+              exitCode: 0,
+              durationMs: 850,
+              stdoutBase64: '',
+              stderrBase64: '',
+              truncated: { stdout: false, stderr: false },
+            } satisfies SessionExecResult)}\n\n`,
           );
-        }
-        res.write(
-          `event: result\ndata: ${JSON.stringify({
-            status: 'completed',
-            exitCode: 0,
-            durationMs: 850,
-            stdoutBase64: '',
-            stderrBase64: '',
-            truncated: { stdout: false, stderr: false },
-          } satisfies SessionExecResult)}\n\n`,
-        );
-        res.end();
+          res.end();
+        };
+        // The harness calls its model first: through the relay, with the
+        // token the host put in the exec's env.
+        relay.call(body).then(writeTurn, (error: unknown) => {
+          console.error('[itest] relayed model call failed:', error);
+          writeTurn();
+        });
         return;
       }
       if (url.pathname.endsWith('/files/stage')) {
@@ -43633,106 +43864,9 @@ async function checkTaskAgentTurnDrive(
       ? spawnerAddress.port
       : 0;
 
-  // --- fake bifrost admin --------------------------------------------------
-  const providerKeys = new Map<string, Array<{ id: string; name: string }>>();
-  const gateway = createServer((req, res) => {
-    let body = '';
-    req.on('data', (chunk: unknown) => {
-      body += String(chunk);
-    });
-    req.on('end', () => {
-      const url = req.url ?? '';
-      const method = req.method ?? 'GET';
-      res.setHeader('content-type', 'application/json');
-      if (url === '/api/config') {
-        res.end(JSON.stringify({ client_config: {} }));
-        return;
-      }
-      const keysMatch = /^\/api\/providers\/([^/]+)\/keys/.exec(url);
-      if (keysMatch) {
-        const provider = decodeURIComponent(keysMatch[1] ?? '');
-        if (method === 'GET') {
-          res.end(JSON.stringify({ keys: providerKeys.get(provider) ?? [] }));
-          return;
-        }
-        const parsed = z
-          .looseObject({ name: z.string() })
-          .safeParse(JSON.parse(body || '{}'));
-        const list = providerKeys.get(provider) ?? [];
-        if (parsed.success && !list.some((k) => k.name === parsed.data.name)) {
-          list.push({ id: `key-${list.length + 1}`, name: parsed.data.name });
-        }
-        providerKeys.set(provider, list);
-        res.end('{}');
-        return;
-      }
-      if (url.startsWith('/api/providers/')) {
-        res.end('{}');
-        return;
-      }
-      if (url.startsWith('/api/governance/pricing-overrides')) {
-        // The pricing plane: nothing stored, every write accepted.
-        res.end(
-          method === 'GET'
-            ? JSON.stringify({ pricing_overrides: [], total_count: 0 })
-            : '{}',
-        );
-        return;
-      }
-      if (url === '/api/governance/virtual-keys' && method === 'POST') {
-        gatewayCalls.minted += 1;
-        // Unique per mint: the session-token row hashes the key VALUE, so a
-        // second turn re-minting a byte-identical key would die on the
-        // token-hash unique constraint before its exec ever starts. The
-        // `budgets` array mirrors the real gateway's multi-budget response —
-        // the mint refuses a key that comes back without one.
-        res.end(
-          JSON.stringify({
-            virtual_key: {
-              id: `vk-drive-${gatewayCalls.minted}`,
-              value: `sk-bf-drive-${gatewayCalls.minted}`,
-              budgets: [
-                {
-                  id: `budget-drive-${gatewayCalls.minted}`,
-                  max_limit: 5,
-                  current_usage: 0,
-                },
-              ],
-            },
-          }),
-        );
-        return;
-      }
-      if (url.startsWith('/api/governance/virtual-keys/')) {
-        if (method === 'DELETE') {
-          gatewayCalls.revoked += 1;
-          res.end('{}');
-          return;
-        }
-        res.end(
-          JSON.stringify({
-            virtual_key: { budgets: [{ current_usage: 0.03 }] },
-          }),
-        );
-        return;
-      }
-      res.statusCode = 404;
-      res.end('{}');
-    });
-  });
-  await new Promise<void>((resolve) => {
-    gateway.listen(0, '127.0.0.1', resolve);
-  });
-  const gatewayAddress = gateway.address();
-  const gatewayPort =
-    gatewayAddress !== null && typeof gatewayAddress === 'object'
-      ? gatewayAddress.port
-      : 0;
-
   const restoreEnv = overrideEnv({
     SANDBOX_URL: `http://127.0.0.1:${spawnerPort}`,
     SANDBOX_TOKEN: SPAWNER_TOKEN,
-    SANDBOX_LLM_GATEWAY_URL: `http://127.0.0.1:${gatewayPort}`,
     TALE_ALLOW_PRIVATE_PROVIDER_HOSTS: '1',
   });
 
@@ -43858,6 +43992,13 @@ async function checkTaskAgentTurnDrive(
       WHERE org_id = ${orgId} AND file_name = 'report.md'
         AND source = 'task-output'
     `;
+    // The turn's model call went through the relay with the credential the
+    // org saved, and was booked on the op the settle then read (3 cents).
+    const turnKey = await readRelayKey(sql, `pa-${agentId}`);
+    const servedWith =
+      relay.vendorKeys[0] === 'Bearer sk-itest-agent'
+        ? 'the saved credential'
+        : JSON.stringify(relay.vendorKeys[0]?.slice(0, 16));
 
     record(
       'task-agent turn drive (reused host: exec→harvest→settle)',
@@ -43876,9 +44017,10 @@ async function checkTaskAgentTurnDrive(
         opRows[0].finalizedAt !== null &&
         opRows[0].spentCents === 3 &&
         Number(metadataRows[0]?.count ?? '0') >= 1 &&
-        gatewayCalls.minted === 1 &&
-        gatewayCalls.revoked === 1,
-      `run=${run?.status}${run?.error ? ` (${run.error.slice(0, 120)})` : ''} text=${JSON.stringify(run?.resultText)} conv=${run?.agentSessionId}, task=${taskRow?.status} (want in_review) outputs=${outputsRaw.includes('report.md')}, report=${JSON.stringify(report?.body)} notice=${JSON.stringify(notice?.body)}, op=${opRows[0]?.status}/finalized=${opRows[0]?.finalizedAt !== null}/spent=${opRows[0]?.spentCents}, metadata=${metadataRows[0]?.count}, vk mint/revoke=${gatewayCalls.minted}/${gatewayCalls.revoked}`,
+        relayKeyClosed(turnKey) &&
+        relay.statuses[0] === 200 &&
+        servedWith === 'the saved credential',
+      `run=${run?.status}${run?.error ? ` (${run.error.slice(0, 120)})` : ''} text=${JSON.stringify(run?.resultText)} conv=${run?.agentSessionId}, task=${taskRow?.status} (want in_review) outputs=${outputsRaw.includes('report.md')}, report=${JSON.stringify(report?.body)} notice=${JSON.stringify(notice?.body)}, op=${opRows[0]?.status}/finalized=${opRows[0]?.finalizedAt !== null}/spent=${opRows[0]?.spentCents} (want 3), metadata=${metadataRows[0]?.count}, key=${relayKeyText(turnKey)} (want tr_/tokens>0/live=0), relayed=${relay.statuses.join(',')} (want 200 first) with ${servedWith}`,
     );
 
     // --- a SUCCESSFUL end with no final text fails the run retryably ------
@@ -44036,8 +44178,7 @@ async function checkTaskAgentTurnDrive(
       sessionId: string;
       threw: string;
       start: (id: string) => Promise<string>;
-      minted: number;
-      revoked: number;
+      key: RelayKeyReading;
     }> => {
       const agentN = z.object({ agentId: z.string() }).safeParse(
         await (
@@ -44115,8 +44256,6 @@ async function checkTaskAgentTurnDrive(
           return error instanceof Error ? error.message : String(error);
         }
       };
-      const minted = gatewayCalls.minted;
-      const revoked = gatewayCalls.revoked;
       onSessionCreate = () => handOver(runId);
       const threw = await start(execId);
       return {
@@ -44124,8 +44263,7 @@ async function checkTaskAgentTurnDrive(
         sessionId,
         threw,
         start,
-        minted: gatewayCalls.minted - minted,
-        revoked: gatewayCalls.revoked - revoked,
+        key: await readRelayKey(sql, sessionId, execId),
       };
     };
 
@@ -44156,9 +44294,8 @@ async function checkTaskAgentTurnDrive(
         rotatedRun.execId === 'exec-standdown-rotated-2' &&
         rotatedRun.launchedAt === null &&
         rotatedSession === 'active' &&
-        rotated.minted === 1 &&
-        rotated.revoked === 1,
-      `threw="${rotated.threw}" spawned=${JSON.stringify(rotatedSpawned)} (want none), op=${rotatedOp?.status}/finalized=${rotatedOp?.finalizedAt !== null} (want cancelled), run=${rotatedRun?.status}/${rotatedRun?.execId}/launched=${rotatedRun?.launchedAt} (want queued/exec-standdown-rotated-2/null), session=${rotatedSession} (want active), vk mint/revoke=${rotated.minted}/${rotated.revoked} (want 1/1)`,
+        relayKeyClosed(rotated.key),
+      `threw="${rotated.threw}" spawned=${JSON.stringify(rotatedSpawned)} (want none), op=${rotatedOp?.status}/finalized=${rotatedOp?.finalizedAt !== null} (want cancelled), run=${rotatedRun?.status}/${rotatedRun?.execId}/launched=${rotatedRun?.launchedAt} (want queued/exec-standdown-rotated-2/null), session=${rotatedSession} (want active), key=${relayKeyText(rotated.key)} (want tr_/tokens>0/live=0)`,
     );
 
     // …and the successor's start launches normally on the kept session.
@@ -44213,17 +44350,13 @@ async function checkTaskAgentTurnDrive(
         cancelledRun.execId === 'exec-standdown-cancelled' &&
         cancelledRun.launchedAt === null &&
         cancelledSession === 'stopped' &&
-        cancelled.minted === 1 &&
-        cancelled.revoked === 1,
-      `threw="${cancelled.threw}" spawned=${JSON.stringify(cancelledSpawned)} (want none), op=${cancelledOp?.status}/finalized=${cancelledOp?.finalizedAt !== null} (want cancelled), run=${cancelledRun?.status}/${cancelledRun?.execId} (want cancelled, exec kept), session=${cancelledSession} (want stopped), vk mint/revoke=${cancelled.minted}/${cancelled.revoked} (want 1/1)`,
+        relayKeyClosed(cancelled.key),
+      `threw="${cancelled.threw}" spawned=${JSON.stringify(cancelledSpawned)} (want none), op=${cancelledOp?.status}/finalized=${cancelledOp?.finalizedAt !== null} (want cancelled), run=${cancelledRun?.status}/${cancelledRun?.execId} (want cancelled, exec kept), session=${cancelledSession} (want stopped), key=${relayKeyText(cancelled.key)} (want tr_/tokens>0/live=0)`,
     );
   } finally {
     restoreEnv();
     await new Promise<void>((resolve) => {
       spawner.close(() => resolve());
-    });
-    await new Promise<void>((resolve) => {
-      gateway.close(() => resolve());
     });
     await agentProvider.close();
   }
@@ -44257,7 +44390,6 @@ async function checkAutomationAgentNode(
   const SPAWNER_TOKEN = 'itest-node-spawner';
   const NODE_TEXT = 'Analysis complete; wrote note.md.';
   const NOTE_BYTES = 'automation note';
-  const gatewayCalls = { minted: 0, revoked: 0 };
   // The ask lane: armed before a start, the next FRESH exec asks a question
   // through the real tool door (the bearer the kick minted, lifted from the
   // exec body) and ends cleanly; the exec that resumes the conversation
@@ -44392,7 +44524,7 @@ async function checkAutomationAgentNode(
       if (method === 'POST' && url.pathname.endsWith('/exec')) {
         respondExec(res, {
           isResume: body.includes(ASK_CONVERSATION),
-          bearer: /sk-bf-node-\d+/.exec(body)?.[0] ?? '',
+          bearer: /tale-rt-[\w-]+/.exec(body)?.[0] ?? '',
         }).catch((error: unknown) => {
           console.warn('[itest] fake spawner exec failed:', error);
           res.statusCode = 500;
@@ -44458,102 +44590,9 @@ async function checkAutomationAgentNode(
       ? spawnerAddress.port
       : 0;
 
-  const providerKeys = new Map<string, Array<{ id: string; name: string }>>();
-  const gateway = createServer((req, res) => {
-    let body = '';
-    req.on('data', (chunk: unknown) => {
-      body += String(chunk);
-    });
-    req.on('end', () => {
-      const url = req.url ?? '';
-      const method = req.method ?? 'GET';
-      res.setHeader('content-type', 'application/json');
-      if (url === '/api/config') {
-        res.end(JSON.stringify({ client_config: {} }));
-        return;
-      }
-      const keysMatch = /^\/api\/providers\/([^/]+)\/keys/.exec(url);
-      if (keysMatch) {
-        const provider = decodeURIComponent(keysMatch[1] ?? '');
-        if (method === 'GET') {
-          res.end(JSON.stringify({ keys: providerKeys.get(provider) ?? [] }));
-          return;
-        }
-        const parsed = z
-          .looseObject({ name: z.string() })
-          .safeParse(JSON.parse(body || '{}'));
-        const list = providerKeys.get(provider) ?? [];
-        if (parsed.success && !list.some((k) => k.name === parsed.data.name)) {
-          list.push({ id: `key-${list.length + 1}`, name: parsed.data.name });
-        }
-        providerKeys.set(provider, list);
-        res.end('{}');
-        return;
-      }
-      if (url.startsWith('/api/providers/')) {
-        res.end('{}');
-        return;
-      }
-      if (url.startsWith('/api/governance/pricing-overrides')) {
-        // The pricing plane: nothing stored, every write accepted.
-        res.end(
-          method === 'GET'
-            ? JSON.stringify({ pricing_overrides: [], total_count: 0 })
-            : '{}',
-        );
-        return;
-      }
-      if (url === '/api/governance/virtual-keys' && method === 'POST') {
-        gatewayCalls.minted += 1;
-        // `budgets` mirrors the real gateway's multi-budget response — the
-        // mint refuses a key that comes back without one.
-        res.end(
-          JSON.stringify({
-            virtual_key: {
-              id: `vk-node-${gatewayCalls.minted}`,
-              value: `sk-bf-node-${gatewayCalls.minted}`,
-              budgets: [
-                {
-                  id: `budget-node-${gatewayCalls.minted}`,
-                  max_limit: 5,
-                  current_usage: 0,
-                },
-              ],
-            },
-          }),
-        );
-        return;
-      }
-      if (url.startsWith('/api/governance/virtual-keys/')) {
-        if (method === 'DELETE') {
-          gatewayCalls.revoked += 1;
-          res.end('{}');
-          return;
-        }
-        res.end(
-          JSON.stringify({
-            virtual_key: { budgets: [{ current_usage: 0.01 }] },
-          }),
-        );
-        return;
-      }
-      res.statusCode = 404;
-      res.end('{}');
-    });
-  });
-  await new Promise<void>((resolve) => {
-    gateway.listen(0, '127.0.0.1', resolve);
-  });
-  const gatewayAddress = gateway.address();
-  const gatewayPort =
-    gatewayAddress !== null && typeof gatewayAddress === 'object'
-      ? gatewayAddress.port
-      : 0;
-
   const restoreEnv = overrideEnv({
     SANDBOX_URL: `http://127.0.0.1:${spawnerPort}`,
     SANDBOX_TOKEN: SPAWNER_TOKEN,
-    SANDBOX_LLM_GATEWAY_URL: `http://127.0.0.1:${gatewayPort}`,
     TALE_ALLOW_PRIVATE_PROVIDER_HOSTS: '1',
   });
 
@@ -44576,6 +44615,9 @@ async function checkAutomationAgentNode(
           type: 'agent',
           model: 'itest-agent-model',
           prompt: 'Analyze the input: {{ input.subject }}',
+          // The lane's fake CLI speaks Claude Code's stream; a step that
+          // names no runtime runs on Pi.
+          harness: 'claude-code',
         },
       ],
       output: '{{ nodes.work.output }}',
@@ -44609,8 +44651,11 @@ async function checkAutomationAgentNode(
     `;
     const run = runRows[0];
     const outputRaw = JSON.stringify(run?.output ?? null);
-    const opRows = await sql<{ status: string }[]>`
-      SELECT status FROM app.sandbox_session_ops
+    const opRows = await sql<
+      { status: string; sessionId: string; execId: string }[]
+    >`
+      SELECT status, session_id AS "sessionId", exec_id AS "execId"
+      FROM app.sandbox_session_ops
       WHERE kind = 'workflow-agent'
       ORDER BY started_at_ms DESC LIMIT 1
     `;
@@ -44620,6 +44665,11 @@ async function checkAutomationAgentNode(
         AND (owner_id = ${runId} OR owner_id LIKE ${runId + ':%'})
       ORDER BY created_at_ms DESC LIMIT 1
     `;
+    const nodeKey = await readRelayKey(
+      sql,
+      opRows[0]?.sessionId ?? '',
+      opRows[0]?.execId,
+    );
 
     record(
       'automation agent node (kick→park→turn→settle→resume→finish)',
@@ -44629,9 +44679,8 @@ async function checkAutomationAgentNode(
         outputRaw.includes('note.md') &&
         opRows[0]?.status === 'completed' &&
         sessionRows[0]?.status === 'stopped' &&
-        gatewayCalls.minted === 1 &&
-        gatewayCalls.revoked === 1,
-      `run=${run?.status}${run?.detail ? ` (${run.detail.slice(0, 120)})` : ''}, output has text=${outputRaw.includes(NODE_TEXT)} file=${outputRaw.includes('note.md')}, op=${opRows[0]?.status}, session=${sessionRows[0]?.status} (want stopped), vk=${gatewayCalls.minted}/${gatewayCalls.revoked}`,
+        relayKeyClosed(nodeKey),
+      `run=${run?.status}${run?.detail ? ` (${run.detail.slice(0, 120)})` : ''}, output has text=${outputRaw.includes(NODE_TEXT)} file=${outputRaw.includes('note.md')}, op=${opRows[0]?.status}, session=${sessionRows[0]?.status} (want stopped), key=${relayKeyText(nodeKey)} (want tr_/tokens>0/live=0)`,
     );
 
     // ---- the drive chain's scheduler seam maps the self-chained ref -------
@@ -44915,7 +44964,7 @@ async function checkAutomationAgentNode(
       version: 1,
       origin: appOrigin('itest:legacy'),
     });
-    const spentBefore = { ...gatewayCalls };
+    const keysFrom = Date.now();
     const subAgentRun = await startLiveAndSettle('ops/parent-agentic');
     const subAgentOps = await runSessionOps(subAgentRun.runId);
     const subAgentSessions = await sql<{ count: string }[]>`
@@ -44929,6 +44978,15 @@ async function checkAutomationAgentNode(
       WHERE name IN (${physicalTaskQueue('automation.agent_turn')}, ${physicalTaskQueue('automation.agent_drive')})
         AND data ->> 'runId' = ${subAgentRun.runId}
     `;
+    // A relay key lives in its tokens: none written means none minted.
+    const keysMinted = (
+      await sql<{ count: number }[]>`
+        SELECT count(DISTINCT llm_gateway_key_id)::int AS count
+        FROM app.sandbox_session_tokens
+        WHERE org_id = ${orgId} AND created_at_ms >= ${keysFrom}
+          AND starts_with(llm_gateway_key_id, 'tr_')
+      `
+    )[0]?.count;
     record(
       'automation agent node: a subautomation refuses an agent node before spending a turn',
       subAgentRun.status === 'failed' &&
@@ -44938,8 +44996,8 @@ async function checkAutomationAgentNode(
         subAgentOps.length === 0 &&
         subAgentSessions[0]?.count === '0' &&
         subAgentJobs[0]?.count === '0' &&
-        gatewayCalls.minted === spentBefore.minted,
-      `deploy(sub=${subAgentDeploy}, parent=${parentAgentDeploy}), run=${subAgentRun.status} (${(subAgentRun.detail ?? '').slice(0, 140)}), ops=${subAgentOps.length} sessions=${subAgentSessions[0]?.count} agentJobs=${subAgentJobs[0]?.count} (want 0/0/0), keysMinted=${gatewayCalls.minted - spentBefore.minted} (want 0)`,
+        keysMinted === 0,
+      `deploy(sub=${subAgentDeploy}, parent=${parentAgentDeploy}), run=${subAgentRun.status} (${(subAgentRun.detail ?? '').slice(0, 140)}), ops=${subAgentOps.length} sessions=${subAgentSessions[0]?.count} agentJobs=${subAgentJobs[0]?.count} (want 0/0/0), keysMinted=${keysMinted} (want 0)`,
     );
 
     // The default policy holds every outbound write for a person; inside a
@@ -44995,9 +45053,6 @@ async function checkAutomationAgentNode(
     await new Promise<void>((resolve) => {
       spawner.close(() => resolve());
     });
-    await new Promise<void>((resolve) => {
-      gateway.close(() => resolve());
-    });
   }
 }
 
@@ -45032,8 +45087,8 @@ interface TwoStepDestroyRun {
  * `publish`, the second asking for what the first left in the workspace.
  * The spawner counts every create, exec and delete, holds the first exec
  * (the first step's turn) until the lane releases it, and refuses a delete
- * while the lane says so; the gateway mints and revokes each turn's key and
- * spends nothing. A lane closes the run in its `finally`.
+ * while the lane says so; each turn's key is the relay's, and its calls
+ * spend nothing. A lane closes the run in its `finally`.
  */
 async function startTwoStepDestroyRun(
   sql: Sql,
@@ -45215,94 +45270,9 @@ async function startTwoStepDestroyRun(
     spawnerAddress !== null && typeof spawnerAddress === 'object'
       ? spawnerAddress.port
       : 0;
-  // The gateway: the provider keys the platform syncs, each turn's key
-  // minted and revoked, nothing spent.
-  const providerKeys = new Map<string, Array<{ id: string; name: string }>>();
-  const gateway = createServer((req, res) => {
-    let gatewayBody = '';
-    req.on('data', (chunk: unknown) => {
-      gatewayBody += String(chunk);
-    });
-    req.on('end', () => {
-      const url = req.url ?? '';
-      const method = req.method ?? 'GET';
-      res.setHeader('content-type', 'application/json');
-      if (url === '/api/config') {
-        res.end(JSON.stringify({ client_config: {} }));
-        return;
-      }
-      const keysMatch = /^\/api\/providers\/([^/]+)\/keys/.exec(url);
-      if (keysMatch) {
-        const provider = decodeURIComponent(keysMatch[1] ?? '');
-        const list = providerKeys.get(provider) ?? [];
-        if (method !== 'GET') {
-          const parsed = z
-            .looseObject({ name: z.string() })
-            .safeParse(JSON.parse(gatewayBody || '{}'));
-          if (
-            parsed.success &&
-            !list.some((k) => k.name === parsed.data.name)
-          ) {
-            list.push({ id: `key-${list.length + 1}`, name: parsed.data.name });
-          }
-          providerKeys.set(provider, list);
-          res.end('{}');
-          return;
-        }
-        res.end(JSON.stringify({ keys: list }));
-        return;
-      }
-      if (url.startsWith('/api/governance/pricing-overrides')) {
-        res.end(
-          method === 'GET'
-            ? JSON.stringify({ pricing_overrides: [], total_count: 0 })
-            : '{}',
-        );
-        return;
-      }
-      if (url === '/api/governance/virtual-keys' && method === 'POST') {
-        const id = `vk-destroy-${randomUUID()}`;
-        res.end(
-          JSON.stringify({
-            virtual_key: {
-              id,
-              value: `sk-bf-${id}`,
-              budgets: [{ id: `budget-${id}`, max_limit: 5, current_usage: 0 }],
-            },
-          }),
-        );
-        return;
-      }
-      if (url.startsWith('/api/governance/virtual-keys/')) {
-        res.end(
-          method === 'DELETE'
-            ? '{}'
-            : JSON.stringify({
-                virtual_key: { budgets: [{ current_usage: 0 }] },
-              }),
-        );
-        return;
-      }
-      if (url.startsWith('/api/providers')) {
-        res.end('{}');
-        return;
-      }
-      res.statusCode = 404;
-      res.end('{}');
-    });
-  });
-  await new Promise<void>((resolve) => {
-    gateway.listen(0, '127.0.0.1', resolve);
-  });
-  const gatewayAddress = gateway.address();
-  const gatewayPort =
-    gatewayAddress !== null && typeof gatewayAddress === 'object'
-      ? gatewayAddress.port
-      : 0;
   const restoreEnv = overrideEnv({
     SANDBOX_URL: `http://127.0.0.1:${spawnerPort}`,
     SANDBOX_TOKEN: 'itest-destroy-spawner',
-    SANDBOX_LLM_GATEWAY_URL: `http://127.0.0.1:${gatewayPort}`,
     TALE_ALLOW_PRIVATE_PROVIDER_HOSTS: '1',
   });
 
@@ -45327,9 +45297,6 @@ async function startTwoStepDestroyRun(
     await new Promise<void>((resolve) => {
       spawner.close(() => resolve());
     });
-    await new Promise<void>((resolve) => {
-      gateway.close(() => resolve());
-    });
     await agentProvider?.cleanup();
   };
   try {
@@ -45347,12 +45314,15 @@ async function startTwoStepDestroyRun(
             version: 1,
             name,
             nodes: [
+              // The lane's fake CLI speaks Claude Code's stream; a step that
+              // names no runtime runs on Pi.
               {
                 id: 'draft',
                 type: 'agent',
                 model: 'itest-agent-model',
                 prompt:
                   'Draft notes on {{ input.subject }} into the workspace.',
+                harness: 'claude-code',
               },
               {
                 id: 'publish',
@@ -45360,6 +45330,7 @@ async function startTwoStepDestroyRun(
                 model: 'itest-agent-model',
                 prompt:
                   'Publish the notes you drafted: {{ nodes.draft.output.text }}',
+                harness: 'claude-code',
               },
             ],
             output: '{{ nodes.publish.output }}',
@@ -46867,14 +46838,15 @@ async function checkCorpusScopeReconcile(
 
 /**
  * TEARDOWN CREDENTIAL RECLAIM — every edge that ends a sandbox session has to
- * delete its gateway virtual key (fake bifrost records the DELETEs).
+ * delete the virtual keys the sandbox LLM gateway minted for it before the
+ * model relay served every turn (a fake gateway records the DELETEs).
  *
- * The gateway has NO native TTL and `mintVirtualKey` gives every key a
+ * The gateway has NO native TTL and its mint gave every key a
  * `reset_duration: '1M'` budget window precisely because teardown deletes it
  * first, so a key that outlives its session is a permanent bearer credential
  * with a self-refilling monthly allowance against the org's own provider
- * keys. Three edges reach the same helper, each asserted on the key ids the
- * gateway actually saw:
+ * keys while the gateway runs. Three edges reach the same helper, each
+ * asserted on the key ids the gateway actually saw:
  *
  *  - EXPIRY: the sandbox watchdog's TTL pass (0.4 `teardownExpiredSessions`).
  *  - DESTROY/HEAL: `markSessionDestroyed`, the bottom of the admin Destroy,
@@ -46949,13 +46921,11 @@ async function checkSandboxGatewayKeyReclaim(
   const previousGatewayPassword =
     process.env.SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD;
   process.env.SANDBOX_LLM_GATEWAY_URL = `http://127.0.0.1:${port}`;
-  // The admin client refuses to run anonymous — deliberately, since the
-  // management API is reachable from every sandbox session. The fake gateway
-  // below does not check the value, but without one set every revoke fails
-  // authentication and the check would pass its fail-open lane while proving
-  // nothing about the revoke itself. main() defaults the variable before any
-  // lane runs (two earlier lanes mint too); this lane only restores whatever
-  // it found.
+  // The admin client sends no call without the gateway's admin password. The
+  // fake gateway does not check the value, but without one every revoke
+  // fails before it is sent, and the check would pass its fail-open lane
+  // while proving nothing about the revoke itself.
+  process.env.SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD = 'itest-gateway-admin';
   const now = Date.now();
   const seedSession = async (
     sessionId: string,
@@ -47432,14 +47402,13 @@ async function checkSandboxGatewayKeyReclaim(
   } finally {
     if (previousGatewayUrl === undefined) {
       delete process.env.SANDBOX_LLM_GATEWAY_URL;
-      if (previousGatewayPassword === undefined) {
-        delete process.env.SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD;
-      } else {
-        process.env.SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD =
-          previousGatewayPassword;
-      }
     } else {
       process.env.SANDBOX_LLM_GATEWAY_URL = previousGatewayUrl;
+    }
+    if (previousGatewayPassword === undefined) {
+      delete process.env.SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD;
+    } else {
+      process.env.SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD = previousGatewayPassword;
     }
     await new Promise<void>((resolve) => {
       gateway.close(() => resolve());
@@ -48735,6 +48704,30 @@ async function checkTaskAgentRuns(
     await tx`DELETE FROM app.project_agents WHERE id = ${ledgerAgentId}`;
     return reKicked;
   });
+  // The run keeps why its kick chose its harness (0241): an agent of the
+  // project's own names its runtime, and each turn of the run reads the
+  // kick's reason back for its op. The column refuses a rule it does not
+  // know.
+  const { agentTurnShimHandlers: runTurnShim } =
+    await import('./domains/tasks/agent-turn-shim.ts');
+  const kickReason = await runTurnShim(sql)[
+    'tasks/agent_runs:getTaskAgentRunHarnessReason'
+  ]?.({ organizationId: orgId, runId: reuseProbe.runId });
+  let unknownRunReason = 'accepted';
+  try {
+    await sql`
+      UPDATE app.project_agent_runs SET harness_reason = 'a-rule-nobody-wrote'
+      WHERE id = ${reuseProbe.runId}
+    `;
+  } catch (error) {
+    unknownRunReason =
+      error instanceof Error && 'code' in error ? String(error.code) : 'threw';
+  }
+  record(
+    'a task run keeps why its kick chose its runtime, read back for its turns, an unknown rule refused',
+    kickReason === 'pinned' && unknownRunReason === '23514',
+    `kick reason=${String(kickReason)} (want pinned), unknown rule=${unknownRunReason} (want 23514)`,
+  );
   const secondRuns = {
     success: true as const,
     data: {
@@ -63612,6 +63605,16 @@ async function checkWatchdogs(
        ${now + 24 * 3_600_000}),
       (${orgId}, 'wd-release-project', 'active', 'project',
        'wd-release-project', 'itest:wd', ${now - renderAge - 60_000},
+       ${now + 24 * 3_600_000}),
+      -- A video link's session lives as long as its job may: one past a
+      -- render's age is still its job's, and only one past its own is left
+      -- behind.
+      (${orgId}, 'wd-release-video-running', 'active', 'video',
+       'wd-release-video-running', 'itest:wd', ${now - renderAge - 60_000},
+       ${now + 24 * 3_600_000}),
+      (${orgId}, 'wd-release-video-abandoned', 'active', 'video',
+       'wd-release-video-abandoned', 'itest:wd',
+       ${now - sandboxWatchdogs.SANDBOX_VIDEO_SESSION_MAX_AGE_MS - 60_000},
        ${now + 24 * 3_600_000})
   `;
   const releaseAsked: string[] = [];
@@ -63668,6 +63671,13 @@ async function checkWatchdogs(
       stillActive('wd-release-project') &&
       releaseTick.released >= 2,
     `rows=${releaseRows.map((row) => `${row.sessionId.replace('wd-release-', '')}=${row.status}`).join(' ')} asked=${releaseAsked.filter((id) => id.startsWith('wd-release-')).join(',')} released=${releaseTick.released} (want abandoned+creating destroyed, rendering asked and active, fresh and project never asked)`,
+  );
+  record(
+    "sandbox watchdog releases a video link's session only past the life of its job: one a render would long have left is still its job's and is never asked",
+    released('wd-release-video-abandoned') &&
+      !releaseAsked.includes('wd-release-video-running') &&
+      stillActive('wd-release-video-running'),
+    `video-running=${stillActive('wd-release-video-running') ? 'active' : 'gone'} asked=${releaseAsked.includes('wd-release-video-running')} video-abandoned=${released('wd-release-video-abandoned') ? 'destroyed' : 'kept'} (want running active and never asked, abandoned destroyed)`,
   );
   await sql`
     DELETE FROM app.sandbox_sessions WHERE session_id LIKE 'wd-release-%'
@@ -64120,6 +64130,115 @@ async function checkWatchdogs(
     "what waiting for room leaves behind is deleted past its retention, the newest op, a keyed one and a project agent's newest row kept",
     waitOpsLeft.join(',') === 'wait-keyed,wait-3' && collectedKept === wantKept,
     `ops=${waitOpsLeft.join(',')} (want wait-keyed,wait-3) sessions kept=${collectedKept} (want ${wantKept})`,
+  );
+
+  // A video that waited for room asked under one session id each time, so
+  // the rows of the creates the sandbox host refused share the id of the
+  // session it got in the end. Ending that session, as the lane does, by
+  // its id, settles every row of the id that still stands for something (a
+  // failed create nothing collected yet, an earlier incarnation left
+  // `active`) and leaves the collected failures what they are, for the
+  // sweep above to delete. Each of them used to read `destroyed`
+  // afterwards, stamped anew, and no sweep deletes those: a hundred and
+  // more rows for a video that waited a quarter of an hour.
+  const waitedSession = `vid-wd-waited-${randomUUID().slice(0, 8)}`;
+  await sql`
+    INSERT INTO app.sandbox_sessions (
+      org_id, session_id, status, owner_type, owner_id, created_by,
+      created_at_ms, expires_at_ms, destroyed_at_ms
+    ) VALUES
+      (${orgId}, ${waitedSession}, 'failed', 'video', ${waitedSession},
+       'itest', ${now - day - 40_000}, ${now + day}, ${now - day - 39_000}),
+      (${orgId}, ${waitedSession}, 'failed', 'video', ${waitedSession},
+       'itest', ${now - day - 30_000}, ${now + day}, ${now - day - 29_000}),
+      (${orgId}, ${waitedSession}, 'failed', 'video', ${waitedSession},
+       'itest', ${now - day - 20_000}, ${now + day}, NULL),
+      (${orgId}, ${waitedSession}, 'active', 'video', ${waitedSession},
+       'itest', ${now - day - 10_000}, ${now + day}, NULL),
+      (${orgId}, ${waitedSession}, 'active', 'video', ${waitedSession},
+       'itest', ${now - day - 1_000}, ${now + day}, NULL)
+  `;
+  const { renderLaneShimHandlers } =
+    await import('./domains/sandbox/render-lane-shim.ts');
+  await renderLaneShimHandlers(sql)[
+    'sandbox/session_mutations:markSessionRowDestroyed'
+  ]?.({ organizationId: orgId, sessionId: waitedSession });
+  const waitedSettled = await sql<
+    { status: string; destroyedAt: number | null }[]
+  >`
+    SELECT status, destroyed_at_ms::float8 AS "destroyedAt"
+    FROM app.sandbox_sessions WHERE session_id = ${waitedSession}
+    ORDER BY created_at_ms
+  `;
+  await sweepRoomWaitLeftovers(sql, { now });
+  const waitedLeft = await sql<{ status: string }[]>`
+    SELECT status FROM app.sandbox_sessions
+    WHERE session_id = ${waitedSession} ORDER BY created_at_ms
+  `;
+  const waitedStampsKept =
+    waitedSettled[0]?.destroyedAt === now - day - 39_000 &&
+    waitedSettled[1]?.destroyedAt === now - day - 29_000;
+  // A project agent's newest row is the one collected failure a destroy
+  // settles: collecting a failed create of an agent session kept its
+  // workspace, which that row names and the destroy took. Its older ones
+  // are the sweep's, as a throwaway session's all are. And a destroy that
+  // names its row settles that row, whatever it is.
+  const waitedAgent = `pa-wd-waited-${randomUUID().slice(0, 8)}`;
+  const waitedNamed = `render-wd-named-${randomUUID().slice(0, 8)}`;
+  const namedRow = await sql<{ id: string }[]>`
+    INSERT INTO app.sandbox_sessions (
+      org_id, session_id, status, owner_type, owner_id, created_by,
+      created_at_ms, expires_at_ms, destroyed_at_ms
+    ) VALUES
+      (${orgId}, ${waitedAgent}, 'failed', 'project_agent', 'agent-wd',
+       'itest', ${now - 20_000}, ${now + day}, ${now - 19_000}),
+      (${orgId}, ${waitedAgent}, 'failed', 'project_agent', 'agent-wd',
+       'itest', ${now - 10_000}, ${now + day}, ${now - 9_000}),
+      (${orgId}, ${waitedNamed}, 'failed', 'render', ${waitedNamed},
+       'itest', ${now - 10_000}, ${now + day}, ${now - 9_000})
+    RETURNING id
+  `;
+  const sandboxSessions = await import('./domains/sandbox/sessions.ts');
+  const agentSettled = await sandboxSessions.markSessionDestroyed(sql, {
+    organizationId: orgId,
+    sessionId: waitedAgent,
+  });
+  const namedSettled = await sandboxSessions.markSessionDestroyed(sql, {
+    organizationId: orgId,
+    sessionId: waitedNamed,
+    rowId: namedRow.at(-1)?.id ?? '',
+  });
+  const agentRows = (
+    await sql<{ status: string }[]>`
+      SELECT status FROM app.sandbox_sessions
+      WHERE session_id = ${waitedAgent} ORDER BY created_at_ms
+    `
+  )
+    .map((row) => row.status)
+    .join(',');
+  const namedRows = (
+    await sql<{ status: string }[]>`
+      SELECT status FROM app.sandbox_sessions WHERE session_id = ${waitedNamed}
+    `
+  )
+    .map((row) => row.status)
+    .join(',');
+  await sql`
+    DELETE FROM app.sandbox_sessions
+    WHERE session_id = ANY(${[waitedSession, waitedAgent, waitedNamed]})
+  `;
+  record(
+    'ending a session that waited for room leaves the collected failures of its id to the sweep',
+    waitedSettled.map((row) => row.status).join(',') ===
+      'failed,failed,destroyed,destroyed,destroyed' &&
+      waitedStampsKept &&
+      waitedLeft.map((row) => row.status).join(',') ===
+        'destroyed,destroyed,destroyed' &&
+      agentSettled &&
+      agentRows === 'failed,destroyed' &&
+      namedSettled &&
+      namedRows === 'destroyed',
+    `settled=${waitedSettled.map((row) => row.status).join(',')} (want failed,failed,destroyed,destroyed,destroyed), the collected rows' stamps kept=${waitedStampsKept}, after the sweep=${waitedLeft.map((row) => row.status).join(',')} (want destroyed,destroyed,destroyed); a project agent's=${agentRows} (want failed,destroyed, its newest row settled); a row named=${namedRows} (want destroyed)`,
   );
 
   // Lane 4: a stale chat generation (hard-killed turn) clears; the thread
@@ -66841,14 +66960,9 @@ async function main(): Promise<void> {
     // lanes (64 hex chars = 32 bytes) — the one variable both lanes read.
     process.env.ENCRYPTION_SECRET_HEX = 'ab'.repeat(32);
   }
-  // The sandbox gateway admin client refuses to run anonymous
-  // (requireGatewayAdminPassword throws before any network call), and three
-  // lanes mint keys against a fake gateway in this order:
-  // checkAutomationAgentNode, checkAutomationRunToolLane,
-  // checkSandboxGatewayKeyReclaim. Default it here, before any lane runs — the
-  // reclaim lane used to be the only setter, so on a machine without the
-  // variable the two earlier lanes failed their `minted === 1` assertions.
-  process.env.SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD ??= 'itest-gateway-admin';
+  // No lane mints a key at the sandbox LLM gateway any more: the suite runs
+  // as a new install does, without its admin password. The lanes that settle
+  // a key it minted before set the password beside their fake gateway.
 
   // Better Auth validates the request Host against baseURL, so the server
   // port must be known BEFORE the auth instance is created: the kernel names
@@ -67137,6 +67251,7 @@ async function main(): Promise<void> {
     await checkTransactionalEnqueue(sql);
     await checkLegacyAutomationProtocol(databaseUrl, record);
     await checkLegacyAgentFlow(databaseUrl, record);
+    await checkHarnessReasonUpgrade(databaseUrl, record);
     await checkAutomationProtocolFloor(databaseUrl, record);
     await checkAutomationProtocolQueues(databaseUrl, boss, record);
     await checkAutomationProtocolReadback(sql, boss, record);
@@ -68262,6 +68377,10 @@ async function main(): Promise<void> {
         () => checkConversationRouting(sql, authCtx, `itest-${orgSuffix}`),
       ],
       ['checkControlDrain', () => checkControlDrain(sql, baseUrl, authCtx)],
+      [
+        'checkControlGatewayKeys',
+        () => checkControlGatewayKeys(sql, baseUrl, authCtx, record),
+      ],
       ['checkProvisioning', () => checkProvisioning(sql)],
       [
         'checkWebdav',
@@ -68447,6 +68566,7 @@ async function main(): Promise<void> {
         'checkSandboxGatewayKeyReclaim',
         () => checkSandboxGatewayKeyReclaim(sql, baseUrl, authCtx),
       ],
+      ['checkModelRelay', () => checkModelRelay(sql, authCtx, record)],
       ['checkStuckSendRecovery', () => checkStuckSendRecovery(sql, authCtx)],
       [
         'checkDeferredSendRecovery',

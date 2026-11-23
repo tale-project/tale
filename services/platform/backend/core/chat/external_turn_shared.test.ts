@@ -629,6 +629,25 @@ describe('drainHarnessWindow end-of-turn rules', () => {
     }
   });
 
+  it('parses the stream of a runtime this image does not know as the default runtime’s', async () => {
+    // A row a newer image wrote names a runtime this one does not ship: its
+    // turn is read with the default's parser, Pi's.
+    transport.stdout = PI_MID_TOOL;
+
+    const result = await drainHarnessWindow({
+      sessionId: 'sandbox',
+      execId: 'newer-runtime',
+      harness: 'retired-cli',
+      windowMs: 50,
+    });
+
+    expect(result.kind).toBe('running');
+    if (result.kind === 'running') {
+      expect(result.timeline.map((part) => part.type)).toEqual(['tool-bash']);
+      expect(result.agentSessionId).toBe('pi-live-session');
+    }
+  });
+
   it('keeps a pi turn running when the window elapses mid-tool', async () => {
     transport.stdout = PI_MID_TOOL;
 
@@ -1192,16 +1211,32 @@ describe('drainHarnessWindow end-of-turn rules', () => {
 
     // Another exec: the stand-in keeps one checkpoint for all of them.
     transport.checkpoint = null;
-    transport.stdout = readFixture('pi', 'shell-turn');
+    transport.stdout = readFixture('gemini', 'shell-turn');
     transport.exitAfterStdout = true;
     const closed = await drainHarnessWindow({
       sessionId: 'sandbox',
-      execId: 'pi-turn',
-      harness: 'pi',
+      execId: 'gemini-turn',
+      harness: 'gemini',
     });
     expect(closed.kind).toBe('terminal');
 
     expect(transport.stdinWrites).toEqual([]);
+  });
+
+  it("ends a Pi turn's held RPC stdin once Pi has settled", async () => {
+    // Pi over RPC reads its stdin until EOF: the window closes it when the
+    // turn settled, which ends the process (tale-project/tale#4942).
+    transport.stdout = `${readFixture('pi', 'rpc-steered-turn')}\n`;
+    const settled = await drainHarnessWindow({
+      sessionId: 'sandbox',
+      execId: 'pi-rpc-turn',
+      harness: 'pi',
+      windowMs: 50,
+    });
+    expect(settled.kind).not.toBe('error');
+    expect(transport.stdinWrites).toEqual([
+      { execId: 'pi-rpc-turn', eof: true },
+    ]);
   });
 });
 

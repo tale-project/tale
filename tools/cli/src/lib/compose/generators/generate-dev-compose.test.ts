@@ -170,9 +170,10 @@ describe('generateDevCompose — the stack is self-consistent', () => {
     );
     // The named volume the service mounts is declared (and pre-created by
     // `tale dev` from DEV_VOLUME_NAMES).
-    expect(services['object-store']?.volumes).toContain(
-      'object-store-data:/data',
-    );
+    expect(services['object-store']?.volumes).toContain('blob-data:/data');
+    expect(volumes).toHaveProperty('blob-data');
+    // The volume of the MinIO an earlier dev stack ran stays declared: a
+    // stack whose blobs are still in it mounts it.
     expect(volumes).toHaveProperty('object-store-data');
   });
 });

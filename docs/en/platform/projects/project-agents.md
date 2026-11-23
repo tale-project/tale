@@ -146,7 +146,7 @@ A project without agents of its own can still take on agent work. Unless an admi
 
 <Frame caption="The Agents tab of a project whose tasks go to the standard agent.">
 
-![The Agents tab of the Customer onboarding portal project with one row, Standard agent, marked Standard, reading Claude Code · OpenRouter · anthropic/claude-haiku-4.5 · 4 equipped and Set up by Tale for this project. Its agent runtime, model and instructions follow the organization's settings under Governance. The row ends in its actions menu.](/images/platform/project-agents-standard.webp)
+![The Agents tab of the Customer onboarding portal project with one row, Standard agent, marked Standard, which runs on Pi with a model from OpenRouter, and the note Set up by Tale for this project. Its agent runtime, model and instructions follow the organization's settings under Governance. The row ends in its actions menu.](/images/platform/project-agents-standard.webp)
 
 </Frame>
 
@@ -160,7 +160,7 @@ When a person starts the standard agent, it works the task the way the [chat ass
 
 The run is booked like a chat reply: to the person who started it, under the agent, and on the project. A limit that binds that person refuses the run before it spends anything, and the task then says a usage limit stopped it. An organization works at most four such runs at once; the next waits its turn and starts when one of them ends. A run stops after about 50 minutes, and a Member's run reads only what that Member can read.
 
-When the work needs more than a light sandbox offers, such as a repository to clone and test, a browser session or hours of processing, the agent hands the task to its full workspace instead. It writes down why and what remains. A worker of the agent then starts and carries on from that brief, and the files already made are among the task's deliverables, so nothing is redone. **Run** reads **Waiting for a worker** or **Working…** again. If that worker can't start and the run is retried, the retry goes straight to the full workspace with the same brief.
+When the work needs more than a light sandbox offers, such as a repository to clone and test, a browser session or hours of processing, the agent hands the task to its full workspace instead. It writes down why and what remains. A worker of the agent then starts on its agent runtime, Pi unless an admin chose another or only a subscription serves the model, and carries on from that brief, and the files already made are among the task's deliverables, so nothing is redone. **Run** reads **Waiting for a worker** or **Working…** again. If that worker can't start and the run is retried, the retry goes straight to the full workspace with the same brief.
 
 A run without a worker takes no word while it works. Mention the agent in a comment, or in the description, and the run stops and a new one starts with your comment as its message; if the organization refuses that start, the first run goes on. **Cancel run** ends it at once.
 

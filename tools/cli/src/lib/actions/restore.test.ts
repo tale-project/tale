@@ -14,6 +14,7 @@ import {
   incusBackupFixture,
   type IncusBackupFixture,
 } from '../backup/incus-backup-fixture';
+import { SPLIT, THREE_WAY, UNIFIED, type AppTier } from '../compose/app-tier';
 import { setProjectId } from '../project/project-context';
 import { FakeRuntime } from '../runtime/fake-runtime';
 import { restore, type RestoreDeps } from './restore';
@@ -34,11 +35,19 @@ const getContainerStateMock = mock();
 const listComposeContainersMock = mock();
 const stopContainerMock = mock();
 const ensureVolumesMock = mock();
+const volumeExistsMock = mock();
 const execMock = mock();
 const confirmMock = mock();
 const loggerInfoMock = mock();
 const loggerNoticeMock = mock();
 const loggerWarnMock = mock();
+/** The shapes of the workspace's colours, and what the snapshot's release
+ *  image says; three services and an image that is not here unless a test
+ *  says otherwise. */
+const colourTiersMock = mock(async (): Promise<AppTier[]> => [THREE_WAY]);
+const releaseServesAppMock = mock(
+  async (_version: string): Promise<boolean | null> => null,
+);
 const loggerTableMock = mock();
 
 // Bun's module mocks are process-wide: each one is put back once this suite
@@ -46,7 +55,7 @@ const loggerTableMock = mock();
 const { mockModule } = createModuleMocks(import.meta.dir);
 await mockModule('../docker/ensure-volumes', () => ({
   ensureVolumes: ensureVolumesMock,
-  volumeExists: mock(),
+  volumeExists: volumeExistsMock,
 }));
 await mockModule('../docker/exec', () => ({ exec: execMock }));
 await mockModule('../../utils/prompt', () => ({ confirm: confirmMock }));
@@ -77,6 +86,8 @@ const deps: RestoreDeps = {
   // finds them by project label rather than by name.
   listComposeContainers: listComposeContainersMock,
   stopContainer: stopContainerMock,
+  colourTiers: colourTiersMock,
+  releaseServesApp: releaseServesAppMock,
 };
 const run = (options: Parameters<typeof restore>[0]) => restore(options, deps);
 
@@ -139,7 +150,8 @@ const MANIFEST_WITH_BLOBS = {
   },
 };
 
-/** A snapshot that captured the model gateway's store. */
+/** A snapshot taken while the sandbox LLM gateway ran, which archived its
+ * store; no snapshot does since the model relay replaced it. */
 const MANIFEST_WITH_GATEWAY = {
   ...MANIFEST_RENAMED,
   id: '20260930-080000-deploy',
@@ -171,10 +183,15 @@ afterEach(() => {
   ensureVolumesMock.mockReset();
   execMock.mockReset();
   confirmMock.mockReset();
+  volumeExistsMock.mockReset();
   loggerInfoMock.mockReset();
   loggerNoticeMock.mockReset();
   loggerWarnMock.mockReset();
   loggerTableMock.mockReset();
+  colourTiersMock.mockReset();
+  colourTiersMock.mockImplementation(async () => [THREE_WAY]);
+  releaseServesAppMock.mockReset();
+  releaseServesAppMock.mockImplementation(async () => null);
   rmSync(env.DEPLOY_DIR, { recursive: true, force: true });
 });
 
@@ -265,6 +282,105 @@ describe('restore', () => {
     expect(
       infoLines.some((line) => line.includes('tale update --version 0.9.6')),
     ).toBe(true);
+  });
+
+  // The data of another release comes back under that release's CLI, and a
+  // CLI from before the application ran as one process deploys only over the
+  // three services.
+  describe('across releases, on a workspace that runs fewer than three services', () => {
+    const arrange = (): void => {
+      resolveSnapshotPrefixMock.mockResolvedValue('tale_');
+      listSnapshotsMock.mockResolvedValue([MANIFEST]);
+      getContainerStateMock.mockImplementation((name: string) =>
+        Promise.resolve(name === 'tale-db' ? 'running' : null),
+      );
+      stopContainerMock.mockResolvedValue(true);
+      verifySnapshotMock.mockResolvedValue(undefined);
+      ensureVolumesMock.mockResolvedValue(true);
+      execMock.mockResolvedValue({
+        success: true,
+        stdout: '',
+        stderr: '',
+        exitCode: 0,
+      });
+    };
+    const restoring = () =>
+      run({ env, snapshotId: MANIFEST.id, stop: true, assumeYes: true });
+    /** What the restore warned about the release's CLI, among its warnings. */
+    const warnings = () =>
+      loggerWarnMock.mock.calls
+        .map((call) => String(call[0]))
+        .filter((line) => line.includes('holds the data of Tale'));
+
+    for (const [name, tier, services] of [
+      ['one process', UNIFIED, 'platform'],
+      ['the job runners apart', SPLIT, 'platform and backend-worker'],
+    ] as const)
+      test(`refuses while nothing is changed where the release runs three services (${name})`, async () => {
+        arrange();
+        colourTiersMock.mockImplementation(async () => [tier]);
+        releaseServesAppMock.mockImplementation(async () => false);
+
+        await expect(restoring()).rejects.toThrow(
+          `Snapshot ${MANIFEST.id} holds the data of Tale 0.9.6, whose CLI deploys only over the services platform, backend-api and backend-worker. This workspace runs the application as ${services}, which that CLI refuses once the data is restored. First set TALE_APP_TIER=three-services in .env and run \`tale deploy\`, then restore. Nothing was changed.`,
+        );
+
+        expect(releaseServesAppMock).toHaveBeenCalledWith('0.9.6');
+        expect(stopContainerMock).not.toHaveBeenCalled();
+        expect(verifySnapshotMock).not.toHaveBeenCalled();
+        expect(execMock).not.toHaveBeenCalled();
+      });
+
+    test('restores where the release runs as one process too', async () => {
+      arrange();
+      colourTiersMock.mockImplementation(async () => [UNIFIED]);
+      releaseServesAppMock.mockImplementation(async () => true);
+      await restoring();
+      expect(execMock).toHaveBeenCalledTimes(2);
+      expect(warnings()).toEqual([]);
+    });
+
+    test('says what to check, and goes on, where the release image is not on the host to ask', async () => {
+      arrange();
+      colourTiersMock.mockImplementation(async () => [UNIFIED]);
+      await restoring();
+      expect(execMock).toHaveBeenCalledTimes(2);
+      expect(warnings()).toEqual([
+        expect.stringContaining(
+          "that release's image is not on this host to say which services it runs",
+        ),
+      ]);
+      expect(warnings()[0]).toContain('TALE_APP_TIER=three-services');
+    });
+
+    test('one colour of fewer services is enough, mid-flip', async () => {
+      arrange();
+      colourTiersMock.mockImplementation(async () => [THREE_WAY, UNIFIED]);
+      releaseServesAppMock.mockImplementation(async () => false);
+      await expect(restoring()).rejects.toThrow('Nothing was changed.');
+    });
+
+    test('a workspace of three services is never asked', async () => {
+      arrange();
+      releaseServesAppMock.mockImplementation(async () => false);
+      await restoring();
+      expect(releaseServesAppMock).not.toHaveBeenCalled();
+      expect(execMock).toHaveBeenCalledTimes(2);
+    });
+
+    test('nor is a snapshot of the release this CLI is, or one that names none', async () => {
+      const pkg = await import('../../../package.json');
+      for (const platformVersion of [pkg.version, null]) {
+        arrange();
+        execMock.mockClear();
+        listSnapshotsMock.mockResolvedValue([{ ...MANIFEST, platformVersion }]);
+        colourTiersMock.mockImplementation(async () => [UNIFIED]);
+        releaseServesAppMock.mockImplementation(async () => false);
+        await restoring();
+        expect(execMock).toHaveBeenCalledTimes(2);
+      }
+      expect(colourTiersMock).not.toHaveBeenCalled();
+    });
   });
 
   test('treats the global `tale -y` as consent when the local flag is absent', async () => {
@@ -539,8 +655,132 @@ describe('restore', () => {
         String(call[0]),
       );
       expect(notices).toHaveLength(1);
-      expect(notices[0]).toContain('no object-store-data archive');
+      expect(notices[0]).toContain('no blob-data archive');
       expect(notices[0]).toContain('left untouched');
+    });
+
+    const restoreReady = () => {
+      resolveSnapshotPrefixMock.mockResolvedValue('tale_');
+      getContainerStateMock.mockResolvedValue(null);
+      verifySnapshotMock.mockResolvedValue(undefined);
+      ensureVolumesMock.mockResolvedValue(true);
+      execMock.mockResolvedValue({
+        success: true,
+        stdout: '',
+        stderr: '',
+        exitCode: 0,
+      });
+    };
+    /** A snapshot of a deployment on versitygw: its blobs are `blob-data`. */
+    const MANIFEST_ON_VERSITYGW = {
+      ...MANIFEST,
+      id: '20261122-090000-manual',
+      volumes: {
+        ...MANIFEST.volumes,
+        'blob-data': { sha256: 'd'.repeat(64), sizeBytes: 8192 },
+      },
+    };
+
+    // versitygw keeps an object's content type and ETag in the file's
+    // extended attributes: they come back only from a tar that knows of them.
+    test("gets its extended attributes back, from the tar that archived versitygw's volume", async () => {
+      restoreReady();
+      listSnapshotsMock.mockResolvedValue([MANIFEST_ON_VERSITYGW]);
+
+      await run({
+        env,
+        snapshotId: MANIFEST_ON_VERSITYGW.id,
+        assumeYes: true,
+      });
+
+      const blob = execMock.mock.calls.find((call) =>
+        String(call[1][call[1].length - 1]).includes('blob-data.tar.gz'),
+      );
+      expect(blob?.[1]).toContain('tale_blob-data:/data');
+      expect(blob?.[1]).toContain(
+        'debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587',
+      );
+      expect(String(blob?.[1].at(-1))).toContain(
+        "tar xzf /backup/20261122-090000-manual/blob-data.tar.gz --xattrs --xattrs-include='user.*' -C /data",
+      );
+      expect(blob?.[2]?.timeout).toBeGreaterThan(1800);
+      // The other volumes as before.
+      const db = execMock.mock.calls.find((call) =>
+        String(call[1][call[1].length - 1]).includes('db-data.tar.gz'),
+      );
+      expect(db?.[1]).toContain('alpine:3.22');
+      expect(String(db?.[1].at(-1))).not.toContain('--xattrs');
+      expect(loggerNoticeMock).not.toHaveBeenCalled();
+    });
+
+    // The blobs of a snapshot from MinIO's time come back in MinIO's volume.
+    // What a later store wrote into `blob-data` would be taken for the live
+    // store by the next deploy, beside a database that knows other blobs.
+    test("empties versitygw's volume when the snapshot's blobs are MinIO's, and says so before it asks", async () => {
+      restoreReady();
+      listSnapshotsMock.mockResolvedValue([MANIFEST_WITH_BLOBS]);
+      volumeExistsMock.mockImplementation(
+        async (name: string) => name === 'tale_blob-data',
+      );
+      confirmMock.mockResolvedValue(true);
+
+      await run({ env, snapshotId: MANIFEST_WITH_BLOBS.id });
+
+      const warned = loggerWarnMock.mock.calls.map((call) => String(call[0]));
+      expect(warned.find((line) => line.startsWith('This wipes'))).toContain(
+        'tale_object-store-data, tale_blob-data',
+      );
+      const scripts = execMock.mock.calls.map((call) => ({
+        argv: call[1] as string[],
+        script: String(call[1][call[1].length - 1]),
+      }));
+      const emptied = scripts.at(-1);
+      expect(emptied?.script).toBe('find /data -mindepth 1 -delete');
+      expect(emptied?.argv).toContain('tale_blob-data:/data');
+      // After the blobs are back where MinIO reads them, never before.
+      expect(
+        scripts.findIndex((entry) =>
+          entry.script.includes('object-store-data.tar.gz'),
+        ),
+      ).toBeLessThan(scripts.length - 1);
+    });
+
+    test("leaves versitygw's volume alone when the snapshot carries its blobs, or none", async () => {
+      restoreReady();
+      volumeExistsMock.mockResolvedValue(true);
+      for (const manifest of [MANIFEST_ON_VERSITYGW, MANIFEST]) {
+        execMock.mockClear();
+        listSnapshotsMock.mockResolvedValue([manifest]);
+
+        await run({ env, snapshotId: manifest.id, assumeYes: true });
+
+        expect(
+          execMock.mock.calls.some(
+            (call) =>
+              String(call[1][call[1].length - 1]) ===
+              'find /data -mindepth 1 -delete',
+          ),
+        ).toBe(false);
+      }
+    });
+
+    test('says what to do when the emptying fails: the next deploy would pass the restored blobs over', async () => {
+      restoreReady();
+      listSnapshotsMock.mockResolvedValue([MANIFEST_WITH_BLOBS]);
+      volumeExistsMock.mockResolvedValue(true);
+      execMock.mockImplementation((_cmd: string, args: string[]) =>
+        Promise.resolve(
+          String(args[args.length - 1]) === 'find /data -mindepth 1 -delete'
+            ? { success: false, stdout: '', stderr: 'device busy', exitCode: 1 }
+            : { success: true, stdout: '', stderr: '', exitCode: 0 },
+        ),
+      );
+
+      await expect(
+        run({ env, snapshotId: MANIFEST_WITH_BLOBS.id, assumeYes: true }),
+      ).rejects.toThrow(
+        /Emptying tale_blob-data failed: device busy[\s\S]*re-run the restore before starting the stack/,
+      );
     });
 
     test('is visible in the listing: snapshots without one are marked', async () => {
@@ -554,9 +794,25 @@ describe('restore', () => {
       expect(byId.get(MANIFEST_WITH_BLOBS.id)).not.toContain('without blobs');
       expect(byId.get(MANIFEST.id)).toContain('without blobs');
     });
+
+    test("in the listing, versitygw's blobs count as blobs too", async () => {
+      resolveSnapshotPrefixMock.mockResolvedValue('tale_');
+      listSnapshotsMock.mockResolvedValue([MANIFEST_ON_VERSITYGW]);
+
+      await run({ env });
+
+      const rows = loggerTableMock.mock.calls[0][0] as [string, string][];
+      expect(new Map(rows).get(MANIFEST_ON_VERSITYGW.id)).not.toContain(
+        'without blobs',
+      );
+    });
   });
 
-  describe('the model gateway archive', () => {
+  // The model relay in the backend replaced the sandbox LLM gateway
+  // (tale-project/tale#4942): no snapshot takes its store any more, one taken
+  // while it ran still restores it, and a gateway an earlier release left
+  // must not run on the store a restore writes back.
+  describe('the retired model gateway', () => {
     const restoreReady = () => {
       resolveSnapshotPrefixMock.mockResolvedValue('tale_');
       getContainerStateMock.mockResolvedValue(null);
@@ -573,7 +829,7 @@ describe('restore', () => {
     const warnings = () =>
       loggerWarnMock.mock.calls.map((call) => String(call[0]));
 
-    test('is verified, then restored into the live gateway volume of the same name', async () => {
+    test('of an older snapshot is verified, then restored into the gateway volume of the same name', async () => {
       listSnapshotsMock.mockResolvedValue([MANIFEST_WITH_GATEWAY]);
       restoreReady();
       const order: string[] = [];
@@ -617,9 +873,7 @@ describe('restore', () => {
       );
     });
 
-    // Every snapshot written before the gateway store was captured restores
-    // as before, but must not read as a way back to the gateway's old store.
-    test('is named as absent by an older snapshot, which leaves the gateway store untouched', async () => {
+    test('a snapshot without its archive restores with no word of the gateway', async () => {
       listSnapshotsMock.mockResolvedValue([MANIFEST_RENAMED]);
       restoreReady();
 
@@ -629,38 +883,48 @@ describe('restore', () => {
       expect(
         restoreScripts().some((script) => script.includes('llm-gateway-data')),
       ).toBe(false);
-      const gateway = warnings().filter((line) =>
-        line.includes('llm-gateway-data'),
-      );
-      expect(gateway).toHaveLength(1);
-      expect(gateway[0]).toContain(
-        `Snapshot ${MANIFEST_RENAMED.id} has no llm-gateway-data archive`,
-      );
-      expect(gateway[0]).toContain('left untouched');
-      expect(gateway[0]).toContain(
-        'cannot return the model gateway to its store from before a gateway upgrade',
-      );
-      expect(gateway[0]).toContain(
-        "If the gateway was upgraded after this snapshot, put your own copy of tale_llm-gateway-data back before you deploy the snapshot's release.",
-      );
+      expect(warnings().some((line) => line.includes('gateway'))).toBe(false);
     });
 
-    test('is announced before the consent prompt, so the restore can still be declined', async () => {
-      listSnapshotsMock.mockResolvedValue([MANIFEST_RENAMED]);
+    test('a gateway an earlier release left refuses the restore while it runs, and --stop stops it before anything is extracted', async () => {
+      listSnapshotsMock.mockResolvedValue([MANIFEST_WITH_GATEWAY]);
       restoreReady();
-      let warnedBeforePrompt = false;
-      confirmMock.mockImplementation(() => {
-        warnedBeforePrompt = warnings().some((line) =>
-          line.includes('no llm-gateway-data archive'),
-        );
-        return Promise.resolve(false);
-      });
-
+      let running = true;
+      getContainerStateMock.mockImplementation((name: string) =>
+        Promise.resolve(
+          name === 'tale-sandbox-llm-gateway' && running ? 'running' : null,
+        ),
+      );
       await expect(
-        run({ env, snapshotId: MANIFEST_RENAMED.id }),
-      ).rejects.toThrow('Restore aborted');
-      expect(warnedBeforePrompt).toBe(true);
+        run({ env, snapshotId: MANIFEST_WITH_GATEWAY.id, assumeYes: true }),
+      ).rejects.toThrow(
+        'Refusing to restore while project containers are live: tale-sandbox-llm-gateway (running).',
+      );
       expect(execMock).not.toHaveBeenCalled();
+
+      const order: string[] = [];
+      stopContainerMock.mockImplementation((name: string) => {
+        order.push(`stop ${name}`);
+        running = false;
+        return Promise.resolve(true);
+      });
+      execMock.mockImplementation(() => {
+        order.push('extract');
+        return Promise.resolve({
+          success: true,
+          stdout: '',
+          stderr: '',
+          exitCode: 0,
+        });
+      });
+      await run({
+        env,
+        snapshotId: MANIFEST_WITH_GATEWAY.id,
+        stop: true,
+        assumeYes: true,
+      });
+      expect(order[0]).toBe('stop tale-sandbox-llm-gateway');
+      expect(order.filter((entry) => entry === 'extract')).toHaveLength(3);
     });
 
     test('is restored only under its exact name, never under a look-alike one', async () => {
@@ -683,18 +947,14 @@ describe('restore', () => {
       ).toBe(false);
     });
 
-    test('is visible in the listing: snapshots without one are marked', async () => {
+    test('no snapshot is marked in the listing for leaving the gateway out', async () => {
       resolveSnapshotPrefixMock.mockResolvedValue('tale_');
       listSnapshotsMock.mockResolvedValue([MANIFEST_WITH_GATEWAY, MANIFEST]);
 
       await run({ env });
 
       const rows = loggerTableMock.mock.calls[0][0] as [string, string][];
-      const byId = new Map(rows);
-      expect(byId.get(MANIFEST_WITH_GATEWAY.id)).not.toContain(
-        'without gateway',
-      );
-      expect(byId.get(MANIFEST.id)).toContain('without gateway');
+      for (const [, row] of rows) expect(row).not.toContain('gateway');
     });
   });
 

@@ -7,6 +7,11 @@ import {
   eligibleChatCandidates,
 } from '../../../lib/chat/model-choice.ts';
 import { DOCUMENT_SKILL_SLUGS } from '../../../lib/shared/document-skills.ts';
+import { DEFAULT_HARNESS } from '../../../lib/shared/harness-offer.ts';
+import {
+  agentHarnessReason,
+  type HarnessReason,
+} from '../../../lib/shared/harness-reason.ts';
 import {
   type HarnessModelFit,
   harnessModelFit,
@@ -54,9 +59,10 @@ import {
  */
 
 /** The runtime an automatic standard agent runs on: the one automation
- * agent steps default to, and able to run any directly served model through
- * the gateway. */
-const STANDARD_AGENT_DEFAULT_HARNESS = 'claude-code';
+ * agent steps default to (Pi), able to run any directly served model through
+ * the model relay. A model only a subscription serves runs on the runtime
+ * that subscription is bound to instead (`chooseStandardAgentServing`). */
+const STANDARD_AGENT_DEFAULT_HARNESS = DEFAULT_HARNESS;
 
 /** The standing instructions a standard agent works with unless the policy
  * replaces them. General on purpose: it is every project's agent until the
@@ -102,6 +108,10 @@ export type StandardAgentServing =
       /** Where the model came from — the pin, or the automatic choice. */
       source: 'pinned' | 'preferred' | 'cheapest';
       engine: StandardAgentEngine;
+      /** Why it runs on `harness`: the policy pins the runtime, or the
+       * choice put it there — the default, a subscription's bound runtime,
+       * or a runtime that can run a model the default cannot. */
+      harnessReason: HarnessReason;
     }
   | {
       ok: false;
@@ -221,6 +231,9 @@ export function chooseStandardAgentServing(
         config.harness === undefined && direct.length > 0
           ? 'native'
           : 'harness',
+      harnessReason: standardAgentHarnessReason(config, harness, {
+        direct: direct.some((option) => runnable(option, harness)),
+      }),
     };
   }
 
@@ -286,7 +299,26 @@ export function chooseStandardAgentServing(
       boundHarness(choice.entry.option) === undefined
         ? 'native'
         : 'harness',
+    harnessReason: standardAgentHarnessReason(config, harness, {
+      direct: boundHarness(choice.entry.option) === undefined,
+    }),
   };
+}
+
+/** Why the standard agent runs on `harness`: its policy pins the runtime, or
+ * it chose one — and then the choice's serving tells the default from a
+ * subscription's bound runtime and from a runtime that runs a model the
+ * default cannot (`agentHarnessReason`). `direct`: a credential any runtime
+ * can use serves the chosen model there, rather than a subscription. */
+function standardAgentHarnessReason(
+  config: Pick<StandardAgentConfig, 'harness'>,
+  harness: string,
+  served: { direct: boolean },
+): HarnessReason {
+  return agentHarnessReason(
+    config.harness !== undefined ? 'policy' : 'automatic',
+    { harness, lane: served.direct ? 'gateway' : 'subscription' },
+  );
 }
 
 /** What each shipped harness can run: the wire its tools ride, and whether
@@ -526,6 +558,10 @@ export async function standardAgentServingForKick(
   /** How the run executes: only the standard agent on an automatic runtime
    * starts native. */
   engine: StandardAgentEngine;
+  /** Why the run gets `harness`, as this kick decides it: the run keeps it
+   * (`project_agent_runs.harness_reason`) and each of its turns records it,
+   * so a later turn never reads the policy again. */
+  harnessReason: HarnessReason;
 }> {
   const rows = await tx<
     { managed: boolean; projectId: string; createdBy: string }[]
@@ -543,6 +579,8 @@ export async function standardAgentServingForKick(
       ? { modelProvider: args.modelProvider }
       : {}),
     engine: 'harness' as const,
+    // An agent of a project's own names its runtime.
+    harnessReason: 'pinned' as const,
   };
   if (agent === undefined || !agent.managed) return passthrough;
 
@@ -582,6 +620,7 @@ export async function standardAgentServingForKick(
     model: serving.model,
     modelProvider: serving.modelProvider,
     engine: serving.engine,
+    harnessReason: serving.harnessReason,
   };
 }
 

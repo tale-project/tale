@@ -2,7 +2,7 @@
 // the tunnel.
 //
 // A session on a device calls the same addresses a session on the server
-// does — `http://backend-api:3005` and `http://sandbox-llm-gateway:8080` —
+// does — `http://backend-api:3005` and the model relay, `http://backend-api:8080` —
 // because the device's spawner answers those names on the device's sandbox
 // network and relays each request through the tunnel. The hub then sends it to
 // the real service, but only along the paths sessions actually use: the

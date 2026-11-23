@@ -183,27 +183,28 @@ const OUTSIDE_READS = [
     readers: 'backend/core/knowledge/ddl.test.ts',
   },
   {
+    // Read as text, not imported: the content types the edge compresses,
+    // which the kinds of file the build compresses are held to.
+    path: 'services/proxy/render/config.js',
+    readers: 'scripts/precompress-dist.test.ts',
+  },
+  {
     // Run under awk, not imported: the egress service's reader of
     // OUTBOUND_PROXY_URLS, held to the backend's.
     path: 'services/sandbox-egress/outbound-proxies.awk',
     readers: 'tests/guards/outbound-proxies.guard.test.ts',
   },
   {
-    // Run under /bin/sh, not imported: the setup token the gateway image
-    // hands the gateway, paired with the platform's own bootstrap.
-    path: 'services/sandbox-llm-gateway/docker-entrypoint.sh',
-    readers: 'backend/core/node_only/sandbox/gateway_setup_token.test.ts',
-  },
-  {
     path: 'services/sandbox-runtime/build-gemini-settings.ts',
     readers: 'lib/harnesses/gemini-settings-build.test.ts',
   },
   {
-    // Its engine install RUN, run under /bin/sh with recording doubles; and
-    // the path it installs the git credential helper at.
+    // Its engine install RUN, run under /bin/sh with recording doubles; the
+    // path it installs the git credential helper at; and its yt-dlp pin,
+    // which the lane's oldest supported yt-dlp must not pass.
     path: 'services/sandbox-runtime/Dockerfile',
     readers:
-      'tests/guards/dockerfile-fail-closed.guard.test.ts and backend/core/node_only/sandbox/session_credentials.test.ts',
+      'tests/guards/dockerfile-fail-closed.guard.test.ts, backend/core/node_only/sandbox/session_credentials.test.ts and backend/core/video_links/ytdlp.test.ts',
   },
   {
     // Run under /bin/sh, not imported: the git credential helper, on the

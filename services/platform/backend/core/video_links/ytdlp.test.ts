@@ -4,6 +4,9 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  statSync,
+  symlinkSync,
+  truncateSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -29,14 +32,25 @@ import {
   ffmpegLocationFlags,
   impersonateFlagsFromEnv,
   pluginDirFlagsFromEnv,
+  potProviderOn,
+  potProviderUrl,
+  botWallReason,
   proxyFlagsFromEnv,
   sanitizeStderr,
   youtubeExtractorArgsFromEnv,
+  configuredYtdlpProxyUrls,
   proxyFailedRun,
   resetServingProxiesForTests,
   YtDlpError,
-  ytdlpExtractAudio,
+  ytdlpFetchAudio,
   ytdlpJson,
+  ytdlpRunOutcome,
+  localYtdlpPlace,
+  createLocalYtdlpPlace,
+  isPlainOutputName,
+  CAPTIONS_MAX_BYTES,
+  MEDIA_MAX_BYTES,
+  type YtdlpRunEnd,
   ytdlpProxyFromEnv,
   YtdlpRoute,
   ytdlpVersionWarning,
@@ -48,6 +62,23 @@ import {
 } from './ytdlp_toolchain';
 
 describe('classifyYtDlpStderr', () => {
+  // What yt-dlp 2026.10.26 ends with when the file it downloads passes the
+  // per-file limit of the session it runs in (measured under `ulimit -f`):
+  // a download of no declared length, which `--max-filesize` cannot stop.
+  it("names a download that ran into the per-file limit as the video's size", () => {
+    expect(
+      classifyYtDlpStderr(
+        'ERROR: unable to write data: [Errno 27] File too large',
+      ),
+    ).toBe('videoTooLarge');
+    // The operating system's words win over whatever else the tail holds.
+    expect(
+      classifyYtDlpStderr(
+        'WARNING: [youtube] HTTP Error 429: Too Many Requests. Retrying\nERROR: unable to write data: [Errno 27] File too large',
+      ),
+    ).toBe('videoTooLarge');
+  });
+
   it('classifies the YouTube bot wall', () => {
     expect(
       classifyYtDlpStderr(
@@ -253,6 +284,10 @@ describe('proxyFailedRun', () => {
     "ERROR: ('Unable to connect to proxy', OSError('Tunnel connection failed: 407 Proxy Authentication Required'))",
     'curl: (56) CONNECT tunnel failed, response 407',
     'curl: (5) Could not resolve proxy: p.example',
+    // The platform's relay, for a yt-dlp in a sandbox session: its own
+    // status for a proxy that could not be used.
+    "ERROR: ('Unable to connect to proxy', OSError('Tunnel connection failed: 530 Video Proxy Unreachable'))",
+    'curl: (56) CONNECT tunnel failed, response 530',
   ])('holds the proxy to blame for %j', (stderr) => {
     expect(proxyFailedRun(stderr)).toBe(true);
   });
@@ -260,11 +295,72 @@ describe('proxyFailedRun', () => {
   it.each([
     "ERROR: ('Unable to connect to proxy', OSError('Tunnel connection failed: 502 Bad Gateway'))",
     'curl: (56) CONNECT tunnel failed, response 403',
+    "ERROR: ('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden'))",
+    // The relay's own refusal of a token says nothing against the proxy.
+    "ERROR: ('Unable to connect to proxy', OSError('Tunnel connection failed: 531 Relay Token Refused'))",
+    'curl: (56) CONNECT tunnel failed, response 531',
+    "ERROR: ('Unable to connect to proxy', OSError('Tunnel connection failed: 503 Service Unavailable'))",
     'ERROR: [youtube] x: Sign in to confirm you are not a bot',
     'ERROR: HTTP Error 407: Proxy Authentication Required',
     'ERROR: [generic] Unable to extract title: the page says unable to connect to proxy',
   ])('does not for %j', (stderr) => {
     expect(proxyFailedRun(stderr)).toBe(false);
+    expect(proxyFailedRun(stderr, true)).toBe(false);
+  });
+
+  // A yt-dlp in a sandbox session reaches its proxy through the platform's
+  // relay. What the relay answered is the proxy's doing; a relay that
+  // yt-dlp could not reach at all is the platform's own listener, restarting
+  // or not at the address a session was given.
+  describe("for a run that went through the platform's relay", () => {
+    it.each([
+      "ERROR: ('Unable to connect to proxy', OSError('Tunnel connection failed: 407 Proxy Authentication Required'))",
+      'curl: (56) CONNECT tunnel failed, response 407',
+      "ERROR: ('Unable to connect to proxy', OSError('Tunnel connection failed: 530 Video Proxy Unreachable'))",
+      'curl: (56) CONNECT tunnel failed, response 530',
+    ])('holds the proxy to blame for what the relay answered: %j', (stderr) => {
+      expect(proxyFailedRun(stderr, true)).toBe(true);
+    });
+
+    it.each([
+      "ERROR: Unable to download API page: ('Unable to connect to proxy', ConnectionRefusedError(111, 'Connection refused'))",
+      "ERROR: ('Unable to connect to proxy', NewConnectionError('Failed to establish a new connection: [Errno 113] No route to host'))",
+      'curl: (5) Could not resolve proxy: backend-api',
+    ])('does not for a relay that could not be reached: %j', (stderr) => {
+      expect(proxyFailedRun(stderr, true)).toBe(false);
+      // The same words from a run beside this process are its proxy's.
+      expect(proxyFailedRun(stderr)).toBe(true);
+    });
+  });
+});
+
+describe('configuredYtdlpProxyUrls — every proxy the relay may dial', () => {
+  it('names the single proxy, the video list and the outbound list, as written', () => {
+    expect(
+      configuredYtdlpProxyUrls({
+        VIDEO_INGEST_PROXY_URL: 'socks5h://one.example:1080',
+        VIDEO_INGEST_PROXY_URLS:
+          'http://u:p@v1.example:80, socks5://v2.example',
+        OUTBOUND_PROXY_URLS: 'http://o1.example:8080',
+      }),
+    ).toEqual([
+      'socks5h://one.example:1080',
+      'http://u:p@v1.example:80',
+      'socks5://v2.example',
+      'http://o1.example:8080',
+    ]);
+  });
+
+  it('names none where none is configured, and none for a single proxy that is no proxy', () => {
+    const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(configuredYtdlpProxyUrls({})).toEqual([]);
+      expect(
+        configuredYtdlpProxyUrls({ VIDEO_INGEST_PROXY_URL: 'ftp://x.example' }),
+      ).toEqual([]);
+    } finally {
+      warned.mockRestore();
+    }
   });
 });
 
@@ -365,7 +461,13 @@ describe('a video through a list of proxies [VID-R7]', () => {
     url = 'https://www.youtube.com/watch?v=x',
   ): Promise<{ outcome: string; proxies: string[] }> {
     const jobDir = mkdtempSync(join(root, 'job-'));
-    const outcome = await ytdlpJson(url, jobDir, 10_000, undefined, route).then(
+    const outcome = await ytdlpJson(
+      url,
+      localYtdlpPlace(jobDir),
+      10_000,
+      undefined,
+      route,
+    ).then(
       () => 'served',
       (error: unknown) =>
         error instanceof YtDlpError ? error.reason : String(error),
@@ -396,7 +498,7 @@ describe('a video through a list of proxies [VID-R7]', () => {
     await expect(
       ytdlpJson(
         'https://www.youtube.com/watch?v=x',
-        jobDir,
+        localYtdlpPlace(jobDir),
         10_000,
         undefined,
         route,
@@ -406,15 +508,17 @@ describe('a video through a list of proxies [VID-R7]', () => {
     // metadata; the stand-in writes neither file, which is not an address's
     // failure and moves nothing.
     await expect(
-      ytdlpWriteSubs('https://www.youtube.com/watch?v=x', 'en', jobDir, {
-        route,
-        timeoutMs: 10_000,
-      }),
+      ytdlpWriteSubs(
+        'https://www.youtube.com/watch?v=x',
+        'en',
+        localYtdlpPlace(jobDir),
+        { route, timeoutMs: 10_000 },
+      ),
     ).resolves.toBeNull();
     await expect(
-      ytdlpExtractAudio(
+      ytdlpFetchAudio(
         'https://www.youtube.com/watch?v=x',
-        jobDir,
+        localYtdlpPlace(jobDir),
         10_000,
         undefined,
         route,
@@ -475,6 +579,41 @@ describe('a video through a list of proxies [VID-R7]', () => {
     expect(nextOutboundProxy()?.label).toBe('http://b.example:3128');
     expect(warnings(warn)).toContain('http://a.example:8080 failed');
     expect(warnings(warn)).not.toContain('u:p@');
+  });
+
+  // In a sandbox session yt-dlp's proxy is the platform's relay. A relay
+  // it could not reach says nothing against the video's proxy: that one is
+  // not passed over, and the video does not go on through the others for it.
+  it('holds no proxy to blame for a relay that could not be reached', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    deployment('http://a.example:3128, http://b.example:3128', {
+      refused: ['a.example'],
+    });
+    const jobDir = mkdtempSync(join(root, 'job-'));
+    const relayed = {
+      ...localYtdlpPlace(jobDir),
+      // As a session's place: the proxy is reached through a relay (here
+      // one that hands the proxy's own address on, for the stand-in to
+      // read which proxy the run was on).
+      reach: { proxyUrl: (proxy: { url: string }) => proxy.url },
+    };
+
+    const outcome = await ytdlpJson(
+      'https://www.youtube.com/watch?v=x',
+      relayed,
+      10_000,
+    ).then(
+      () => 'served',
+      (error: unknown) =>
+        error instanceof YtDlpError ? error.reason : String(error),
+    );
+
+    expect(outcome).toBe('transient');
+    expect(runProxies(jobDir)).toEqual(['http://a.example:3128']);
+    // a.example was not set aside: b.example's turn came, then a.example's.
+    expect(nextOutboundProxy()?.label).toBe('http://b.example:3128');
+    expect(nextOutboundProxy()?.label).toBe('http://a.example:3128');
+    expect(warnings(warn)).not.toContain('failed');
   });
 
   it("does not run again for the video's own answer", async () => {
@@ -638,16 +777,16 @@ describe('a video through a list of proxies [VID-R7]', () => {
     await expect(
       ytdlpJson(
         'https://www.youtube.com/watch?v=x',
-        jobDir,
+        localYtdlpPlace(jobDir),
         10_000,
         undefined,
         route,
       ),
     ).resolves.toEqual({ id: 'x' });
     await expect(
-      ytdlpExtractAudio(
+      ytdlpFetchAudio(
         'https://www.youtube.com/watch?v=x',
-        jobDir,
+        localYtdlpPlace(jobDir),
         10_000,
         undefined,
         route,
@@ -750,7 +889,11 @@ describe('a video through a list of proxies [VID-R7]', () => {
   it('starts every download over when a run goes again', async () => {
     deployment('http://a.example:3128', {});
     const jobDir = mkdtempSync(join(root, 'job-'));
-    await ytdlpJson('https://www.youtube.com/watch?v=x', jobDir, 10_000);
+    await ytdlpJson(
+      'https://www.youtube.com/watch?v=x',
+      localYtdlpPlace(jobDir),
+      10_000,
+    );
     expect(readFileSync(join(jobDir, 'args'), 'utf8').split('\n')).toContain(
       '--no-continue',
     );
@@ -771,6 +914,604 @@ describe('a video through a list of proxies [VID-R7]', () => {
       outcome: 'botDetection',
       proxies: ['http://a.example:3128'],
     });
+  });
+});
+
+/**
+ * yt-dlp downloads and converts nothing (tale-project/tale#4942): a run has
+ * no ffmpeg, because a deployment's runs happen in a sandbox session whose
+ * image carries none. The sound is stored as the platform serves it, and
+ * the captions are read as the platform serves them.
+ */
+describe('what a run asks yt-dlp for, and what it takes of what yt-dlp leaves', () => {
+  const root = mkdtempSync(join(tmpdir(), 'tale-ytdlp-output-'));
+  const bin = join(root, 'bin');
+  mkdirSync(bin);
+  // A stand-in yt-dlp: it keeps its arguments and leaves the files a test
+  // names in `writes`, where the run was told to work.
+  writeFileSync(
+    join(bin, 'yt-dlp'),
+    [
+      '#!/bin/sh',
+      'case "$1" in --help) exit 0 ;; --version) echo 2099.01.01; exit 0 ;; esac',
+      'printf "%s\\n" "$@" > "$HOME/args"',
+      `if [ -f "${root}/writes" ]; then`,
+      '  while IFS= read -r name; do printf sound > "$HOME/$name"; done \\',
+      `    < "${root}/writes"`,
+      'fi',
+      `if [ -f "${root}/says" ]; then cat "${root}/says"; fi`,
+      `echo '{"id": "x"}'`,
+      '',
+    ].join('\n'),
+    { mode: 0o755 },
+  );
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
+  const saved = {
+    bin: process.env.VIDEO_INGEST_BIN_DIR,
+    pool: process.env.OUTBOUND_PROXY_URLS,
+    override: process.env.VIDEO_INGEST_PROXY_URL,
+    own: process.env.VIDEO_INGEST_PROXY_URLS,
+  };
+  afterEach(() => {
+    for (const [name, value] of [
+      ['VIDEO_INGEST_BIN_DIR', saved.bin],
+      ['OUTBOUND_PROXY_URLS', saved.pool],
+      ['VIDEO_INGEST_PROXY_URL', saved.override],
+      ['VIDEO_INGEST_PROXY_URLS', saved.own],
+    ] as const) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+    rmSync(join(root, 'writes'), { force: true });
+    rmSync(join(root, 'says'), { force: true });
+  });
+
+  /** A job dir, and what yt-dlp leaves in it when it runs. */
+  function job(leaves: string[] = []): string {
+    process.env.VIDEO_INGEST_BIN_DIR = bin;
+    delete process.env.OUTBOUND_PROXY_URLS;
+    delete process.env.VIDEO_INGEST_PROXY_URL;
+    delete process.env.VIDEO_INGEST_PROXY_URLS;
+    writeFileSync(join(root, 'writes'), leaves.map((n) => `${n}\n`).join(''));
+    return mkdtempSync(join(root, 'job-'));
+  }
+
+  const args = (dir: string): string[] =>
+    readFileSync(join(dir, 'args'), 'utf8').trim().split('\n');
+  const URL_ = 'https://www.youtube.com/watch?v=x';
+
+  describe('the sound [VID-R9]', () => {
+    it('is asked for as it is served, a stream of sound alone first, and nothing is done to it', async () => {
+      const dir = job(['media.webm']);
+
+      await ytdlpFetchAudio(URL_, localYtdlpPlace(dir), 10_000);
+
+      const asked = args(dir);
+      // Sound alone first; then a small picture, by its height or, for one
+      // that stands upright, by its width; then a modest bitrate; then
+      // whatever there is.
+      expect(asked.slice(asked.indexOf('-f'), asked.indexOf('-f') + 2)).toEqual(
+        [
+          '-f',
+          'bestaudio/best[height<=480]/best[width<=480]/best[tbr<=1000]/best[tbr<=2500]/best',
+        ],
+      );
+      expect(
+        asked.slice(asked.indexOf('--fixup'), asked.indexOf('--fixup') + 2),
+      ).toEqual(['--fixup', 'never']);
+      // Under what one file of the video's session may weigh.
+      expect(
+        asked.slice(
+          asked.indexOf('--max-filesize'),
+          asked.indexOf('--max-filesize') + 2,
+        ),
+      ).toEqual(['--max-filesize', '1000M']);
+      expect(MEDIA_MAX_BYTES).toBe(1024 * 1024 * 1024);
+      expect(1000 * 1024 * 1024).toBeLessThan(MEDIA_MAX_BYTES);
+      // The largest stream under the preferred size, in the original
+      // language: sorted by size alone, yt-dlp takes a dubbed track that
+      // weighs more (measured against 2026.10.26).
+      expect(asked.slice(asked.indexOf('-S'), asked.indexOf('-S') + 2)).toEqual(
+        ['-S', 'lang,size:200M'],
+      );
+      // A name of the lane's own, where the run works.
+      expect(asked.slice(asked.indexOf('-o'), asked.indexOf('-o') + 2)).toEqual(
+        ['-o', 'media.%(ext)s'],
+      );
+      expect(asked).toContain(`home:${dir}`);
+      expect(asked).toContain(`temp:${dir}`);
+      expect(asked.slice(-2)).toEqual(['--', URL_]);
+      // No conversion: nothing that would have yt-dlp start ffmpeg.
+      for (const flag of [
+        '-x',
+        '--extract-audio',
+        '--audio-format',
+        '--audio-quality',
+        '--convert-subs',
+        '--remux-video',
+        '--recode-video',
+      ]) {
+        expect(asked).not.toContain(flag);
+      }
+    });
+
+    it.each([
+      ['webm', 'audio/webm'],
+      ['m4a', 'audio/mp4'],
+      ['mp4', 'video/mp4'],
+      ['mp3', 'audio/mpeg'],
+      ['opus', 'audio/ogg'],
+      ['ogg', 'audio/ogg'],
+      ['flac', 'audio/flac'],
+      ['mkv', 'video/x-matroska'],
+      ['ts', 'video/mp2t'],
+    ])(
+      'is taken as the .%s it arrived in, and named %s',
+      async (extension, contentType) => {
+        const dir = job([`media.${extension}`]);
+
+        expect(
+          await ytdlpFetchAudio(URL_, localYtdlpPlace(dir), 10_000),
+        ).toEqual({
+          name: `media.${extension}`,
+          extension,
+          contentType,
+          // What the stand-in wrote: `sound`.
+          size: 5,
+        });
+      },
+    );
+
+    it.each([
+      ['nothing', []],
+      ['a download that did not finish', ['media.webm.part']],
+      ['a file in a container this lane does not take', ['media.exe']],
+      ['a file under another name', ['x.webm', 'cookies.txt']],
+      [
+        "a file whose name only ends like the sound's",
+        ['premedia.webm', 'x.media.m4a'],
+      ],
+      ['a name that leads elsewhere', ['media.webm.ytdl', 'media..webm']],
+    ])('is none where yt-dlp left %s', async (_name, leaves) => {
+      const dir = job(leaves);
+
+      await expect(
+        ytdlpFetchAudio(URL_, localYtdlpPlace(dir), 10_000),
+      ).rejects.toMatchObject({
+        reason: 'outputValidationFailed',
+        message:
+          'yt-dlp left no sound it was asked for: none in a container this lane takes',
+      });
+    });
+
+    // yt-dlp does not start a stream that declares more than
+    // `--max-filesize`, says so, and exits 0 (measured against 2026.10.26).
+    it('is too large where the platform declares more than a file may be', async () => {
+      const dir = job([]);
+      writeFileSync(
+        join(root, 'says'),
+        '[download] File is larger than max-filesize (2104857600 bytes > 1048576000 bytes). Aborting.\n',
+      );
+
+      await expect(
+        ytdlpFetchAudio(URL_, localYtdlpPlace(dir), 10_000),
+      ).rejects.toMatchObject({
+        reason: 'videoTooLarge',
+        message:
+          "the video's sound is larger than the 1073741824 bytes it may be: the platform declares more",
+      });
+    });
+
+    // Where nothing stopped a download of no declared length (a place of
+    // this machine, a session on Kubernetes), the file is measured.
+    it('is too large where yt-dlp left more than a file may be, and is not read', async () => {
+      const dir = job([]);
+      // A file of a length and no bytes: nothing is written for it.
+      writeFileSync(join(dir, 'media.webm'), '');
+      truncateSync(join(dir, 'media.webm'), MEDIA_MAX_BYTES + 1);
+
+      await expect(
+        ytdlpFetchAudio(URL_, localYtdlpPlace(dir), 10_000),
+      ).rejects.toMatchObject({
+        reason: 'videoTooLarge',
+        message:
+          "the video's sound is larger than the 1073741824 bytes it may be: yt-dlp left 1073741825 bytes of it",
+      });
+    });
+
+    it('is taken at exactly what a file may be', async () => {
+      const dir = job([]);
+      writeFileSync(join(dir, 'media.webm'), '');
+      truncateSync(join(dir, 'media.webm'), MEDIA_MAX_BYTES);
+
+      expect(
+        await ytdlpFetchAudio(URL_, localYtdlpPlace(dir), 10_000),
+      ).toMatchObject({ name: 'media.webm', size: MEDIA_MAX_BYTES });
+    });
+
+    it('is found beside what else a run left', async () => {
+      const dir = job(['cookies.txt', 'subs.en.vtt', 'media.m4a']);
+
+      expect(
+        (await ytdlpFetchAudio(URL_, localYtdlpPlace(dir), 10_000)).name,
+      ).toBe('media.m4a');
+    });
+  });
+
+  describe('the captions', () => {
+    it('are asked for as they are served, in WebVTT or else SubRip, and never converted', async () => {
+      const dir = job(['subs.en.vtt']);
+
+      await ytdlpWriteSubs(URL_, 'en', localYtdlpPlace(dir), {
+        timeoutMs: 10_000,
+      });
+
+      const asked = args(dir);
+      expect(
+        asked.slice(
+          asked.indexOf('--sub-format'),
+          asked.indexOf('--sub-format') + 2,
+        ),
+      ).toEqual(['--sub-format', 'vtt/srt']);
+      expect(asked).not.toContain('--convert-subs');
+      expect(asked).toContain('--skip-download');
+      expect(asked.slice(asked.indexOf('-o'), asked.indexOf('-o') + 2)).toEqual(
+        ['-o', 'subs.%(ext)s'],
+      );
+      expect(
+        asked.slice(
+          asked.indexOf('--max-filesize'),
+          asked.indexOf('--max-filesize') + 2,
+        ),
+      ).toEqual(['--max-filesize', '5M']);
+      expect(CAPTIONS_MAX_BYTES).toBe(5 * 1024 * 1024);
+      expect(asked).not.toContain('--write-auto-subs');
+      expect(asked[asked.indexOf('--sub-langs') + 1]).toBe(
+        'en,-danmaku,-ai-.*',
+      );
+    });
+
+    it('include the generated ones only when they are asked for', async () => {
+      const dir = job([]);
+
+      await ytdlpWriteSubs(URL_, 'de', localYtdlpPlace(dir), {
+        includeAutoGenerated: true,
+        timeoutMs: 10_000,
+      });
+
+      expect(args(dir)).toContain('--write-auto-subs');
+      expect(args(dir)[args(dir).indexOf('--sub-langs') + 1]).toBe(
+        'de,-danmaku',
+      );
+    });
+
+    it.each([
+      [['subs.en.vtt'], { name: 'subs.en.vtt', format: 'vtt' }],
+      [['subs.en.srt'], { name: 'subs.en.srt', format: 'srt' }],
+      // WebVTT where a platform left both.
+      [['subs.en.srt', 'subs.en.vtt'], { name: 'subs.en.vtt', format: 'vtt' }],
+      [
+        ['subs.zh-Hans.vtt', 'media.webm'],
+        { name: 'subs.zh-Hans.vtt', format: 'vtt' },
+      ],
+    ])('are the track yt-dlp left: %j', async (leaves, track) => {
+      const dir = job(leaves);
+
+      expect(
+        await ytdlpWriteSubs(URL_, 'en', localYtdlpPlace(dir), {
+          timeoutMs: 10_000,
+        }),
+      ).toEqual(track);
+    });
+
+    it.each([
+      ['nothing', []],
+      [
+        'a track in a format the platform does not read',
+        ['subs.en.ttml', 'subs.en.json3'],
+      ],
+      [
+        'a file that is no track of this run',
+        ['other.en.vtt', 'subs.vtt.part'],
+      ],
+    ])('are none where yt-dlp left %s', async (_name, leaves) => {
+      const dir = job(leaves);
+
+      expect(
+        await ytdlpWriteSubs(URL_, 'en', localYtdlpPlace(dir), {
+          timeoutMs: 10_000,
+        }),
+      ).toBeNull();
+    });
+
+    it('refuse a language that is no language before anything runs', async () => {
+      const dir = job([]);
+
+      await expect(
+        ytdlpWriteSubs(URL_, 'en,-danmaku,evil', localYtdlpPlace(dir)),
+      ).rejects.toMatchObject({ reason: 'unsupported' });
+      expect(existsSync(join(dir, 'args'))).toBe(false);
+    });
+  });
+});
+
+describe('a place of this machine', () => {
+  const root = mkdtempSync(join(tmpdir(), 'tale-ytdlp-place-'));
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
+  const dirOf = (): string => mkdtempSync(join(root, 'job-'));
+
+  it('reads a small file whole, and refuses one over what its caller takes', async () => {
+    const dir = dirOf();
+    writeFileSync(join(dir, 'subs.en.vtt'), 'WEBVTT\n');
+    const place = localYtdlpPlace(dir);
+
+    expect(Buffer.from(await place.readFile('subs.en.vtt', 7)).toString()).toBe(
+      'WEBVTT\n',
+    );
+    await expect(place.readFile('subs.en.vtt', 6)).rejects.toMatchObject({
+      reason: 'outputValidationFailed',
+      message: 'yt-dlp left subs.en.vtt larger than the 6 bytes it may be',
+    });
+  });
+
+  it('hands a file on as a stream of a known length', async () => {
+    const dir = dirOf();
+    writeFileSync(join(dir, 'media.webm'), Buffer.alloc(300_000, 7));
+    const place = localYtdlpPlace(dir);
+
+    const file = await place.openFile('media.webm', 300_000);
+
+    expect(file.size).toBe(300_000);
+    let read = 0;
+    for await (const chunk of file.body) read += chunk.byteLength;
+    expect(read).toBe(300_000);
+    await expect(place.openFile('media.webm', 299_999)).rejects.toMatchObject({
+      reason: 'outputValidationFailed',
+    });
+  });
+
+  it('lists what the directory holds', async () => {
+    const dir = dirOf();
+    writeFileSync(join(dir, 'media.webm'), 'x');
+    writeFileSync(join(dir, 'subs.en.vtt'), 'WEBVTT\n');
+    // What is no file of the directory is no entry: a directory, and a
+    // link, whatever it points at.
+    mkdirSync(join(dir, 'a-directory'));
+    symlinkSync(join(dir, 'media.webm'), join(dir, 'a-link.webm'));
+
+    expect(
+      (await localYtdlpPlace(dir).list()).sort((a, b) =>
+        a.name.localeCompare(b.name),
+      ),
+    ).toEqual([
+      { name: 'media.webm', size: 1 },
+      { name: 'subs.en.vtt', size: 7 },
+    ]);
+  });
+
+  it('writes a file only its owner reads, and answers where yt-dlp finds it', async () => {
+    const dir = dirOf();
+
+    const path = await localYtdlpPlace(dir).writeFile('cookies.txt', 'a jar');
+
+    expect(path).toBe(join(dir, 'cookies.txt'));
+    expect(readFileSync(path, 'utf8')).toBe('a jar');
+    expect(statSync(path).mode & 0o777).toBe(0o600);
+  });
+
+  // Even if yt-dlp's own sanitizer were bypassed, nothing is read that a
+  // name could lead out to (the path-traversal class of CVE-2024-38519).
+  it('reads nothing a link leads out of the directory to', async () => {
+    const dir = dirOf();
+    const outside = join(root, 'outside.txt');
+    writeFileSync(outside, 'a secret');
+    symlinkSync(outside, join(dir, 'media.webm'));
+    const place = localYtdlpPlace(dir);
+
+    await expect(place.readFile('media.webm', 1_000)).rejects.toMatchObject({
+      reason: 'outputValidationFailed',
+      message: `yt-dlp wrote outside its directory: ${outside}`,
+    });
+    await expect(place.openFile('media.webm', 1_000)).rejects.toMatchObject({
+      reason: 'outputValidationFailed',
+    });
+  });
+
+  it.each([
+    '../outside.txt',
+    'a/b.webm',
+    '/etc/passwd',
+    '.hidden',
+    '',
+    'a b.webm',
+  ])('reads nothing under the name %j', async (name) => {
+    const place = localYtdlpPlace(dirOf());
+
+    await expect(place.readFile(name, 1_000)).rejects.toMatchObject({
+      reason: 'outputValidationFailed',
+    });
+    expect(isPlainOutputName(name)).toBe(false);
+  });
+
+  it('is made in a directory of its own, which goes when it is disposed of', async () => {
+    const place = await createLocalYtdlpPlace();
+
+    expect(statSync(place.dir).mode & 0o777).toBe(0o700);
+    await place.writeFile('cookies.txt', 'a jar');
+    await place.dispose();
+
+    expect(existsSync(place.dir)).toBe(false);
+  });
+
+  it('tells a run nothing of its surroundings: it reads the settings as they are', () => {
+    expect(localYtdlpPlace(dirOf()).reach).toEqual({});
+  });
+});
+
+describe('ytdlpRunOutcome — how a run ended, wherever it ran', () => {
+  const end: YtdlpRunEnd = {
+    code: 0,
+    stdout: 'out',
+    stderr: '',
+    timedOut: false,
+    outputCapped: false,
+    timeoutMs: 90_000,
+    outputCapBytes: 8 * 1024 * 1024,
+  };
+  const reasonOf = (run: Partial<YtdlpRunEnd>) => {
+    try {
+      ytdlpRunOutcome({ ...end, ...run });
+      return 'served';
+    } catch (error) {
+      if (!(error instanceof YtDlpError)) throw error;
+      return `${error.reason}: ${error.message}`;
+    }
+  };
+
+  it('answers the output of a run that exited 0', () => {
+    expect(ytdlpRunOutcome({ ...end, stderr: 'a warning' })).toEqual({
+      stdout: 'out',
+      stderr: 'a warning',
+    });
+  });
+
+  it.each([
+    [{ timedOut: true, code: null }, 'timeout: yt-dlp timed out after 90000ms'],
+    // A run that was stopped at its time limit and still exited 0 was
+    // stopped: its output is not trusted to be whole.
+    [{ timedOut: true }, 'timeout: yt-dlp timed out after 90000ms'],
+    [
+      { outputCapped: true, code: null },
+      'transient: yt-dlp output exceeded 8388608 bytes (cap-killed)',
+    ],
+    [
+      { code: 1, stderr: 'ERROR: [youtube] x: Video unavailable' },
+      'unavailable: yt-dlp exited 1 (reason: unavailable)',
+    ],
+    [
+      {
+        code: 1,
+        stderr: 'ERROR: [youtube] x: Sign in to confirm you’re not a bot',
+      },
+      'botDetection: yt-dlp exited 1 (reason: botDetection)',
+    ],
+    [
+      { code: 2, stderr: 'something new' },
+      'transient: yt-dlp exited 2 (reason: transient)',
+    ],
+    [
+      { code: null, stderr: '' },
+      'transient: yt-dlp exited null (reason: transient)',
+    ],
+  ])('judges %j as %s', (run, reason) => {
+    expect(reasonOf(run)).toBe(reason);
+  });
+
+  it('keeps nothing of stderr that names a credential', () => {
+    try {
+      ytdlpRunOutcome({
+        ...end,
+        code: 1,
+        stderr:
+          'ERROR: unable to reach socks5h://user-1:hunter2@gw.example:1080',
+      });
+      throw new Error('the run was served');
+    } catch (error) {
+      expect(error).toBeInstanceOf(YtDlpError);
+      expect((error as YtDlpError).sanitizedStderr).not.toContain('hunter2');
+    }
+  });
+});
+
+describe('what a run is told of its surroundings', () => {
+  const proxy = { url: 'socks5h://u:p@residential.example:1080', pooled: null };
+
+  it('is given a proxy as the place reaches it', () => {
+    expect(
+      proxyFlagsFromEnv({}, proxy, {
+        proxyUrl: (given) => `http://relay.internal/${given.url.length}`,
+      }),
+    ).toEqual(['--proxy', `http://relay.internal/${proxy.url.length}`]);
+    // A place that says nothing gives the proxy as it is written.
+    expect(proxyFlagsFromEnv({}, proxy, {})).toEqual(['--proxy', proxy.url]);
+    expect(proxyFlagsFromEnv({}, null, { proxyUrl: () => 'never' })).toEqual(
+      [],
+    );
+  });
+
+  // The deployment's cookie jar lies on this machine's disk: a run
+  // somewhere else reads a copy, or none, and never this machine's path.
+  it("is given the deployment's cookie jar as the place holds it, or not at all", () => {
+    const env = { VIDEO_INGEST_COOKIES_FILE: '/secrets/yt.txt' };
+
+    expect(
+      cookiesFlagsFromEnv(env, undefined, {
+        cookiesFile: '/agent/output/deployment-cookies.txt',
+      }),
+    ).toEqual(['--cookies', '/agent/output/deployment-cookies.txt']);
+    expect(cookiesFlagsFromEnv(env, undefined, { cookiesFile: null })).toEqual(
+      [],
+    );
+    // A place that says nothing reads the setting as it is.
+    expect(cookiesFlagsFromEnv(env, undefined, {})).toEqual([
+      '--cookies',
+      '/secrets/yt.txt',
+    ]);
+    // A pooled session's jar comes first wherever the run is.
+    expect(
+      cookiesFlagsFromEnv(
+        env,
+        { cookiesFile: '/agent/output/cookies.txt' },
+        { cookiesFile: '/agent/output/deployment-cookies.txt' },
+      ),
+    ).toEqual(['--cookies', '/agent/output/cookies.txt']);
+    // And the whole flag set follows the place.
+    const flags = buildAntiBotFlags(env, undefined, null, {
+      cookiesFile: null,
+    });
+    expect(flags).not.toContain('--cookies');
+    expect(
+      buildAntiBotFlags(env, undefined, null, {
+        cookiesFile: '/agent/output/deployment-cookies.txt',
+      }),
+    ).toContain('/agent/output/deployment-cookies.txt');
+  });
+
+  it('is given the PO-token provider as the place reaches it, with the plugin the place has', () => {
+    const env = { VIDEO_INGEST_POT_PROVIDER: 'true' };
+    const flags = buildAntiBotFlags(env, undefined, null, {
+      potProviderUrl: 'http://backend-api:3005/api/video-relay/pot/v1.a.b',
+      pluginDir: '/opt/yt-dlp/plugins',
+    });
+
+    expect(flags).toContain(
+      'youtubepot-bgutilhttp:base_url=http://backend-api:3005/api/video-relay/pot/v1.a.b',
+    );
+    expect(
+      flags.slice(
+        flags.indexOf('--plugin-dirs'),
+        flags.indexOf('--plugin-dirs') + 2,
+      ),
+    ).toEqual(['--plugin-dirs', '/opt/yt-dlp/plugins']);
+    // A provider is asked for every token, as with one beside the run.
+    expect(flags.join(' ')).toContain('player_client=default,mweb,tv_simply');
+    expect(flags.join(' ')).toContain('fetch_pot=always');
+  });
+
+  it('is given no provider and no plugin where the place has none, whatever this process has', () => {
+    const flags = buildAntiBotFlags(
+      {
+        VIDEO_INGEST_POT_PROVIDER_URL: 'http://pot.internal:4416',
+        VIDEO_INGEST_YTDLP_PLUGIN_DIRS: '/host/plugins',
+      },
+      undefined,
+      null,
+      { potProviderUrl: null, pluginDir: null },
+    );
+
+    expect(flags.join(' ')).not.toContain('youtubepot-bgutilhttp');
+    expect(flags).not.toContain('--plugin-dirs');
+    expect(flags.join(' ')).toContain('player_client=default,tv_simply');
   });
 });
 
@@ -822,16 +1563,46 @@ describe('youtubeExtractorArgsFromEnv', () => {
     warn.mockRestore();
   });
 
-  it('defaults the provider URL to the compose sidecar when the plugin is baked in', () => {
-    // hasBakedPlugin=true simulates the self-hosted image where the bgutil
-    // plugin dir exists; no operator env is needed.
-    const flags = youtubeExtractorArgsFromEnv({}, undefined, true);
+  it('asks the bundled provider where the deployment turned it on and the plugin is baked in', () => {
+    // hasBakedPlugin=true simulates the self-hosted image, where the bgutil
+    // plugin dir exists; the one variable is all the deployment sets.
+    const flags = youtubeExtractorArgsFromEnv(
+      { VIDEO_INGEST_POT_PROVIDER: 'true' },
+      undefined,
+      true,
+    );
     expect(flags).toContain(
       'youtubepot-bgutilhttp:base_url=http://bgutil-provider:4416',
     );
     expect(flags).toContain(
       'youtube:player_client=default,mweb,tv_simply;fetch_pot=always',
     );
+  });
+
+  // The provider is a container the deployment starts only when asked: an
+  // image that ships the plugin must not go looking for it on its own.
+  it('asks no provider in an image that ships the plugin until the deployment turns it on', () => {
+    for (const env of [
+      {},
+      { VIDEO_INGEST_POT_PROVIDER: 'false' },
+      { VIDEO_INGEST_POT_PROVIDER: '' },
+      { VIDEO_INGEST_POT_PROVIDER: 'yes' },
+    ]) {
+      expect(youtubeExtractorArgsFromEnv(env, undefined, true)).toEqual([
+        '--extractor-args',
+        'youtube:player_client=default,tv_simply',
+      ]);
+    }
+  });
+
+  it('turns nothing on where the image ships no plugin', () => {
+    expect(
+      youtubeExtractorArgsFromEnv(
+        { VIDEO_INGEST_POT_PROVIDER: 'true' },
+        undefined,
+        false,
+      ),
+    ).toEqual(['--extractor-args', 'youtube:player_client=default,tv_simply']);
   });
 
   it('does not emit fetch_pot without a provider', () => {
@@ -841,7 +1612,7 @@ describe('youtubeExtractorArgsFromEnv', () => {
 
   it('honours a VIDEO_INGEST_FETCH_POT override', () => {
     const flags = youtubeExtractorArgsFromEnv(
-      { VIDEO_INGEST_FETCH_POT: 'never' },
+      { VIDEO_INGEST_FETCH_POT: 'never', VIDEO_INGEST_POT_PROVIDER: 'true' },
       undefined,
       true,
     );
@@ -863,7 +1634,10 @@ describe('youtubeExtractorArgsFromEnv', () => {
   it('ignores an invalid VIDEO_INGEST_FETCH_POT (logged, not thrown)', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const flags = youtubeExtractorArgsFromEnv(
-      { VIDEO_INGEST_FETCH_POT: 'sometimes' },
+      {
+        VIDEO_INGEST_FETCH_POT: 'sometimes',
+        VIDEO_INGEST_POT_PROVIDER: 'true',
+      },
       undefined,
       true,
     );
@@ -1008,11 +1782,28 @@ describe('pluginDirFlagsFromEnv', () => {
     ).toEqual(['--plugin-dirs', '/etc/yt-dlp/plugins']);
   });
 
-  it('falls back to the baked plugin dir when it exists', () => {
-    expect(pluginDirFlagsFromEnv({}, true)).toEqual([
-      '--plugin-dirs',
-      '/opt/yt-dlp/plugins',
-    ]);
+  it('falls back to the baked plugin dir where a run has a provider to ask', () => {
+    const baked = ['--plugin-dirs', '/opt/yt-dlp/plugins'];
+    expect(
+      pluginDirFlagsFromEnv({ VIDEO_INGEST_POT_PROVIDER: 'true' }, true),
+    ).toEqual(baked);
+    expect(
+      pluginDirFlagsFromEnv(
+        { VIDEO_INGEST_POT_PROVIDER_URL: 'http://pot.example:4416' },
+        true,
+      ),
+    ).toEqual(baked);
+  });
+
+  // Loaded without one, the plugin looks for a provider on the loopback.
+  it('loads no plugin where no provider is asked', () => {
+    expect(pluginDirFlagsFromEnv({}, true)).toEqual([]);
+    expect(
+      pluginDirFlagsFromEnv({ VIDEO_INGEST_POT_PROVIDER: 'false' }, true),
+    ).toEqual([]);
+    expect(
+      pluginDirFlagsFromEnv({ VIDEO_INGEST_POT_PROVIDER: 'true' }, false),
+    ).toEqual([]);
   });
 
   it('prefers an explicit env dir over the baked default', () => {
@@ -1103,10 +1894,11 @@ describe('the yt-dlp version floor', () => {
 
   it('never exceeds the version the image pins', () => {
     // The floor is what we warn a dev host about. If it ever rose above the
-    // Dockerfile pin, the shipped image would warn about itself — and the
-    // warning would stop meaning "your host is behind production".
+    // pin of the image a deployment's yt-dlp runs in, the warning would stop
+    // meaning "your host is behind production".
+    const here = dirname(fileURLToPath(import.meta.url));
     const dockerfile = readFileSync(
-      join(dirname(fileURLToPath(import.meta.url)), '../../../Dockerfile'),
+      join(here, '../../../../sandbox-runtime/Dockerfile'),
       'utf8',
     );
     const pinned = /^ARG YTDLP_VERSION=(\S+)$/m.exec(dockerfile)?.[1];
@@ -1115,4 +1907,102 @@ describe('the yt-dlp version floor', () => {
       compareYtdlpVersions(MIN_YTDLP_VERSION, pinned as string),
     ).toBeLessThanOrEqual(0);
   });
+
+  // A video link's yt-dlp runs in a sandbox session, never beside the
+  // application (tale-project/tale#4942): the application's image carries
+  // none of its tools, and so nothing to keep in step with the session's.
+  it("is pinned in the session's image alone: the application's carries no yt-dlp", () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const platform = readFileSync(join(here, '../../../Dockerfile'), 'utf8');
+
+    for (const tool of [
+      'YTDLP_VERSION',
+      'DENO_VERSION',
+      'BGUTIL_POT_VERSION',
+      'yt-dlp/yt-dlp/releases',
+      'denoland/deno/releases',
+      'bgutil-ytdlp-pot-provider/releases',
+      '/usr/local/bin/yt-dlp',
+      '/usr/local/bin/deno',
+      '/opt/yt-dlp',
+    ]) {
+      expect(platform).not.toContain(tool);
+    }
+    // ffmpeg stays: the transcription lane converts a video's sound here.
+    expect(platform).toMatch(/apt-get install .*\bffmpeg\b/);
+  });
+});
+
+describe('the bundled PO-token provider', () => {
+  it('is on only where the deployment says true', () => {
+    expect(potProviderOn({})).toBe(false);
+    expect(potProviderOn({ VIDEO_INGEST_POT_PROVIDER: 'true' })).toBe(true);
+    expect(potProviderOn({ VIDEO_INGEST_POT_PROVIDER: ' TRUE ' })).toBe(true);
+    for (const raw of ['false', '', '1', 'yes', 'on'])
+      expect(potProviderOn({ VIDEO_INGEST_POT_PROVIDER: raw })).toBe(false);
+  });
+
+  it('is asked at its own address, unless the deployment names another provider', () => {
+    expect(potProviderUrl({ VIDEO_INGEST_POT_PROVIDER: 'true' }, true)).toBe(
+      'http://bgutil-provider:4416',
+    );
+    expect(
+      potProviderUrl(
+        {
+          VIDEO_INGEST_POT_PROVIDER: 'true',
+          VIDEO_INGEST_POT_PROVIDER_URL: ' http://pot.example:4416 ',
+        },
+        true,
+      ),
+    ).toBe('http://pot.example:4416');
+    // A provider of the deployment's own needs neither the switch nor the
+    // bundled plugin's image.
+    expect(
+      potProviderUrl(
+        { VIDEO_INGEST_POT_PROVIDER_URL: 'http://pot.example:4416' },
+        false,
+      ),
+    ).toBe('http://pot.example:4416');
+    expect(potProviderUrl({}, true)).toBeUndefined();
+    expect(
+      potProviderUrl({ VIDEO_INGEST_POT_PROVIDER: 'true' }, false),
+    ).toBeUndefined();
+  });
+});
+
+describe('botWallReason', () => {
+  it('names the setting where YouTube walls a deployment that has no PO tokens', () => {
+    expect(botWallReason('youtube', {}, true)).toBe('poTokenProviderOff');
+    expect(botWallReason('youtube', {}, false)).toBe('poTokenProviderOff');
+    expect(
+      botWallReason('youtube', { VIDEO_INGEST_POT_PROVIDER: 'false' }, true),
+    ).toBe('poTokenProviderOff');
+  });
+
+  it('is the platform’s own wall once the deployment has a source of tokens', () => {
+    expect(
+      botWallReason('youtube', { VIDEO_INGEST_POT_PROVIDER: 'true' }, true),
+    ).toBe('botDetection');
+    expect(
+      botWallReason(
+        'youtube',
+        { VIDEO_INGEST_POT_PROVIDER_URL: 'http://pot.example:4416' },
+        false,
+      ),
+    ).toBe('botDetection');
+    expect(
+      botWallReason('youtube', { VIDEO_INGEST_PO_TOKEN: 'mweb.gvs+TOK' }, true),
+    ).toBe('botDetection');
+  });
+
+  // PO tokens are YouTube's: no other platform's wall is answered with them.
+  it.each(['bilibili', 'vimeo', 'twitch', 'dailymotion', 'generic'])(
+    'is the platform’s own wall on %s, whatever the deployment has',
+    (platform) => {
+      expect(botWallReason(platform, {}, true)).toBe('botDetection');
+      expect(
+        botWallReason(platform, { VIDEO_INGEST_POT_PROVIDER: 'true' }, true),
+      ).toBe('botDetection');
+    },
+  );
 });

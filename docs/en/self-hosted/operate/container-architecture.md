@@ -15,27 +15,29 @@ Use service ownership to narrow an incident before changing containers. The pack
 | Jobs, scheduled automations, or ingestion stop progressing | `backend-worker` | Queue state, job errors, credentials, and required stores. |
 | Reads or writes fail across the application | `db` or the external application database | Connectivity, disk space, locks, and database logs. |
 | Files cannot be uploaded or downloaded | `backend-api`, then `object-store` or the external bucket | The resolved organization connection, credentials, public endpoint, and browser CORS. |
-| An agent runtime cannot start or reach its model | `sandbox`, `sandbox-llm-gateway` | Session creation, gateway authentication, model availability, and runtime image. |
+| An agent runtime cannot start or reach its model | `sandbox`, `backend-api` | Session creation, the model relay's `[llm-relay]` lines in the `backend-api` log, model availability, and runtime image. |
 | Sandboxed network access or page rendering fails | `sandbox-egress`, `sandbox` | Target hostname, allowed ports, egress policy, and session logs. |
-| Video transcript retrieval fails | `backend-worker`, `bgutil-provider` | Video access, extractor errors, configured proxy, and browser-session status. |
+| Video transcript retrieval fails | `backend-worker`, `sandbox`, `sandbox-egress`, `bgutil-provider` | Video access, extractor errors, a free sandbox session, sandbox egress, configured proxy, and browser-session status. |
 
 Use logical service names with `tale logs <service>`. For your own Compose stack, use `docker compose logs --tail=200 <service>`; generated container names may include a project, colour, and replica number.
 
+A workspace runs the web tier, the API and the workers in one `platform` process unless its workers run apart. `backend-api` and `backend-worker` in this table are then that process, and all three share one log: `tale logs backend-api` and `tale logs backend-worker` read it, and say so. `tale status` lists the containers the workspace has.
+
 ## Follow an interactive chat request
 
-1. The browser reaches `proxy`. Web assets go to `platform`; application and authentication requests go to `backend-api`.
+1. The browser reaches `proxy`. Web assets go to `platform`; application and authentication requests go to `backend-api`, a name the `platform` process answers too where it is the API.
 2. The API checks the session and organization, resolves the chosen model and credential, and executes the interactive turn. It stores progress in the application database.
 3. The browser reads turn progress through the thread's stream endpoint. `/events` carries invalidation hints for refreshed data; it is not the token payload stream.
 4. Knowledge tools access the requesting organization's knowledge connection. Original files are read through its storage configuration.
-5. A turn using an agent runtime needs a sandbox session and the model gateway. Queued tasks, workflow agent jobs, and REST chat turns can also depend on workers.
+5. A turn using an agent runtime needs a sandbox session, whose agent calls its model through the model relay in `backend-api`. Queued tasks, workflow agent jobs, and REST chat turns can also depend on workers.
 
-A worker outage therefore has a different scope from an API outage, but it is not safe to declare all chat or agent work unaffected. Check the entry point and execution type that failed. Preserve the original error before retrying a turn that might spend tokens or perform an external action.
+A worker outage therefore has a different scope from an API outage where the two are separate processes, but it is not safe to declare all chat or agent work unaffected. One process that is both fails as a whole. Check the entry point and execution type that failed. Preserve the original error before retrying a turn that might spend tokens or perform an external action.
 
 ## Understand the sandbox dependencies
 
-`sandbox` is a spawner with access to the host's Docker daemon. It creates temporary containers from the pinned sandbox-runtime image and mounts their workspaces. Those sessions use an isolated network: outbound web requests pass through `sandbox-egress`, while model calls use the gateway's scoped session access.
+`sandbox` is a spawner with access to the host's Docker daemon. It creates temporary containers from the pinned sandbox-runtime image and mounts their workspaces. Those sessions use an isolated network: outbound web requests pass through `sandbox-egress`, while model calls go to the [model relay](/self-hosted/configuration/environment-reference#model-relay) on port 8080 of `backend-api`, with a key that belongs to the turn.
 
-The runtime also supplies Chromium and Playwright for page rendering and document generation. A healthy web UI does not prove that this execution plane works. Check image availability, workspace mounts, the shared sandbox token, and gateway credentials before diagnosing an individual script.
+The runtime also supplies Chromium and Playwright for page rendering and document generation. A healthy web UI does not prove that this execution plane works. Check image availability, workspace mounts, the shared sandbox token, and whether sessions reach the model relay before diagnosing an individual script.
 
 The egress service blocks private and metadata destinations and can enforce a hostname allowlist. An unavailable egress path can cause refusals or network failures; the precise error depends on the operation. [Hardening](/self-hosted/operate/security/hardening) describes the policy, and [Run Compose yourself](/self-hosted/install/own-compose) lists required capabilities and mounts.
 
@@ -61,11 +63,11 @@ On the experimental [Incus runtime](/self-hosted/install/incus), the same servic
 | --- | --- | --- |
 | `names` | The stack's resolver: answers the services' names with their fixed addresses on the bridge and forwards every other name to the bridge's own DNS. Every instance of the stack asks it. | Docker's embedded DNS |
 | `names-sessions` | The sessions' resolver: answers only the names a session may reach. | The sandbox network's DNS |
-| `switch` | A second instance of the proxy image (`TALE_PROXY_ROLE=switch`). The names `platform` and `backend-api` resolve to it, and it balances each over its replicas, which it admits by a separate probe (`/api/admission` on the platform, `/admission` on the backend API). A replacement therefore never changes an address. | Network aliases that replicas join and leave |
+| `switch` | A second instance of the proxy image (`TALE_PROXY_ROLE=switch`). The names `platform` and `backend-api` resolve to it, and it balances each over its replicas, which it admits by a separate probe (`/api/admission` on the platform, `/admission` on the backend API), the model relay of the backend API's replicas on port 8080 included. A replacement therefore never changes an address. | Network aliases that replicas join and leave |
 
 A request takes the same path as above, with the switch between `proxy` and the application roles: the browser reaches `proxy`, which sends web assets to `platform` and application requests to `backend-api`, both through `switch`. Read the service behind a failure the same way. Instances carry their service's name, with a replica number for `platform-1`, `backend-api-1` and `backend-worker-1`, and their console output is in Incus, not Docker: [Read logs and crashes](/self-hosted/install/incus#logs).
 
-The trust boundary moves from the Docker socket to two restricted certificates. The CLI's reaches the stack's project alone, and the spawner's reaches the sessions' project alone; neither can make a project or touch another one, and a session holds none. The project admits no privileged, nested or low-level containers and no host disks, and network ACLs on both bridges drop what no rule allows. Sessions reach the backend API through `switch`, the model gateway, the egress proxy and `names-sessions`, and nothing else. The [network ACLs](/self-hosted/install/incus#network-acls) list every rule.
+The trust boundary moves from the Docker socket to two restricted certificates. The CLI's reaches the stack's project alone, and the spawner's reaches the sessions' project alone; neither can make a project or touch another one, and a session holds none. The project admits no privileged, nested or low-level containers and no host disks, and network ACLs on both bridges drop what no rule allows. Sessions reach the backend API and its model relay through `switch`, the egress proxy and `names-sessions`, and nothing else. The [network ACLs](/self-hosted/install/incus#network-acls) list every rule.
 
 ## Recognize knowledge-index repair
 

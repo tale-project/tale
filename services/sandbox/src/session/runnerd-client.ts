@@ -737,18 +737,32 @@ export async function runnerdListDir(
   return body.entries;
 }
 
-/** GET /fs/read — file bytes, or null when unsafe/missing/oversize. */
+/** How long a read of up to `maxBytes` may take from its first byte to its
+ * last: the time any call gets, and a second for every mebibyte asked for,
+ * which is slower than any disk or network a session sits on. */
+export function fileReadTimeoutMs(maxBytes: number | undefined): number {
+  return maxBytes === undefined
+    ? RUNNERD_RPC_TIMEOUT_MS
+    : RUNNERD_RPC_TIMEOUT_MS + Math.ceil(maxBytes / (1024 * 1024)) * 1000;
+}
+
+/** GET /fs/read — file bytes, or null when unsafe/missing/oversize. A
+ * caller that reads the file as a stream names how much it will take
+ * (`maxBytes`); without it the session hands out a file a caller may hold
+ * whole and no more. The answer declares the file's length. */
 export async function runnerdReadFile(
   opts: RunnerdClientOptions,
   path: string,
   signal?: AbortSignal,
+  maxBytes?: number,
 ): Promise<Response | null> {
+  const limit = maxBytes === undefined ? '' : `&maxBytes=${maxBytes}`;
   const res = await fetch(
-    `${opts.baseUrl}/fs/read?path=${encodeURIComponent(path)}`,
+    `${opts.baseUrl}/fs/read?path=${encodeURIComponent(path)}${limit}`,
     {
       headers: authHeaders(opts.token),
       signal: AbortSignal.any([
-        AbortSignal.timeout(RUNNERD_RPC_TIMEOUT_MS),
+        AbortSignal.timeout(fileReadTimeoutMs(maxBytes)),
         ...(signal === undefined ? [] : [signal]),
       ]),
     },

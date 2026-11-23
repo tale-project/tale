@@ -8,7 +8,8 @@
  *
  * 1. the edge, the switch and both colours (90) — nothing new comes in,
  *    and the application tier hands its work on within its grace;
- * 2. the middle tier (50) — the sandbox, its egress and LLM gateway;
+ * 2. the middle tier (50) — the sandbox and its egress, and a model gateway
+ *    an earlier release left, which the table no longer knows;
  * 3. data and the resolvers (10) — the database stops after every writer.
  *
  * Each group stops in parallel, each instance within its own declared grace
@@ -27,9 +28,10 @@
 
 import { getProjectId } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
+import type { AppTier } from '../compose/app-tier';
 import { buildColorCompose } from '../compose/generators/generate-color-compose';
 import { buildStatefulCompose } from '../compose/generators/generate-stateful-compose';
-import type { ComposeConfig } from '../compose/types';
+import type { ComposeConfig, DeploymentColor } from '../compose/types';
 import {
   assertNoRestorePending,
   readJournal,
@@ -38,6 +40,7 @@ import { placementOf, STOP_GROUPS } from '../runtime/incus/compile/placement';
 import type { InstanceSummary, StackRuntime } from '../runtime/types';
 import { assertNoMigrationUnderWay } from '../state/migration-journal';
 import { withLock } from '../state/with-lock';
+import { colorTier } from './color-lifecycle';
 
 /** The stop groups, the first to stop first. */
 const STOP_ORDER: readonly number[] = [
@@ -62,9 +65,19 @@ function seconds(value: string | undefined): number | undefined {
  * documents the deploy generates (`stop_grace_period`): what Docker gives a
  * `docker stop -t`. A service that declares none is absent (Docker's own
  * 10 s applies).
+ *
+ * A colour declares what its SHAPE declares (compose/app-tier.ts): `platform`
+ * as the whole application hands its automation runs on like a worker and
+ * gets a worker's 120 s, where the web tier alone gets 45. `tier` is the
+ * shape of the colour the graces are for; without one they are those of the
+ * three services.
  */
-export function declaredGraces(): Record<string, number> {
-  const config = { version: 'latest', registry: 'ghcr.io/tale-project/tale' };
+export function declaredGraces(tier?: AppTier): Record<string, number> {
+  const config = {
+    version: 'latest',
+    registry: 'ghcr.io/tale-project/tale',
+    ...(tier === undefined ? {} : { appTier: tier }),
+  };
   const documents: ComposeConfig[] = [
     buildStatefulCompose(config, 'localhost'),
     buildColorCompose(config, 'blue'),
@@ -76,6 +89,35 @@ export function declaredGraces(): Record<string, number> {
       if (grace !== undefined) graces[service] = grace;
     }
   return graces;
+}
+
+/**
+ * The grace of each instance on Docker: its service's, in the shape its own
+ * colour runs. Two colours of two shapes can be up at once, mid-flip, so the
+ * shape is read per colour. A colour whose shape cannot be read keeps the
+ * graces of three services, and the stop goes on: a container that will not
+ * answer an inspect is no reason to leave the rest running.
+ */
+async function graceOf(
+  runtime: StackRuntime,
+): Promise<(instance: InstanceSummary) => number | undefined> {
+  const stateful = declaredGraces();
+  const colours = new Map<DeploymentColor, Record<string, number>>();
+  for (const colour of ['blue', 'green'] as const) {
+    let tier: AppTier | null = null;
+    try {
+      tier = await colorTier(colour, runtime);
+    } catch (error) {
+      logger.warn(
+        `${error instanceof Error ? error.message : String(error)} Stopping the ${colour} colour within the graces of three services.`,
+      );
+    }
+    colours.set(colour, tier === null ? stateful : declaredGraces(tier));
+  }
+  return (instance) =>
+    (instance.colour === undefined
+      ? stateful
+      : (colours.get(instance.colour) ?? stateful))[instance.service];
 }
 
 /** Every instance of the environment: the stack and both colours. */
@@ -126,7 +168,10 @@ export async function stopEnvironment(options: StopOptions): Promise<number> {
   return locked(options, 'stop', async () => {
     const prefix = options.dryRun ? '[DRY-RUN] ' : '';
     logger.header(`${prefix}Stopping the environment`);
-    const graces = runtime.engine === 'docker' ? declaredGraces() : {};
+    const grace =
+      runtime.engine === 'docker' && !options.dryRun
+        ? await graceOf(runtime)
+        : () => undefined;
     const running = (await environmentInstances(runtime)).filter(
       (instance) => instance.running,
     );
@@ -137,9 +182,7 @@ export async function stopEnvironment(options: StopOptions): Promise<number> {
       );
       if (options.dryRun) continue;
       const results = await Promise.all(
-        group.map((instance) =>
-          runtime.stop(instance.name, graces[instance.service]),
-        ),
+        group.map((instance) => runtime.stop(instance.name, grace(instance))),
       );
       results.forEach((ok, index) => {
         if (ok) stopped += 1;

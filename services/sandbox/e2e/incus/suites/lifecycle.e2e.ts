@@ -220,7 +220,7 @@ describe('a session on a real Incus node', () => {
     expect(lines[2]).toBe('/agent');
     expect(lines[3]).toBe('/agent/.runtime/home');
     expect(lines[4]).toBe(lab.egressProxy);
-    expect(lines[5]).toContain('sandbox-llm-gateway');
+    expect(lines[5]).toContain('backend-api');
 
     const withEnv = await api.exec(S1, {
       command: ['/bin/sh', '-c', 'echo "$E2E_VALUE"; pwd'],

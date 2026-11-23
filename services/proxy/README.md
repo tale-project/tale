@@ -48,6 +48,14 @@ service is absent. A new machine API must match a backend lane
 (`BACKEND_LANES` in `traefik-labels.ts`, kept equal to the edge's absent-backend rule by
 [`render/config.test.ts`](render/config.test.ts)) so it keeps machine-readable failure responses.
 
+The edge compresses with gzip alone, from 1 KiB, and only the content types that
+`COMPRESSED_CONTENT_TYPES` in [`render/config.js`](render/config.js) names: JSON and text the
+platform writes. Everything else passes through as the service sent it, so an event stream is
+never held back, a download of anything but text keeps its `Content-Length` and byte ranges, and
+the app's own files arrive as the platform's build compressed them, brotli first. A new kind of
+text answer is compressed once its type is on that list; Traefik compares types exactly and knows
+no `text/*`.
+
 Public ports are `80` and `443`. With `METRICS_BEARER_TOKEN` set, `/metrics/platform`,
 `/metrics/sla-rules` and `/metrics/backend` answer a request that carries it as a bearer token;
 every other `/metrics` request answers `401`. See the

@@ -7,7 +7,6 @@ import { parseAdditionalSiteUrls } from '@tale/shared/utils/site-urls';
 
 import * as logger from '../../utils/logger';
 import { deriveAgePublicKey, generateAgeKeypair } from '../crypto/age-keygen';
-import { generateGatewayAdminPassword } from '../crypto/gateway-password';
 
 const isTTY = process.stdin.isTTY && process.stdout.isTTY;
 
@@ -206,11 +205,23 @@ async function promptProductionDomain(): Promise<DomainTlsConfig> {
   return deriveDomainTls({ mode: 'production', host, email });
 }
 
+/** The variables of the deployment's `.env` as written there, or null when
+ * there is none. */
+export async function readEnvVars(
+  deployDir: string,
+): Promise<Record<string, string> | null> {
+  const envPath = join(deployDir, '.env');
+  if (!existsSync(envPath)) return null;
+  return parseEnvFile(await readFile(envPath, 'utf-8'));
+}
+
 /**
  * Set (update or append) plain `KEY=value` pairs in `<deployDir>/.env`,
- * preserving everything else. For non-secret operator toggles like
- * SANDBOX_DOCKER_IN_CONTAINER that `tale init` writes from a prompt. No-op if
- * the .env doesn't exist yet (ensureEnv creates it first).
+ * preserving everything else. For operator toggles like
+ * SANDBOX_DOCKER_IN_CONTAINER that `tale init` writes from a prompt, and the
+ * retired model gateway's admin password a deploy puts back
+ * (actions/retire-gateway.ts). No-op if the .env doesn't exist yet
+ * (ensureEnv creates it first).
  */
 export async function setEnvVars(
   deployDir: string,
@@ -236,52 +247,14 @@ async function applyEnvUpdates(
   for (const [key, value] of Object.entries(updates)) {
     const line = `${key}=${value}`;
     if (existing[key] !== undefined) {
-      content = content.replace(new RegExp(`^${key}=.*$`, 'm'), line);
+      // A function, so that a `$` in the value is written as it is and not
+      // read as a replacement pattern.
+      content = content.replace(new RegExp(`^${key}=.*$`, 'm'), () => line);
     } else {
       content = `${content.endsWith('\n') ? content : `${content}\n`}${line}\n`;
     }
   }
   await writeFile(envPath, content, 'utf-8');
-}
-
-/**
- * One-release migration shim for the `LLM_GATEWAY_*` → `SANDBOX_LLM_GATEWAY_*`
- * env rename (landed with the `llm-gateway` → `sandbox-llm-gateway` service
- * rename). On an upgrade an existing `.env` still carries the old names; copy
- * each old value to its new name when the new name isn't already set, so the
- * auto-secret-fill below doesn't mistake the renamed
- * `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` for a brand-new required secret and
- * regenerate it — which would silently rotate the gateway admin credential and
- * lock the platform out of an already-provisioned gateway. The old keys are left
- * in place; the backend reads the new name first and falls back to the old for
- * the same transition window. Mutates `existing` so the missing-var computation
- * that follows sees the migrated keys as present.
- */
-async function migrateRenamedEnvVars(
-  envPath: string,
-  existing: Record<string, string>,
-  dryRun: boolean,
-): Promise<void> {
-  const OLD_PREFIX = 'LLM_GATEWAY_';
-  const NEW_PREFIX = 'SANDBOX_LLM_GATEWAY_';
-  const updates: Record<string, string> = {};
-  for (const [key, value] of Object.entries(existing)) {
-    if (!key.startsWith(OLD_PREFIX)) continue;
-    const renamed = `${NEW_PREFIX}${key.slice(OLD_PREFIX.length)}`;
-    if (existing[renamed] === undefined) updates[renamed] = value;
-  }
-  if (Object.keys(updates).length === 0) return;
-  if (dryRun) {
-    logger.info(
-      `[DRY-RUN] Would copy ${Object.keys(updates).length} gateway env var(s) to the SANDBOX_LLM_GATEWAY_* prefix in .env.`,
-    );
-  } else {
-    await applyEnvUpdates(envPath, existing, updates);
-    logger.info(
-      `Migrated ${Object.keys(updates).length} gateway env var(s) to the SANDBOX_LLM_GATEWAY_* prefix.`,
-    );
-  }
-  Object.assign(existing, updates);
 }
 
 /**
@@ -336,10 +309,6 @@ export async function ensureEnv(
     const content = await readFile(envPath, 'utf-8');
     const existing = parseEnvFile(content);
 
-    // Carry forward any renamed vars before computing what's "missing", so a
-    // rename isn't mistaken for a fresh required secret and regenerated.
-    await migrateRenamedEnvVars(envPath, existing, dryRun);
-
     // Split required vars by who can satisfy them:
     //   - User-supplied: needs human input (HOST, TLS choice). Non-TTY
     //     upgrade can't fill these in; refuse and prompt for interactive.
@@ -364,18 +333,18 @@ export async function ensureEnv(
       // plaintext email + IP for the whole audit retention window. See
       // services/platform/backend/core/lib/helpers/pii_hash.ts.
       'TALE_AUDIT_PEPPER',
-      // Admin password for the sandbox LLM gateway's management API (the platform
-      // pushes provider keys / mints virtual keys through it). Auto-generated
-      // so the gateway is locked by default and the credential is STABLE
-      // across deploys; the matching SANDBOX_LLM_GATEWAY_ADMIN_USERNAME=admin is a
-      // static line written by generateEnvContent.
-      'SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD',
       // Root credential for the bundled object store — the deployment's blob
       // backend, and the only one there is (S3-compatible storage replaced
       // Convex `_storage`). Auto-generated so uploads work out of the box and
-      // the credential is STABLE across deploys: rotating it would orphan
-      // every blob already written under the old key.
+      // the credential is STABLE across deploys: the store and the backend
+      // both read it, so a change takes the two replaced together (`tale
+      // deploy --stop`). Its blobs stay readable under a new key.
       'OBJECT_STORE_SECRET_KEY',
+      // Bearer of the backend's control door (/api/control): the deploy's
+      // drain and its check before it retires the model gateway, the
+      // reseed, and owner recovery. Unset, the door does not exist. Read
+      // inside the container only (docker/control-call.ts).
+      'TALE_CONTROL_TOKEN',
     ];
     const missingUser = requiredUserVars.filter((v) => !existing[v]);
     const missingAuto = requiredAutoVars.filter((v) => !existing[v]);
@@ -462,8 +431,8 @@ async function runHeadlessAutoSecretFill(
     DB_PASSWORD: generatePassword,
     SANDBOX_TOKEN: generateHexSecret,
     TALE_AUDIT_PEPPER: generateHexSecret,
-    SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD: generateGatewayAdminPassword,
     OBJECT_STORE_SECRET_KEY: generatePassword,
+    TALE_CONTROL_TOKEN: generateHexSecret,
   };
 
   const updates: Record<string, string> = {};
@@ -588,8 +557,8 @@ async function runPartialEnvSetup(
     DB_PASSWORD: generatePassword,
     SANDBOX_TOKEN: generateHexSecret,
     TALE_AUDIT_PEPPER: generateHexSecret,
-    SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD: generateGatewayAdminPassword,
     OBJECT_STORE_SECRET_KEY: generatePassword,
+    TALE_CONTROL_TOKEN: generateHexSecret,
   };
 
   let generatedCount = 0;
@@ -659,8 +628,8 @@ async function runEnvSetup(envPath: string): Promise<EnvSetupResult> {
     sopsAgeKey: ageKeypair.secretKey,
     sandboxToken: generateHexSecret(),
     auditPepper: generateHexSecret(),
-    llmGatewayAdminPassword: generateGatewayAdminPassword(),
     objectStoreSecretKey: generatePassword(),
+    controlToken: generateHexSecret(),
   });
 
   await writeFile(envPath, envContent, 'utf-8');
@@ -683,8 +652,8 @@ interface EnvConfig {
   sopsAgeKey: string;
   sandboxToken: string;
   auditPepper: string;
-  llmGatewayAdminPassword: string;
   objectStoreSecretKey: string;
+  controlToken: string;
 }
 
 function generateEnvContent(config: EnvConfig): string {
@@ -783,14 +752,12 @@ function generateEnvContent(config: EnvConfig): string {
     `TALE_AUDIT_PEPPER=${config.auditPepper}`,
     '',
     '# ============================================================================',
-    '# Sandbox LLM Gateway (model-routing proxy for in-sandbox coding agents)',
+    '# Control door',
     '# ============================================================================',
-    '# Admin credentials for the sandbox LLM gateway management API. The platform',
-    '# uses these to push provider keys and mint per-session virtual keys. The',
-    '# username is fixed; the password is auto-generated and must stay STABLE',
-    '# across deploys (a changed password locks the platform out of the gateway).',
-    'SANDBOX_LLM_GATEWAY_ADMIN_USERNAME=admin',
-    `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD=${config.llmGatewayAdminPassword}`,
+    "# Bearer of the backend's control door, which `tale deploy`, `tale migrate`",
+    '# and `tale auth reset-owner` call inside the backend container. Generated',
+    '# here; keep it as it is.',
+    `TALE_CONTROL_TOKEN=${config.controlToken}`,
     '',
     '# ============================================================================',
     "# Object store (the deployment's blob backend)",
@@ -800,8 +767,9 @@ function generateEnvContent(config: EnvConfig): string {
     '# deployment without it refuses every upload. An organization can point its',
     '# own blobs at an external bucket in Settings > Data residency; that is',
     '# resolved BEFORE this default and is unaffected by these values.',
-    '#   - The key must stay STABLE across deploys: rotating it orphans every',
-    '#     blob already written under the old credential.',
+    '#   - The store and the backend both read the key. To rotate it, change',
+    '#     it here and run `tale deploy --stop`, which replaces the two',
+    '#     together; the blobs stay readable under the new key.',
     '#   - OBJECT_STORE_BUCKET defaults to tale-blobs and is created on first boot.',
     'OBJECT_STORE_ACCESS_KEY=tale',
     `OBJECT_STORE_SECRET_KEY=${config.objectStoreSecretKey}`,

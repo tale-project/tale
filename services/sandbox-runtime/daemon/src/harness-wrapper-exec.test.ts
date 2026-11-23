@@ -17,6 +17,7 @@ import {
   readdirSync,
   realpathSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -55,11 +56,21 @@ const WRAPPERS = [
 type Wrapper = (typeof WRAPPERS)[number];
 
 // Records what the exec's process sees (Pi's: the config dir the wrapper
-// staged, and its mcp.json), then waits to be signalled (as the same process:
-// no fork for a group signal to race) or exits with the status it is given.
+// staged, its mcp.json, its argv and the file its system-prompt append
+// names), then waits to be signalled (as the same process: no fork for a
+// group signal to race) or exits with the status it is given.
 const FAKE_CLI = `#!/bin/sh
 echo "$$" > "$FAKE_RECORD.pid"
 pwd > "$FAKE_RECORD.cwd"
+printf '%s\\n' "$@" > "$FAKE_RECORD.argv"
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "--append-system-prompt" ]; then
+    printf '%s' "$arg" > "$FAKE_RECORD.appendpath"
+    if [ -f "$arg" ]; then cp "$arg" "$FAKE_RECORD.append"; fi
+  fi
+  prev="$arg"
+done
 cat > "$FAKE_RECORD.stdin"
 if [ -n "$PI_CODING_AGENT_DIR" ]; then
   ls "$PI_CODING_AGENT_DIR" > "$FAKE_RECORD.agentdir"
@@ -109,12 +120,20 @@ function start(
     exit?: number;
     prompt?: string;
     body?: string;
+    /** More of the exec's environment, as the platform sets it. */
+    env?: Record<string, string>;
+    /** The exec's workdir, when not the workspace itself. */
+    workdir?: string;
   } = {},
 ) {
   if (PYTHON === null) throw new Error('python3 is missing');
   const child = spawn(
     PYTHON,
-    [wrapperPath(wrapper), '--workdir', join(root, 'workspace')],
+    [
+      wrapperPath(wrapper),
+      '--workdir',
+      options.workdir ?? join(root, 'workspace'),
+    ],
     {
       detached: true,
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -127,20 +146,26 @@ function start(
         FAKE_RECORD: join(root, 'records', run),
         FAKE_WAIT: options.wait === true ? '1' : '',
         FAKE_EXIT: String(options.exit ?? 0),
+        ...options.env,
       },
     },
   );
   let stdout = '';
+  let stderr = '';
   child.stdout?.on('data', (chunk: Buffer) => {
     stdout += chunk.toString('utf8');
+  });
+  child.stderr?.on('data', (chunk: Buffer) => {
+    stderr += chunk.toString('utf8');
   });
   child.stdin?.end(payload(wrapper, options.prompt ?? 'p', options.body));
   const exited = new Promise<{
     code: number | null;
     signal: NodeJS.Signals | null;
     stdout: string;
+    stderr: string;
   }>((done) =>
-    child.on('close', (code, signal) => done({ code, signal, stdout })),
+    child.on('close', (code, signal) => done({ code, signal, stdout, stderr })),
   );
   const pid = child.pid;
   if (pid === undefined) throw new Error('the wrapper never started');
@@ -158,7 +183,15 @@ async function startedCli(run: string): Promise<void> {
 
 function record(
   run: string,
-  what: 'pid' | 'cwd' | 'stdin' | 'agentdir' | 'mcp',
+  what:
+    | 'pid'
+    | 'cwd'
+    | 'stdin'
+    | 'agentdir'
+    | 'mcp'
+    | 'argv'
+    | 'appendpath'
+    | 'append',
 ): string {
   return readFileSync(join(root, 'records', `${run}.${what}`), 'utf8');
 }
@@ -304,6 +337,435 @@ describe('tale-pi-run stages the MCP servers Pi reads', () => {
       });
       expect((await run.exited).code).toBe(0);
       expect(record('a', 'agentdir').split('\n')).not.toContain('mcp.json');
+    },
+    20_000,
+  );
+});
+
+describe('tale-pi-run waits for the bridge before Pi starts', () => {
+  const pi = WRAPPERS[1];
+  /** A stand-in for the platform's bridge: it refuses the first `refusals`
+   * pings with 503, as a proxy does while the bridge is not up, then
+   * answers each with `status`. It records every request and when it first
+   * answered. */
+  function bridge(refusals: number, status = 200) {
+    const pings: { authorization: string | null; method: unknown }[] = [];
+    let answeredAt: number | undefined;
+    const server = Bun.serve({
+      port: 0,
+      hostname: '127.0.0.1',
+      fetch: async (request) => {
+        const body: unknown = await request.json();
+        pings.push({
+          authorization: request.headers.get('authorization'),
+          method:
+            typeof body === 'object' && body !== null && 'method' in body
+              ? body.method
+              : undefined,
+        });
+        if (pings.length <= refusals) {
+          return new Response('the bridge is not up', { status: 503 });
+        }
+        answeredAt ??= Date.now();
+        return Response.json(
+          { jsonrpc: '2.0', id: 'tale-pi-run', result: {} },
+          { status },
+        );
+      },
+    });
+    const mounted = JSON.stringify({
+      prompt: 'p',
+      mcp: {
+        mcpServers: {
+          'tale-connectors': {
+            url: `http://127.0.0.1:${server.port}/mcp`,
+            headers: { Authorization: 'Bearer ${TALE_GATEWAY_TOKEN}' },
+            exposure: 'direct',
+          },
+        },
+      },
+    });
+    return {
+      server,
+      pings,
+      mounted,
+      answeredAt: () => answeredAt,
+    };
+  }
+  const env = { TALE_GATEWAY_TOKEN: 'tale-st-session-token' };
+
+  pyTest(
+    'starts Pi once the bridge answers, asking it as Pi will, with the session token',
+    async () => {
+      installCli(pi);
+      // Refused three times: Pi's own three tries, a second and a quarter
+      // apart at most, would all have failed and left the turn without
+      // Tale's tools.
+      const theBridge = bridge(3);
+      try {
+        const run = start(pi, 'a', { body: theBridge.mounted, env });
+        const done = await run.exited;
+        expect(done.code).toBe(0);
+        expect(theBridge.pings).toHaveLength(4);
+        for (const ping of theBridge.pings) {
+          expect(ping).toEqual({
+            authorization: 'Bearer tale-st-session-token',
+            method: 'ping',
+          });
+        }
+        // Pi started after the bridge answered, not before.
+        const answeredAt = theBridge.answeredAt();
+        expect(answeredAt).toBeDefined();
+        expect(
+          statSync(join(root, 'records', 'a.started')).mtimeMs,
+        ).toBeGreaterThanOrEqual((answeredAt ?? 0) - 50);
+        expect(done.stderr).not.toContain('did not answer');
+      } finally {
+        await theBridge.server.stop(true);
+      }
+    },
+    20_000,
+  );
+
+  pyTest(
+    'starts Pi at once on an answer Pi would not ask again, even a refusal',
+    async () => {
+      installCli(pi);
+      const theBridge = bridge(0, 401);
+      try {
+        const since = Date.now();
+        const run = start(pi, 'a', { body: theBridge.mounted, env });
+        expect((await run.exited).code).toBe(0);
+        expect(theBridge.pings).toHaveLength(1);
+        expect(Date.now() - since).toBeLessThan(5_000);
+      } finally {
+        await theBridge.server.stop(true);
+      }
+    },
+    20_000,
+  );
+
+  pyTest(
+    'starts Pi anyway once the wait is spent, and says so',
+    async () => {
+      installCli(pi);
+      const theBridge = bridge(Number.POSITIVE_INFINITY);
+      try {
+        const since = Date.now();
+        const run = start(pi, 'a', { body: theBridge.mounted, env });
+        const done = await run.exited;
+        expect(done.code).toBe(0);
+        expect(existsSync(join(root, 'records', 'a.started'))).toBe(true);
+        expect(done.stderr).toContain(
+          "MCP server 'tale-connectors' did not answer within 10 s; starting Pi anyway",
+        );
+        // Bounded: ten seconds of waiting, not one more ping after them.
+        expect(Date.now() - since).toBeGreaterThanOrEqual(9_500);
+        expect(Date.now() - since).toBeLessThan(15_000);
+        expect(theBridge.pings.length).toBeGreaterThan(3);
+      } finally {
+        await theBridge.server.stop(true);
+      }
+    },
+    30_000,
+  );
+
+  pyTest(
+    'waits for no server of a turn that mounts only local ones',
+    async () => {
+      installCli(pi);
+      const since = Date.now();
+      const run = start(pi, 'a', {
+        body: JSON.stringify({
+          prompt: 'p',
+          mcp: { mcpServers: { browser: { command: 'tale-playwright-mcp' } } },
+        }),
+      });
+      expect((await run.exited).code).toBe(0);
+      expect(Date.now() - since).toBeLessThan(5_000);
+    },
+    20_000,
+  );
+});
+
+describe("tale-pi-run hands Pi the platform's instructions", () => {
+  const pi = WRAPPERS[1];
+  const INSTRUCTIONS = '# Tale\n\nWrite every file to /agent/output/t-1/.';
+
+  pyTest(
+    'as a file the command line names, outside the config dir Pi searches',
+    async () => {
+      installCli(pi);
+      const run = start(pi, 'a', {
+        body: JSON.stringify({ prompt: 'p', system_prompt: INSTRUCTIONS }),
+      });
+      expect((await run.exited).code).toBe(0);
+      const argv = record('a', 'argv').split('\n');
+      const at = argv.indexOf('--append-system-prompt');
+      expect(at).toBeGreaterThan(-1);
+      const path = record('a', 'appendpath');
+      expect(argv[at + 1]).toBe(path);
+      // The text rides a file, never argv.
+      expect(argv.some((arg) => arg.includes('/agent/output/t-1/'))).toBe(
+        false,
+      );
+      expect(record('a', 'append')).toBe(INSTRUCTIONS);
+      // Nothing of ours for Pi to discover in its config dir.
+      expect(record('a', 'agentdir').split('\n')).not.toContain(
+        'APPEND_SYSTEM.md',
+      );
+    },
+    20_000,
+  );
+
+  pyTest(
+    'on a resumed turn too, where it is the current exec’s',
+    async () => {
+      installCli(pi);
+      const child = spawn(
+        PYTHON ?? 'python3',
+        [
+          wrapperPath(pi),
+          '--workdir',
+          join(root, 'workspace'),
+          '--resume',
+          'conv-1',
+        ],
+        {
+          stdio: ['pipe', 'ignore', 'ignore'],
+          env: {
+            ...process.env,
+            PATH: `${join(root, 'cli')}:/usr/bin:/bin`,
+            HOME: join(root, 'home'),
+            TMPDIR: join(root, 'tmp'),
+            FAKE_RECORD: join(root, 'records', 'r'),
+            FAKE_WAIT: '',
+            FAKE_EXIT: '0',
+          },
+        },
+      );
+      child.stdin?.end(
+        JSON.stringify({ prompt: 'go on', system_prompt: 'second' }),
+      );
+      expect(
+        await new Promise<number | null>((done) =>
+          child.on('close', (code) => done(code)),
+        ),
+      ).toBe(0);
+      const argv = record('r', 'argv').split('\n');
+      expect(argv).toContain('--session');
+      expect(argv[argv.indexOf('--session') + 1]).toBe('conv-1');
+      expect(record('r', 'append')).toBe('second');
+    },
+    20_000,
+  );
+
+  pyTest(
+    'not at all when the turn carries none',
+    async () => {
+      installCli(pi);
+      const run = start(pi, 'a', { body: JSON.stringify({ prompt: 'p' }) });
+      expect((await run.exited).code).toBe(0);
+      expect(record('a', 'argv').split('\n')).not.toContain(
+        '--append-system-prompt',
+      );
+    },
+    20_000,
+  );
+});
+
+describe("tale-pi-run trusts none of the workspace's own Pi configuration", () => {
+  const pi = WRAPPERS[1];
+
+  /** The directories the exec's `--skill` flags name, in order. */
+  function skills(run: string): string[] {
+    const argv = record(run, 'argv').split('\n');
+    return argv.flatMap((arg, at) => (argv[at - 1] === '--skill' ? [arg] : []));
+  }
+
+  function mkdirs(...paths: string[]): void {
+    for (const path of paths) mkdirSync(path, { recursive: true });
+  }
+
+  pyTest(
+    'starts Pi with --no-approve, and names no skill directory the workspace lacks',
+    async () => {
+      mkdirs(join(root, 'workspace', '.git'));
+      installCli(pi);
+      const run = start(pi, 'a');
+      expect((await run.exited).code).toBe(0);
+      const argv = record('a', 'argv').split('\n');
+      expect(argv.slice(0, 3)).toEqual(['--mode', 'json', '--no-approve']);
+      expect(argv).not.toContain('--approve');
+      expect(skills('a')).toEqual([]);
+    },
+    20_000,
+  );
+
+  pyTest(
+    'names the skill directories a trusted Pi searches, up to the repository root',
+    async () => {
+      const ws = join(root, 'workspace');
+      mkdirs(
+        join(ws, '.git'),
+        join(ws, '.pi', 'skills'),
+        join(ws, '.agents', 'skills'),
+        // Above the repository's root, where Pi stops searching.
+        join(root, '.agents', 'skills'),
+      );
+      installCli(pi);
+      const run = start(pi, 'a');
+      expect((await run.exited).code).toBe(0);
+      expect(skills('a')).toEqual([
+        join(ws, '.pi', 'skills'),
+        join(ws, '.agents', 'skills'),
+      ]);
+    },
+    20_000,
+  );
+
+  pyTest(
+    'from a directory inside the repository, each .agents/skills up to its root',
+    async () => {
+      const ws = join(root, 'workspace');
+      const sub = join(ws, 'packages', 'app');
+      mkdirs(
+        join(ws, '.git'),
+        join(sub, '.agents', 'skills'),
+        join(ws, '.agents', 'skills'),
+        // Pi reads .pi/skills in the working directory only.
+        join(ws, '.pi', 'skills'),
+      );
+      installCli(pi);
+      const run = start(pi, 'a', { workdir: sub });
+      expect((await run.exited).code).toBe(0);
+      expect(record('a', 'cwd').trim()).toBe(sub);
+      expect(skills('a')).toEqual([
+        join(sub, '.agents', 'skills'),
+        join(ws, '.agents', 'skills'),
+      ]);
+    },
+    20_000,
+  );
+
+  pyTest(
+    'leaves out the user skills directory, which Pi loads itself',
+    async () => {
+      // Outside a repository the search goes on up to /, past HOME.
+      const ws = join(root, 'workspace');
+      mkdirs(join(root, '.agents', 'skills'), join(ws, '.agents', 'skills'));
+      installCli(pi);
+      const run = start(pi, 'a', { env: { HOME: root } });
+      expect((await run.exited).code).toBe(0);
+      const named = skills('a');
+      expect(named[0]).toBe(join(ws, '.agents', 'skills'));
+      expect(named).not.toContain(join(root, '.agents', 'skills'));
+    },
+    20_000,
+  );
+});
+
+describe('tale-pi-run --rpc hands Pi the rest of stdin', () => {
+  const pi = WRAPPERS[1];
+
+  /** Run the wrapper in RPC mode with `input` on stdin, then EOF. */
+  function rpcRun(
+    run: string,
+    input: string,
+    extra: string[] = [],
+  ): Promise<{ code: number | null; stdout: string }> {
+    installCli(pi);
+    const child = spawn(
+      PYTHON ?? 'python3',
+      [
+        wrapperPath(pi),
+        '--rpc',
+        '--workdir',
+        join(root, 'workspace'),
+        ...extra,
+      ],
+      {
+        stdio: ['pipe', 'pipe', 'ignore'],
+        env: {
+          ...process.env,
+          PATH: `${join(root, 'cli')}:/usr/bin:/bin`,
+          HOME: join(root, 'home'),
+          TMPDIR: join(root, 'tmp'),
+          FAKE_RECORD: join(root, 'records', run),
+          FAKE_WAIT: '',
+          FAKE_EXIT: '0',
+        },
+      },
+    );
+    let stdout = '';
+    child.stdout?.on('data', (chunk: Buffer) => {
+      stdout += chunk.toString('utf8');
+    });
+    child.stdin?.end(input);
+    return new Promise((done) =>
+      child.on('close', (code) => done({ code, stdout })),
+    );
+  }
+
+  const ENVELOPE = JSON.stringify({
+    system_prompt: 'Be brief.',
+    settings: { enableInstallTelemetry: false },
+  });
+  const PROMPT = '{"type":"prompt","message":"Write the report."}\n';
+  const STEER = '{"type":"steer","message":"Use the new figures."}\n';
+
+  pyTest(
+    'stages the first line, names a new session and leaves the commands after it to Pi',
+    async () => {
+      const done = await rpcRun('a', `${ENVELOPE}\n${PROMPT}${STEER}`);
+      expect(done.code).toBe(0);
+      // Pi reads exactly what followed the envelope, byte for byte.
+      expect(record('a', 'stdin')).toBe(`${PROMPT}${STEER}`);
+      const argv = record('a', 'argv').split('\n');
+      expect(argv.slice(0, 3)).toEqual(['--mode', 'rpc', '--no-approve']);
+      const id = argv[argv.indexOf('--session-id') + 1] ?? '';
+      expect(id).toMatch(/^[0-9a-f-]{36}$/);
+      // RPC mode prints no session header: the wrapper names the session.
+      expect(JSON.parse(done.stdout.split('\n')[0] ?? '')).toEqual({
+        type: 'session',
+        id,
+      });
+      expect(record('a', 'append')).toBe('Be brief.');
+    },
+    20_000,
+  );
+
+  pyTest(
+    'resumes the session it is given, and names it',
+    async () => {
+      const done = await rpcRun('r', `${ENVELOPE}\n${PROMPT}`, [
+        '--resume',
+        'conv-1',
+      ]);
+      expect(done.code).toBe(0);
+      const argv = record('r', 'argv').split('\n');
+      expect(argv[argv.indexOf('--session') + 1]).toBe('conv-1');
+      expect(argv).not.toContain('--session-id');
+      expect(JSON.parse(done.stdout.split('\n')[0] ?? '')).toEqual({
+        type: 'session',
+        id: 'conv-1',
+      });
+    },
+    20_000,
+  );
+
+  pyTest(
+    'refuses an envelope that carries the prompt, before Pi starts',
+    async () => {
+      const done = await rpcRun(
+        'x',
+        `${JSON.stringify({ prompt: 'p' })}\n${PROMPT}`,
+      );
+      expect(done.code).toBe(1);
+      expect(JSON.parse(done.stdout.split('\n')[0] ?? '')).toMatchObject({
+        type: 'wrapper_error',
+      });
+      expect(existsSync(join(root, 'records', 'x.started'))).toBe(false);
     },
     20_000,
   );

@@ -26,6 +26,39 @@ Short clip.`;
     expect(out).toEqual([{ startSec: 1.5, endSec: 3, text: 'Short clip.' }]);
   });
 
+  // A platform that serves captions in SubRip alone is read as it serves
+  // them: no header, a number before each cue, a comma in the timestamps.
+  it('reads a SubRip file as the WebVTT file it nearly is', () => {
+    const srt = `1
+00:00:01,000 --> 00:00:04,250
+First cue of the track.
+
+2
+00:01:05,500 --> 01:02:03,004
+<i>Second</i> cue,
+on two lines.
+`;
+    const vtt = `WEBVTT
+
+00:00:01.000 --> 00:00:04.250
+First cue of the track.
+
+00:01:05.500 --> 01:02:03.004
+<i>Second</i> cue,
+on two lines.
+`;
+
+    expect(parseVtt(srt)).toEqual(parseVtt(vtt));
+    expect(parseVtt(srt)).toEqual([
+      { startSec: 1, endSec: 4.25, text: 'First cue of the track.' },
+      {
+        startSec: 65.5,
+        endSec: 3723.004,
+        text: 'Second cue,\non two lines.',
+      },
+    ]);
+  });
+
   it('handles CRLF line endings', () => {
     const vtt = 'WEBVTT\r\n\r\n00:00:00.000 --> 00:00:01.000\r\nLine.\r\n';
     const out = parseVtt(vtt);

@@ -9,7 +9,7 @@ import {
   servedByDirectCredential,
 } from '../../core/chat/composer.ts';
 import {
-  gatewayModelRefusal,
+  relayModelRefusal,
   type HiddenModelsRule,
   type ModelEndpointPolicy,
   type ModelEndpointRefusalData,
@@ -27,10 +27,10 @@ import type { ModelApiWire } from './wire.ts';
  * The listing is the composer's governed set — each provider's servable
  * catalog under its active default credential, the credential's model
  * allowlist applied, chat models only, filtered by the member's model access
- * — narrowed to what the sandbox LLM gateway can serve: a direct credential
- * (a subscription model runs only in its vendor's harness) on a connector
- * with a fixed endpoint (a per-credential endpoint, Azure's, is not
- * provisioned into the gateway). It keeps the models the EU/EEA processing
+ * — narrowed to what the model relay can serve: a direct credential (a
+ * subscription model runs only in its vendor's harness) on a connector with
+ * a fixed endpoint (a per-credential endpoint, Azure's, is not served). It
+ * keeps the models the EU/EEA processing
  * rule refuses, so a request that names one is answered with the rule's own
  * refusal; what a key holder is offered leaves them out
  * ({@link offeredModelApiModels}).
@@ -47,7 +47,7 @@ export interface ModelApiModel {
   id: string;
   providerSlug: string;
   /** The id in the connector's own catalog — what model access judges and
-   * the gateway routes. */
+   * the relay calls the provider with. */
   modelId: string;
   label: string;
   vision: boolean;
@@ -78,8 +78,8 @@ export function splitModelApiId(
 }
 
 /** Whether `model`'s requests on `wire` ride the connector's native
- * Anthropic endpoint — a gateway record of their own, whose upstream is that
- * endpoint (`resolveGatewayRouting`'s Anthropic lane). */
+ * Anthropic endpoint: the relay then calls that endpoint rather than the
+ * connector's own. */
 export function ridesModelApiAnthropicLane(
   wire: ModelApiWire,
   model: Pick<ModelApiModel, 'connector'>,
@@ -93,18 +93,16 @@ export function ridesModelApiAnthropicLane(
 /**
  * The EU/EEA processing rule's verdict on `model`'s requests on `wire`
  * (GOV-R17) — undefined when it lets them through. The endpoint is the one
- * the gateway would call ({@link gatewayModelRefusal}, which the session key's
- * provision judges by too): a custom provider's own, and on the Anthropic
- * lane the connector's native Anthropic endpoint; a vendor the gateway
- * implements itself it reaches through its built-in connection, whatever
- * endpoint the provider names.
+ * the model relay calls ({@link relayModelRefusal}, which the request's key
+ * is minted under too): the provider's own, and on the Anthropic lane the
+ * connector's native Anthropic endpoint.
  */
 export function modelApiEndpointRefusal(
   policy: ModelEndpointPolicy,
   wire: ModelApiWire,
   model: Pick<ModelApiModel, 'connector'>,
 ): ModelEndpointRefusalData | undefined {
-  return gatewayModelRefusal(
+  return relayModelRefusal(
     policy,
     model.connector,
     ridesModelApiAnthropicLane(wire, model),
@@ -129,8 +127,8 @@ export function offeredModelApiModels(
   });
 }
 
-/** Whether the gateway can serve a connector at all. */
-function gatewayServable(connector: ProviderDefinition): boolean {
+/** Whether the model relay can serve a connector at all. */
+function relayServable(connector: ProviderDefinition): boolean {
   return connector.endpointMode !== 'per-credential';
 }
 
@@ -184,7 +182,7 @@ export async function listModelApiModels(
     // tool call with a 400.
     if (option.toolCallingApi === 'responses') continue;
     const connector = connectors.get(option.providerSlug);
-    if (connector === undefined || !gatewayServable(connector)) continue;
+    if (connector === undefined || !relayServable(connector)) continue;
     models.push(toModel(option, connector));
   }
   return models;

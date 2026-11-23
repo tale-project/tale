@@ -29,12 +29,20 @@ import {
   type TaskHandoff,
   type TaskRequester,
 } from '../../../lib/agent/task-brief';
-import { buildStdinUserMessage } from '../../../lib/harnesses/parsers/claude-stream-json';
+import { steerLine } from '../../../lib/harnesses/exec-builder';
 import { isHarnessSlug } from '../../../lib/harnesses/types';
 import {
   agentLanguageGuidance,
   type AgentLanguageContext,
 } from '../../../lib/shared/agent-language';
+import {
+  type HarnessReason,
+  isHarnessReason,
+} from '../../../lib/shared/harness-reason';
+import {
+  type AllowedModelRef,
+  resolveGatewayRouting,
+} from '../../../lib/shared/providers/gateway_routing';
 import { parseRunStarter } from '../../../lib/shared/run-starter';
 import {
   liveProgressSink,
@@ -56,10 +64,11 @@ import {
   nextWindowDelayMs,
   removeStagedInstructions,
   removeStagedSubscription,
-  resolveHarnessTurnContextWindow,
+  resolveHarnessTurnModelLimits,
   SPAWNER_OUTAGE_BUDGET_MS,
   spawnerOutageOutlasted,
   type ExternalTurnServing,
+  type HarnessTurnModelLimits,
 } from '../chat/external_turn_shared';
 import { readMandatoryInstructions } from '../chat/guardrails';
 import {
@@ -85,7 +94,7 @@ import {
   type CapacityRefusal,
 } from '../node_only/sandbox/capacity_refusal';
 import type { TurnConnectorCaller } from '../node_only/sandbox/connectors_bridge';
-import { provisionSessionGatewayKey } from '../node_only/sandbox/gateway_provisioning';
+import { issueRelayKey } from '../node_only/sandbox/gateway_provisioning';
 import {
   ExecDiskFullError,
   isSessionExecLimitResult,
@@ -100,10 +109,7 @@ import {
   SpawnerUnreachableError,
 } from '../node_only/sandbox/helpers/session_client';
 import { stageUrlForBlobRef } from '../node_only/sandbox/helpers/stage_url';
-import {
-  hashVirtualKey,
-  resolveGatewayRouting,
-} from '../node_only/sandbox/llm_gateway_admin';
+import { hashVirtualKey } from '../node_only/sandbox/llm_gateway_admin';
 import { stageBlobCacheKey } from '../node_only/sandbox/managed_stage';
 import { brokeredCredentialNames } from '../node_only/sandbox/session_credentials';
 import {
@@ -216,9 +222,10 @@ function withheldCredentials(args: {
  * read now (recorded on the run with the agent's and the task's, so which
  * version a run worked from is a fact on the run), whether the run is
  * confined (a run a member started holds none of the agent's credentials),
- * the task's language, and the serving model's window (so the harness
- * compacts before the prompt outgrows what the model serves; unknown leaves
- * it to the harness). None depends on another, so they run together. The
+ * the task's language, and the serving model's window and output limit (so
+ * the harness compacts before the prompt outgrows what the model serves and
+ * asks for no longer answer than it gives; unknown leaves each to the
+ * harness). None depends on another, so they run together. The
  * credential env is resolved after them by the caller, as before: only once
  * every read succeeded and only for a run that is not confined. A project or
  * task that cannot be read fails the start: the turn would work without the
@@ -242,7 +249,7 @@ async function readTurnLaunchContext(
   projectInstructions: string | undefined;
   confined: boolean;
   language: AgentLanguageContext;
-  contextWindow: number | undefined;
+  modelLimits: HarnessTurnModelLimits;
 }> {
   const languageRead: Promise<AgentLanguageContext> = ctx.runQuery(
     internal.tasks.agent_runs.getAgentLanguageContext,
@@ -266,13 +273,13 @@ async function readTurnLaunchContext(
     projectInstructions,
     confined,
     language,
-    contextWindow,
+    modelLimits,
   ] = await Promise.all([
     readMandatoryInstructions(ctx, args.organizationId, '[task-agent]'),
     projectRead,
     isTurnConfined(ctx, args.runId),
     languageRead,
-    resolveHarnessTurnContextWindow(ctx, {
+    resolveHarnessTurnModelLimits(ctx, {
       organizationId: args.organizationId,
       providerSlug: args.providerSlug,
       modelId: args.modelId,
@@ -286,7 +293,7 @@ async function readTurnLaunchContext(
     projectInstructions: projectInstructions ?? undefined,
     confined,
     language,
-    contextWindow,
+    modelLimits,
   };
 }
 
@@ -1009,6 +1016,11 @@ interface PreparedServing {
   tokenHash: string;
   /** The session-token scope's model allowlist (gateway refs). */
   allowedModels: string[];
+  /** What the model relay serves the key: each model with its connector and
+   * lane, and the credential each connector was minted under. Absent on the
+   * subscription lane, which calls no model through the relay. */
+  relayModels?: AllowedModelRef[];
+  servingCredentials?: Record<string, string>;
   /** The scope's budget; 0 on the subscription lane (vendor flat-rate). */
   budgetCents: number;
   /** The gateway model of the sandbox's vision lane (`tale-vision`,
@@ -1023,12 +1035,42 @@ interface PreparedServing {
 }
 
 /**
+ * Why this turn runs on its harness, for its op (`harness_reason`): what the
+ * run's kick decided when it chose the harness — the agent's own runtime,
+ * the standard agent's policy, or its automatic choice (the default, a
+ * subscription's bound runtime, or a runtime that runs a model the default
+ * cannot). Read from the run, never decided again: a steer's restart of a
+ * run kicked before the default moved, or after an Admin edited the policy,
+ * runs on the harness that kick chose. A run an earlier image kicked records
+ * none. A label, never a gate: a read that fails leaves the reason out and
+ * the turn starts.
+ */
+async function turnHarnessReason(
+  ctx: ActionCtx,
+  args: { organizationId: string; runId: string },
+): Promise<HarnessReason | undefined> {
+  try {
+    const reason: unknown = await ctx.runQuery(
+      internal.tasks.agent_runs.getTaskAgentRunHarnessReason,
+      { organizationId: args.organizationId, runId: args.runId },
+    );
+    return isHarnessReason(reason) ? reason : undefined;
+  } catch (error) {
+    console.warn(
+      '[task-agent] could not read how the run got its harness — the turn records no reason:',
+      error,
+    );
+    return undefined;
+  }
+}
+
+/**
  * Mint what the resolved lane authenticates with — called late (after the
  * session ensure and staging) so a parked or failed start never leaks a
- * minted key. GATEWAY: the session virtual key over serving + vision
+ * minted key. GATEWAY: the turn's model relay key over serving + vision
  * models, exactly the pre-subscription flow. SUBSCRIPTION: redeem the
  * pinned provider's default subscription credential (broker failures carry
- * their typed, actionable messages into the run error) and mint NO virtual
+ * their typed, actionable messages into the run error) and mint NO model
  * key — the vendor token serves inference, while a random session token
  * keeps the capability bridge reachable; there is no gateway spend to
  * meter, and nothing to revoke at settle. Shared by the fresh start and the
@@ -1042,6 +1084,9 @@ async function mintTurnServing(
     /** The exec the minted key serves — the reservation's op row. */
     execId: string;
     harness: string;
+    /** The run: its kick decided why the turn runs on its harness
+     * ({@link turnHarnessReason}). */
+    runId: string;
     /** Broker-token hashes the failure streak already burned — the vend
      * advances past them (`resolveProviderCredential`). */
     excludeBrokerTokenHashes?: string[];
@@ -1052,6 +1097,9 @@ async function mintTurnServing(
   resolved: TaskServing,
   brokerTransport?: BrokerTransportScope,
 ): Promise<PreparedServing> {
+  // The reservation opens the turn's op: it records why the turn runs on
+  // its harness beside the harness itself.
+  const harnessReason = await turnHarnessReason(ctx, args);
   if (resolved.lane === 'gateway') {
     // Claude Code + a connector with a native Anthropic harness endpoint
     // (DeepSeek) rides that endpoint's distinct record; the flag must reach the
@@ -1102,6 +1150,7 @@ async function mintTurnServing(
           defaultBudgetCents: workflowAgentBudgetCents(),
           modelRef: `${target.providerSlug}/${routing.gatewayModel}`,
           harness: args.harness,
+          ...(harnessReason !== undefined ? { harnessReason } : {}),
         },
       ),
     );
@@ -1109,13 +1158,13 @@ async function mintTurnServing(
       throw new TurnBudgetExceededError(reservation.reason);
     }
     const budgetCents = reservation.budgetCents;
-    const key = await provisionSessionGatewayKey(ctx, {
+    // The turn's key for the model relay (domains/llm_relay), which serves
+    // its calls; the allowance stands on the turn's op.
+    const key = await issueRelayKey(ctx, {
       organizationId: args.organizationId,
-      sessionId: args.sessionId,
       allowedModels: [target, ...(vision !== null ? [vision.model] : [])],
       surface: 'task',
       ...(args.actor !== undefined ? { actor: args.actor } : {}),
-      budgetCents,
     });
     return {
       serving: { kind: 'gateway', token: key.token },
@@ -1124,6 +1173,8 @@ async function mintTurnServing(
       mintedKeyId: key.keyId,
       tokenHash: key.keyHash,
       allowedModels: [routing.gatewayModel],
+      relayModels: key.relayModels,
+      servingCredentials: key.servingCredentials,
       budgetCents,
       ...(visionModelRef !== undefined ? { visionModelRef } : {}),
       ...(vision !== null ? { visionPolyfillReads: vision.polyfillReads } : {}),
@@ -1145,6 +1196,7 @@ async function mintTurnServing(
         costFree: true,
         modelRef: `${resolved.providerSlug}/${resolved.modelId}`,
         harness: args.harness,
+        ...(harnessReason !== undefined ? { harnessReason } : {}),
       },
     ),
     { allowZero: true },
@@ -1251,7 +1303,12 @@ export async function insertTaskTurnSessionToken(
     deadlineAt: number;
     prepared: Pick<
       PreparedServing,
-      'tokenHash' | 'mintedKeyId' | 'allowedModels' | 'budgetCents'
+      | 'tokenHash'
+      | 'mintedKeyId'
+      | 'allowedModels'
+      | 'budgetCents'
+      | 'relayModels'
+      | 'servingCredentials'
     >;
   },
 ): Promise<void> {
@@ -1279,6 +1336,12 @@ export async function insertTaskTurnSessionToken(
     scope: {
       agentKind: args.harness,
       allowedModels: args.prepared.allowedModels,
+      ...(args.prepared.relayModels !== undefined
+        ? { relayModels: args.prepared.relayModels }
+        : {}),
+      ...(args.prepared.servingCredentials !== undefined
+        ? { servingCredentials: args.prepared.servingCredentials }
+        : {}),
       connectorGrants: [...args.connectors],
       budgetCents: args.prepared.budgetCents,
       // Baseline knowledge retrieval (visibility derives from THIS
@@ -1750,7 +1813,7 @@ export async function startTaskAgentTurnImpl(
         projectInstructions,
         confined,
         language,
-        contextWindow,
+        modelLimits,
       } = await readTurnLaunchContext(ctx, {
         organizationId: args.organizationId,
         runId: args.runId,
@@ -1813,7 +1876,7 @@ export async function startTaskAgentTurnImpl(
       const execBase = {
         harness: args.harness,
         gatewayModel: prepared.execModel,
-        ...(contextWindow !== undefined ? { contextWindow } : {}),
+        ...modelLimits,
         serving: prepared.serving,
         instructions,
         execId: args.execId,
@@ -2668,15 +2731,17 @@ async function releaseProjectAgentSlotAfterSettle(
 // Mid-run comment steering — the @mention door's live-engine branch
 // ---------------------------------------------------------------------------
 
-/** Which steering lane a harness supports: `stdin` when its YAML declares
- * the steering capability (a held-open NDJSON stdin the CLI keeps reading),
- * else `restart` — the CLI takes no input once launched, so the comment
+/** The steering line a live turn of this harness reads, or null when the
+ * harness takes the `restart` lane. A harness whose YAML declares the
+ * steering capability holds its stdin open and keeps reading it (Claude
+ * Code's stream-json, Pi's RPC commands): the line is in that dialect
+ * (`steerLine`). Any other CLI takes no input once launched, so the comment
  * reaches the run by killing the exec and continuing on a fresh
- * incarnation. Exported for its unit test. */
-function steerLaneForHarness(harness: string): 'stdin' | 'restart' {
-  if (!isHarnessSlug(harness)) return 'restart';
+ * incarnation. */
+function steerLineForHarness(harness: string, text: string): string | null {
+  if (!isHarnessSlug(harness)) return null;
   const def = loadHarnesses().find((h) => h.slug === harness);
-  return def?.capabilities.steering === true ? 'stdin' : 'restart';
+  return def?.capabilities.steering === true ? steerLine(def, text) : null;
 }
 
 /** The injected line a live turn reads for a mid-run task comment — or,
@@ -2744,7 +2809,7 @@ const STEER_MAX_ATTEMPTS = 15;
  * Deliver a mid-run task comment INTO the live turn — scheduled by the
  * @mention door when the mentioned agent is the one already running
  * (`triggerMentionedProjectAgent`). Two lanes by harness capability
- * (`steerLaneForHarness`); every miss degrades and none errors: a run found
+ * (`steerLineForHarness`); every miss degrades and none errors: a run found
  * terminal falls back to a fresh `trigger:'mention'` kick — exactly what
  * the mention means with no live engine — and a turn caught mid-settle is
  * retried until its run settles and takes that same fallback. The comment
@@ -2867,14 +2932,15 @@ export async function steerTaskAgentTurnImpl(
     return await retry(args.execId);
   }
 
-  if (steerLaneForHarness(args.harness) === 'stdin') {
-    const line = buildStdinUserMessage(
-      buildSteerCommentText(args.author, args.feedback, args.mentionSource),
-    );
+  const line = steerLineForHarness(
+    args.harness,
+    buildSteerCommentText(args.author, args.feedback, args.mentionSource),
+  );
+  if (line !== null) {
     try {
-      // buildStdinUserMessage is already newline-terminated, and runnerd
-      // fail-closes on anything but exactly one \n-terminated JSON line
-      // (a malformed line kills Claude Code's stream-json reader).
+      // steerLine is already newline-terminated, and runnerd fail-closes on
+      // anything but exactly one \n-terminated JSON line (a malformed line
+      // kills Claude Code's stream-json reader and Pi's RPC reader).
       const wrote = await sessionWriteExecStdin(args.sessionId, args.execId, {
         dataBase64: Buffer.from(line, 'utf8').toString('base64'),
       });
@@ -3085,7 +3151,7 @@ export async function steerTaskAgentTurnImpl(
       projectInstructions,
       confined,
       language,
-      contextWindow,
+      modelLimits,
     } = await readTurnLaunchContext(ctx, {
       organizationId: args.organizationId,
       runId: args.runId,
@@ -3140,7 +3206,7 @@ export async function steerTaskAgentTurnImpl(
     const exec = buildExternalTurnExec({
       harness: args.harness,
       gatewayModel: prepared.execModel,
-      ...(contextWindow !== undefined ? { contextWindow } : {}),
+      ...modelLimits,
       serving: prepared.serving,
       instructions,
       // A resumed conversation's turn opens with the ROTATED exec — and, on

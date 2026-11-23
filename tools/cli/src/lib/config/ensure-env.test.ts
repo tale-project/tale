@@ -216,35 +216,104 @@ describe('ensureEnv — fresh defaults and the audit pepper', () => {
   });
 });
 
-describe('ensureEnv — gateway bootstrap password', () => {
-  test('a fresh workspace password contains all required classes and a full 32-byte random base', async () => {
+describe('ensureEnv — the retired model gateway', () => {
+  /** Every variable a deploy needs, but the audit pepper, and `extra`. */
+  const existingEnv = (extra: string[]): string => {
+    const age = generateAgeKeypair();
+    return [
+      'HOST=demo.tale.dev',
+      'SITE_URL=https://demo.tale.dev',
+      'TLS_MODE=letsencrypt',
+      'BETTER_AUTH_SECRET=existing-better-auth',
+      'ENCRYPTION_SECRET_HEX=existing-encryption',
+      'INSTANCE_SECRET=existing-instance',
+      'DB_PASSWORD=existing-password',
+      `SOPS_AGE_KEY=${age.secretKey}`,
+      'SANDBOX_TOKEN=existing-sandbox',
+      'OBJECT_STORE_SECRET_KEY=existing-object-store',
+      'TALE_CONTROL_TOKEN=existing-control',
+      ...extra,
+      '',
+    ].join('\n');
+  };
+
+  // The model relay in the backend replaced the gateway
+  // (tale-project/tale#4942), so a new workspace has none to sign in to.
+  test('a fresh workspace gets no gateway admin credentials', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'tale-env-gateway-'));
     try {
       const res = await ensureEnv({ deployDir: dir });
       expect(res.success).toBe(true);
       const env = readFileSync(join(dir, '.env'), 'utf-8');
-      const password =
-        env.match(/^SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD=(.+)$/m)?.[1] ?? '';
-      expect(password.length).toBeGreaterThanOrEqual(43);
-      expect(password).toMatch(/[A-Z]/);
-      expect(password).toMatch(/[a-z]/);
-      expect(password).toMatch(/[0-9]/);
-      expect(password).toMatch(/[^A-Za-z0-9]/);
-      expect(password).toMatch(/^[A-Za-z0-9_-]+$/);
+      expect(env).not.toContain('SANDBOX_LLM_GATEWAY_');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // A deployment that ran the gateway keeps its password: the backend reads
+  // the spend of the keys the gateway minted, and revokes them, for as long
+  // as a deploy keeps the gateway running.
+  test('an existing gateway admin password stays as it is', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tale-env-gateway-kept-'));
+    try {
+      writeFileSync(
+        join(dir, '.env'),
+        existingEnv([
+          'SANDBOX_LLM_GATEWAY_ADMIN_USERNAME=admin',
+          'SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD=kept-gateway-secret',
+        ]),
+        'utf-8',
+      );
+      const res = await ensureEnv({ deployDir: dir });
+      expect(res.success).toBe(true);
+      expect(res.regeneratedAutoSecrets).toEqual(['TALE_AUDIT_PEPPER']);
+      const env = readFileSync(join(dir, '.env'), 'utf-8');
+      expect(
+        env.match(/^SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD=.*$/gm) ?? [],
+      ).toEqual(['SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD=kept-gateway-secret']);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('a workspace without a gateway password is not given one', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tale-env-gateway-none-'));
+    try {
+      writeFileSync(join(dir, '.env'), existingEnv([]), 'utf-8');
+      const res = await ensureEnv({ deployDir: dir });
+      expect(res.success).toBe(true);
+      expect(res.regeneratedAutoSecrets).toEqual(['TALE_AUDIT_PEPPER']);
+      expect(readFileSync(join(dir, '.env'), 'utf-8')).not.toContain(
+        'SANDBOX_LLM_GATEWAY_',
+      );
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   });
 });
 
-describe('ensureEnv — LLM_GATEWAY_* → SANDBOX_LLM_GATEWAY_* rename migration', () => {
-  test('carries the old admin password to the new name without regenerating it', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'tale-env-gw-rename-'));
+// The control door (/api/control) exists only where the backend has its
+// bearer: the deploy's drain and its check before it retires the model
+// gateway, the reseed and owner recovery all call it.
+describe('ensureEnv — the control token', () => {
+  test('a fresh .env carries a 64-hex TALE_CONTROL_TOKEN', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tale-env-control-'));
+    try {
+      const res = await ensureEnv({ deployDir: dir });
+      expect(res.success).toBe(true);
+      expect(readFileSync(join(dir, '.env'), 'utf-8')).toMatch(
+        /^TALE_CONTROL_TOKEN=[0-9a-f]{64}$/m,
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('a deployment from before it gets one on its next deploy, and keeps it after', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tale-env-control-topup-'));
     try {
       const age = generateAgeKeypair();
-      // Every required var present, but the gateway admin password is still
-      // under its PRE-RENAME name. The migration must copy the value to the new
-      // name so the auto-secret-fill doesn't rotate the gateway credential.
       writeFileSync(
         join(dir, '.env'),
         [
@@ -257,32 +326,23 @@ describe('ensureEnv — LLM_GATEWAY_* → SANDBOX_LLM_GATEWAY_* rename migration
           'DB_PASSWORD=existing-password',
           `SOPS_AGE_KEY=${age.secretKey}`,
           'SANDBOX_TOKEN=existing-sandbox',
-          'LLM_GATEWAY_ADMIN_PASSWORD=preserved-gateway-secret',
+          'TALE_AUDIT_PEPPER=existing-pepper',
+          'OBJECT_STORE_SECRET_KEY=existing-object-store',
           '',
         ].join('\n'),
         'utf-8',
       );
-      const res = await ensureEnv({ deployDir: dir });
-      expect(res.success).toBe(true);
-      const env = readFileSync(join(dir, '.env'), 'utf-8');
-      // New name now carries the SAME value — not a freshly generated one.
-      expect(env).toContain(
-        'SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD=preserved-gateway-secret',
+      const first = await ensureEnv({ deployDir: dir });
+      expect(first.regeneratedAutoSecrets).toEqual(['TALE_CONTROL_TOKEN']);
+      const token = /^TALE_CONTROL_TOKEN=([0-9a-f]{64})$/m.exec(
+        readFileSync(join(dir, '.env'), 'utf-8'),
+      )?.[1];
+      expect(token).toBeDefined();
+      const again = await ensureEnv({ deployDir: dir });
+      expect(again.regeneratedAutoSecrets ?? []).toEqual([]);
+      expect(readFileSync(join(dir, '.env'), 'utf-8')).toContain(
+        `TALE_CONTROL_TOKEN=${token}`,
       );
-      // The migrated value is NOT regenerated (no new auto-secret for it).
-      expect(res.regeneratedAutoSecrets ?? []).not.toContain(
-        'SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD',
-      );
-      // Old name is left in place for the one-release fallback window.
-      expect(env).toContain(
-        'LLM_GATEWAY_ADMIN_PASSWORD=preserved-gateway-secret',
-      );
-      const replay = await ensureEnv({ deployDir: dir });
-      expect(replay.success).toBe(true);
-      expect(replay.regeneratedAutoSecrets ?? []).not.toContain(
-        'SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD',
-      );
-      expect(readFileSync(join(dir, '.env'), 'utf-8')).toBe(env);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -301,7 +361,7 @@ describe('ensureEnv — a dry run writes nothing', () => {
     }
   });
 
-  test('a missing secret and a renamed gateway var leave .env as it is', async () => {
+  test('a missing secret leaves .env as it is', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'tale-env-dry-fill-'));
     try {
       const age = generateAgeKeypair();
@@ -318,7 +378,7 @@ describe('ensureEnv — a dry run writes nothing', () => {
           `SOPS_AGE_KEY=${age.secretKey}`,
           'SANDBOX_TOKEN=existing-sandbox',
           'OBJECT_STORE_SECRET_KEY=existing-object-store',
-          'LLM_GATEWAY_ADMIN_PASSWORD=preserved-gateway-secret',
+          'TALE_CONTROL_TOKEN=existing-control',
           '',
         ].join('\n'),
         'utf-8',

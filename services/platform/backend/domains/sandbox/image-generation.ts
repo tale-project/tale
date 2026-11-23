@@ -2,10 +2,6 @@ import type { Sql, TransactionSql } from 'postgres';
 
 import { AUTOMATION_SUBJECT_ID } from '../../../lib/shared/constants/usage.ts';
 import type { GatewaySpendReading } from '../../core/node_only/sandbox/gateway_key_settlement.ts';
-import {
-  readVirtualKeySpend,
-  setVirtualKeyBudget,
-} from '../../core/node_only/sandbox/llm_gateway_admin.ts';
 import { workflowAgentBudgetCents } from '../../core/sandbox/agent_deadline.ts';
 import {
   SANDBOX_IMAGE_CALL_STALE_MS,
@@ -21,6 +17,7 @@ import {
   readInFlightReservations,
 } from '../governance/budget-reservations.ts';
 import { incrementUsageLedger } from '../governance/service.ts';
+import { readTurnKeySpend, setTurnKeyBudget } from '../llm_relay/keys.ts';
 import {
   resolveSessionOpAttribution,
   type SessionOpAttribution,
@@ -266,8 +263,9 @@ export async function admitImageGeneration(
     now?: () => number;
   } = {},
 ): Promise<ImageAdmission> {
-  const readKeySpend = deps.readKeySpend ?? readVirtualKeySpend;
-  const setKeyBudget = deps.setKeyBudget ?? setVirtualKeyBudget;
+  const readKeySpend =
+    deps.readKeySpend ?? ((keyId: string) => readTurnKeySpend(sql, keyId));
+  const setKeyBudget = deps.setKeyBudget ?? setTurnKeyBudget;
   const now = deps.now ?? Date.now;
   const ended = refused(
     'run_ended',
@@ -452,7 +450,7 @@ export async function settleImageGeneration(
     setKeyBudget?: (keyId: string, cents: number) => Promise<'ok' | 'gone'>;
   } = {},
 ): Promise<void> {
-  const setKeyBudget = deps.setKeyBudget ?? setVirtualKeyBudget;
+  const setKeyBudget = deps.setKeyBudget ?? setTurnKeyBudget;
   const spent = args.charges.reduce((sum, charge) => sum + charge, 0);
   const settled = await sql.begin(async (tx) => {
     // Settle against the admitted stamp, including an explicitly empty

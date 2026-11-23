@@ -97,12 +97,13 @@ export function parsePiiConfig(raw: unknown): PiiConfig | null {
 /**
  * One scrubber per distinct policy per process. Building one loads and
  * vets the data tree and compiles every enabled pattern — work the engine's
- * own contract says to pay once per config, not once per document as the
- * indexing worker otherwise would on every sync backlog. The key is the
- * policy's content, so an admin saving a change gets a fresh scrubber on
- * the next document; the data tree itself is baked into the image, so a
- * process never needs to notice it changing. Bounded so a stream of
- * distinct policies cannot grow it without limit.
+ * own contract says to pay once per config, not once per text. A process
+ * that scans many texts (mail bodies, crawled pages, chat) pays it once; the
+ * heavy slot's child lives for one file, and pays it for that file. The key
+ * is the policy's content, so an admin saving a change gets a fresh
+ * scrubber on the next document; the data tree itself is baked into the
+ * image, so a process never needs to notice it changing. Bounded so a
+ * stream of distinct policies cannot grow it without limit.
  */
 const scrubberCache = new Map<string, Scrubber | null>();
 const SCRUBBER_CACHE_LIMIT = 32;

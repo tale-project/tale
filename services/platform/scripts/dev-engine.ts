@@ -3,16 +3,17 @@
 
   What it runs, in order:
    1) The docker backing services this host loop depends on (db, knowledge-db,
-      the LLM gateway, the sandbox tier) with the dev overlays — plus the
+      the object store, the sandbox tier) with the dev overlays — plus the
       sandbox RUNTIME image the spawner `docker run`s per session, built once
       when missing (it is neither a compose service nor a registry image).
    2) The external toolchains (yt-dlp + deno + ffmpeg, which the video ingest
       lane spawns), resolved into the env the backend inherits.
    3) The BACKEND — the same `backend/main.ts` entry the container runs, in
-      role `all` (api + worker in one process) — supervised by a health probe
-      that restarts it up to a cap.
+      role `all` (api + worker in one process), without the web tier the
+      container serves beside its API (`APP_PORT=off`, ./dev-backend-env) —
+      supervised by a health probe that restarts it up to a cap.
    4) Vite (dev server, or `vite preview` over a production build in E2E),
-      proxying /api, /events and /dav to the backend.
+      on the app's port, proxying /api, /events and /dav to the backend.
 
   The restart/health DECISIONS live in `./backend-supervisor` as pure,
   exhaustively tested reducers; this file owns the effectful spawn/kill/probe
@@ -39,6 +40,8 @@ import {
   type SupervisorState,
   SUPERVISOR_LIMITS,
 } from './backend-supervisor';
+import { devBackendEnv } from './dev-backend-env';
+import { minioDevBlobsNotice } from './dev-blob-store';
 import { DEV_GATES } from './dev-gates';
 import { isTruthy, shouldOpenBrowser } from './dev-modes';
 import {
@@ -66,6 +69,7 @@ import {
   EXTERNAL_TOOLCHAINS_E2E_SKIP,
   EXTERNAL_TOOLCHAINS_STEP,
   externalToolchainsUnavailable,
+  videoToolchainEnv,
 } from './dev-toolchains';
 
 const platformRoot = join(import.meta.dir, '..');
@@ -80,13 +84,8 @@ const sinceBoot = (): string =>
 
 // Docker backing services the HOST `bun dev` depends on (the backend + Vite
 // run on the host; these run in docker). Excludes the host-run backend and the
-// dev-irrelevant proxy/docs. `sandbox-llm-gateway` is the one with no
-// published port in base compose.yml — see DEV_COMPOSE_FILES.
-//
-// compose.sandbox-llm-gateway.dev.yml
-// (host bun-dev only) drops that edge via `!override` — the host backend owns
-// config here — so this bring-up does NOT pull up a redundant backend
-// container alongside the host one.
+// dev-irrelevant proxy/docs. No model gateway: the backend's own model relay
+// serves every turn.
 const DEV_DOCKER_SERVICES = [
   'db',
   // ParadeDB for the knowledge base / RAG search corpus (formerly the separate
@@ -96,8 +95,8 @@ const DEV_DOCKER_SERVICES = [
   // The blob store. S3-compatible storage is the ONLY blob backend, so
   // without this every upload in the dev stack fails closed — the host
   // backend seeds the deployment-default connection against it at boot.
+  // versitygw, on `blob-data` (dev-blob-store.ts).
   'object-store',
-  'sandbox-llm-gateway',
   'sandbox',
   'sandbox-egress',
   // socat relay aliased `backend-api` on the sandbox net → the host-run
@@ -106,18 +105,15 @@ const DEV_DOCKER_SERVICES = [
   'backend-relay',
 ];
 // Overlay chain for local dev (matches docs/.../develop/compose-files): base
-// + source-mounts/debug/extra_hosts (dev) + the loopback gateway port publish
-// (sandbox-llm-gateway.dev). compose.docs.yml is required because compose.dev.yml
-// carries a `docs` override whose base service lives only in compose.docs.yml —
-// omit it and compose rejects the whole project ("docs has neither an image nor
-// a build context"), even though we never start the docs service here. The base
-// file alone leaves the LLM gateway unreachable from the host, which kills every
-// external-agent turn.
+// + source-mounts/debug/extra_hosts (dev). compose.docs.yml is required because
+// compose.dev.yml carries a `docs` override whose base service lives only in
+// compose.docs.yml — omit it and compose rejects the whole project ("docs has
+// neither an image nor a build context"), even though we never start the docs
+// service here.
 const DEV_COMPOSE_FILES = [
   'compose.yml',
   'compose.dev.yml',
   'compose.docs.yml',
-  'compose.sandbox-llm-gateway.dev.yml',
 ];
 
 function parseDotEnv(filePath: string): Record<string, string> {
@@ -225,15 +221,17 @@ function envNormalizeCommon() {
 // The external toolchains the backend spawns — today the video ingest lane's.
 // The step's lines live in `./dev-toolchains`.
 //
-// Production BAKES those binaries into the platform image on
-// pinned paths; a host `bun dev` backend has neither, so ingestion used to fail
+// A deployment runs yt-dlp in a sandbox session, whose image carries it on
+// pinned paths. A host `bun dev` backend runs it on this machine instead
+// (`VIDEO_INGEST_LANE=local`), which has none, so ingestion used to fail
 // "yt-dlp binary not found" until the operator hand-set VIDEO_INGEST_* (#2746).
 // Reuse the SAME self-provisioner the live YouTube test uses — download yt-dlp +
-// deno into a per-user cache, resolve ffmpeg — and export the paths the node
-// action reads (VIDEO_INGEST_BIN_DIR / _FFMPEG_LOCATION / _YTDLP_PLUGIN_DIRS).
-// The explicit-value-wins rule (only fill gaps) lets a self-hoster pin their own
-// baked paths. Best-effort: a download/network failure warns and continues —
-// video ingestion is optional and the rest of the stack must still boot. The
+// deno into a per-user cache, resolve ffmpeg — and export the paths the lane
+// reads (VIDEO_INGEST_BIN_DIR / _FFMPEG_LOCATION / _YTDLP_PLUGIN_DIRS), with
+// the lane (`videoToolchainEnv`). The explicit-value-wins rule (only fill
+// gaps) lets a developer pin their own paths, or the deployment's lane.
+// Best-effort: a download/network failure warns and continues — video
+// ingestion is optional and the rest of the stack must still boot. The
 // backend inherits the exported vars from this process.
 async function provisionVideoToolchain(): Promise<void> {
   // The hermetic E2E stack (TALE_E2E, set by playwright.config.ts's webServer
@@ -249,15 +247,15 @@ async function provisionVideoToolchain(): Promise<void> {
     process.env.VIDEO_INGEST_BIN_DIR &&
     process.env.VIDEO_INGEST_FFMPEG_LOCATION
   ) {
-    return; // Operator pinned both — respect it, skip the download.
+    // Operator pinned both — respect it, skip the download.
+    Object.assign(process.env, videoToolchainEnv(process.env, null));
+    return;
   }
   try {
     const { ensureVideoToolchain } =
       await import('../backend/core/video_links/ytdlp_toolchain');
     const tc = await ensureVideoToolchain();
-    process.env.VIDEO_INGEST_BIN_DIR ||= tc.binDir;
-    process.env.VIDEO_INGEST_FFMPEG_LOCATION ||= tc.ffmpegLocation;
-    process.env.VIDEO_INGEST_YTDLP_PLUGIN_DIRS ||= tc.pluginDir;
+    Object.assign(process.env, videoToolchainEnv(process.env, tc));
   } catch (err) {
     warnLine(externalToolchainsUnavailable(err));
   }
@@ -644,53 +642,16 @@ async function startDockerDaemon(): Promise<'ok' | 'no-daemon'> {
   return ready ? 'ok' : 'no-daemon';
 }
 
-/** Probe the LLM gateway on its host-published loopback port until it accepts
- *  connections — this is the axis that breaks when the dev overlay's port
- *  binding is missing. Honours SANDBOX_LLM_GATEWAY_URL (falls back to the
- *  pre-rename LLM_GATEWAY_URL); warn-and-continue on timeout. */
-async function waitForLlmGateway(
-  timeoutMs = DEV_GATES.llmGateway.timeoutMs,
-): Promise<void> {
-  let host = '127.0.0.1';
-  let port = 8080;
-  const raw =
-    process.env.SANDBOX_LLM_GATEWAY_URL ?? process.env.LLM_GATEWAY_URL;
-  if (raw) {
-    try {
-      const u = new URL(raw);
-      host = u.hostname || host;
-      port = u.port ? Number(u.port) : port;
-    } catch {
-      warnLine(
-        `SANDBOX_LLM_GATEWAY_URL=${raw} is not a valid URL; probing ${host}:${port}`,
-      );
-    }
-  }
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    // Reachable → silent (routine); the docker step already reported success.
-    if (await tcpProbe(host, port, 2_000)) return;
-    await new Promise((resolve) => setTimeout(resolve, 500));
-  }
-  warnLine(
-    `LLM gateway not reachable at ${host}:${port} within ${timeoutMs / 1000}s — external-agent turns may fail with "fetch failed".`,
-  );
-}
-
 /** Bring up the docker backing services the host `bun dev` depends on, WITH the
- *  dev overlays. Host bun dev runs the backend + Vite on the host, but the LLM
- *  gateway, sandbox spawner, db and knowledge-db run in docker. The base
- *  compose.yml publishes NO gateway port (prod posture) — only
- *  compose.sandbox-llm-gateway.dev.yml maps 127.0.0.1:8080 — so a plain `docker compose
- *  up` silently drops the loopback binding and the host backend can't
- *  reach the gateway (every external-agent turn then dies with "fetch failed").
- *  Doing the bring-up here, with the overlay chain, makes `bun dev`
- *  self-sufficient and keeps the port from drifting.
+ *  dev overlays. Host bun dev runs the backend + Vite on the host, but the
+ *  sandbox spawner, db, knowledge-db and object store run in docker, and the
+ *  base compose.yml publishes none of their ports to the host (prod posture):
+ *  compose.dev.yml does. Doing the bring-up here, with the overlay chain,
+ *  makes `bun dev` self-sufficient and keeps the ports from drifting.
  *
  *  Idempotent: an already-overlay stack recreates nothing; after a prior bare
- *  `up` it recreates whatever config drifted (the gateway gains its port, the
- *  rest gain source mounts / extra_hosts) — the intended convergence to dev
- *  config.
+ *  `up` it recreates whatever config drifted (the services gain their ports,
+ *  source mounts and extra_hosts) — the intended convergence to dev config.
  *
  *  A stopped engine is auto-started first (Docker Desktop / systemd) so a dev
  *  machine where Docker simply isn't running doesn't have to start it by hand.
@@ -715,8 +676,8 @@ async function ensureDockerDependencies(): Promise<void> {
   // a provenance attestation by default — its metadata is non-deterministic, so
   // even a 100%-cached build re-exports a NEW image manifest digest. compose
   // then sees the service image no longer matches the running container's image
-  // and recreates the container — every single run. (External-image services
-  // like sandbox-llm-gateway/backend-relay are never built, so they stay put — which is
+  // and recreates the container — every single run. (An external-image
+  // service like backend-relay is never built, so it stays put — which is
   // why only the build-services churned.) Disabling the default attestation makes
   // the cached build reproduce a stable image ID, so an already-up stack
   // converges to a no-op. Scoped to dev: CI/release builds run in their own
@@ -745,7 +706,7 @@ async function ensureDockerDependencies(): Promise<void> {
       );
     }
     infoLine(
-      "While the backing services are down: chat and external agents fail (no LLM gateway), agents can't run code (no sandbox), and the knowledge base / RAG is unavailable (no db).",
+      "While the backing services are down: agents can't run code (no sandbox), and the knowledge base / RAG is unavailable (no db).",
     );
     infoLine(
       `Start them with: docker ${dockerComposeArgs(['up', '-d', '--remove-orphans', ...DEV_DOCKER_SERVICES]).join(' ')}`,
@@ -754,6 +715,15 @@ async function ensureDockerDependencies(): Promise<void> {
   }
 
   ensureSandboxNetwork();
+  // Asked before `up`, which creates the blob store's new volume.
+  const blobsNotice = minioDevBlobsNotice((args) => {
+    const ran = spawnSync('docker', [...args], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    return { status: ran.status, stdout: ran.stdout ?? '' };
+  }, dockerComposeArgs([]));
   const dockerUp = await runStep(
     {
       active: 'Starting Docker backing services',
@@ -761,10 +731,11 @@ async function ensureDockerDependencies(): Promise<void> {
     },
     async () => {
       // `--remove-orphans` self-heals the project after a service is RENAMED or
-      // DELETED from the compose files (e.g. llm-gateway → sandbox-llm-gateway).
-      // The old container keeps running and holds its published port, so a fresh
-      // `tale-sandbox-llm-gateway` can't bind :8080 ("port is already allocated") and the
-      // whole bring-up fails. The flag is project-scoped and only removes
+      // DELETED from the compose files. The old container keeps running and can
+      // hold a published port, so a fresh one can't bind it ("port is already
+      // allocated") and the whole bring-up fails; it is also what takes the
+      // retired `sandbox-llm-gateway` of an older dev stack away (never its
+      // volume). The flag is project-scoped and only removes
       // containers for services no longer defined ANYWHERE in the compose files —
       // services defined-but-not-started here (platform/proxy/docs) are
       // NOT orphans and stay put, and modern blue-green deploys run under their own
@@ -809,7 +780,7 @@ async function ensureDockerDependencies(): Promise<void> {
   );
 
   if (dockerUp) {
-    await waitForLlmGateway();
+    if (blobsNotice !== null) warnLine(blobsNotice);
     await ensureSandboxRuntimeImage();
   }
 }
@@ -990,11 +961,9 @@ export async function runDevFleet() {
     // another port and every "${appUrl}" message we print becomes a lie.
     await assertPortFree(appPort);
 
-    // Bring up the docker backing stack (gateway, sandbox, db, knowledge-db)
-    // WITH the dev overlays before the backend and Vite. `bun dev` runs the
-    // backend + Vite on the HOST but depends on those in docker; the LLM
-    // gateway in particular has no published port in base compose.yml, so
-    // without this an external agent turn dies with "fetch failed".
+    // Bring up the docker backing stack (sandbox, db, knowledge-db, object
+    // store) WITH the dev overlays before the backend and Vite. `bun dev` runs
+    // the backend + Vite on the HOST but depends on those in docker.
     // Non-fatal if docker is absent (warns + continues).
     await ensureDockerDependencies();
 
@@ -1010,6 +979,7 @@ export async function runDevFleet() {
       // The SAME entry the container runs (role `all`: api + worker in one
       // process), so dev and prod exercise one boot path — including the
       // node-loader that lets it import the shared pure modules unchanged.
+      // Without the web tier: Vite serves the app (./dev-backend-env).
       backendProcess = spawn(
         'node',
         [
@@ -1022,7 +992,7 @@ export async function runDevFleet() {
         {
           stdio: ['ignore', 'pipe', 'pipe'],
           cwd: platformRoot,
-          env: { ...process.env, TALE_ROLE: 'all', PORT: String(backendPort) },
+          env: devBackendEnv(process.env, backendPort),
         },
       );
       pipeChild(backendProcess, {

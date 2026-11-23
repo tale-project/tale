@@ -19,7 +19,8 @@ import { walkDocs } from './lib/walk';
  *
  * Deliberately narrow — three things this must NOT flag:
  *
- *  - **Third-party images.** `ghcr.io/tale-project/ops/minio:RELEASE.…` and
+ *  - **Third-party images.** `ghcr.io/versity/versitygw:v…`, MinIO's rebuild
+ *    `ghcr.io/tale-project/ops/minio:RELEASE.…` and
  *    `brainicism/bgutil-ytdlp-pot-provider:1.3.1` version independently of a
  *    Tale release and stay pinned by hand.
  *  - **`:latest` on a tale image.** The environment reference states the

@@ -54,7 +54,8 @@ export interface StackUpOptions {
   /**
    * Interface the processes bind, when it is not `host`: `0.0.0.0` lets
    * containers reach a stack whose URLs stay on loopback (the agent-burst
-   * profile's sandbox relay and LLM gateway).
+   * profile's `backend-relay`, which carries the sessions' calls to the api
+   * and its model relay).
    */
   listenHost?: string;
   stateFile: string;
@@ -204,9 +205,11 @@ export async function stackUp(options: StackUpOptions): Promise<StackState> {
       cwd: platformDir,
       env: {
         ...baseEnv,
-        ...roleEnv('api'),
-        PORT: String(port),
-        BACKEND_LISTEN_HOST: listenHost,
+        ...apiEnv(
+          port,
+          listenHost,
+          relayPort({ ...fileEnv, ...options.extraEnv }, i),
+        ),
       },
       log,
     });
@@ -280,6 +283,62 @@ export function roleEnv(
   role: 'api' | 'worker',
 ): Record<'ROLE' | 'TALE_ROLE', string> {
   return { ROLE: role, TALE_ROLE: role };
+}
+
+/** The model relay's port when the stack's env names none: the backend's own
+ * default (`SANDBOX_RELAY_PORT`, services/platform/backend/env.ts). */
+const DEFAULT_RELAY_PORT = 8080;
+
+/**
+ * The port the model relay of the api process at `index` listens on. Every
+ * api process serves the relay beside its API, and the processes of one stack
+ * share the host's ports: the first keeps the port the stack's env names (the
+ * env file, under `--set`), where the agent-burst profile's `backend-relay`
+ * forwards the sessions' model calls, and each next one listens one port
+ * higher, so it no longer fails its boot on a port the first holds.
+ */
+export function relayPort(
+  stackEnv: Record<string, string>,
+  index: number,
+): number {
+  const named = stackEnv.SANDBOX_RELAY_PORT;
+  const base = named === undefined ? DEFAULT_RELAY_PORT : Number(named);
+  if (!Number.isInteger(base) || base < 1 || base + index > 65_535) {
+    throw new Error(
+      `SANDBOX_RELAY_PORT must be a port with room for ${index + 1} api processes; got: ${JSON.stringify(named)}`,
+    );
+  }
+  return base + index;
+}
+
+/**
+ * What an api process of the stack is started with, over the env file: its
+ * role, the port and interface of its API, the port of its model relay
+ * ({@link relayPort}), and no web tier (`APP_PORT=off`, which `webTierOff` in
+ * services/platform/server.ts reads). The load drives the API alone, and a
+ * web tier in every api process would each claim `APP_PORT`'s default port,
+ * where only the first can listen: the others failed their boot.
+ */
+export function apiEnv(
+  port: number,
+  listenHost: string,
+  modelRelayPort: number,
+): Record<
+  | 'ROLE'
+  | 'TALE_ROLE'
+  | 'PORT'
+  | 'BACKEND_LISTEN_HOST'
+  | 'APP_PORT'
+  | 'SANDBOX_RELAY_PORT',
+  string
+> {
+  return {
+    ...roleEnv('api'),
+    PORT: String(port),
+    BACKEND_LISTEN_HOST: listenHost,
+    APP_PORT: 'off',
+    SANDBOX_RELAY_PORT: String(modelRelayPort),
+  };
 }
 
 async function writeState(

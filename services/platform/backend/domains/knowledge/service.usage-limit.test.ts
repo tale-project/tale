@@ -18,7 +18,7 @@ import {
 } from '../../core/knowledge/embedding.ts';
 import { indexWholeDocument } from '../../core/knowledge/indexing.ts';
 import { RAG_ERROR_USAGE_LIMIT } from '../../core/knowledge/rag_error_codes.ts';
-import { s3GetObjectBytes } from '../../core/lib/storage/object_store.ts';
+import { s3GetObjectToFile } from '../../core/lib/storage/object_store.ts';
 import { directCallBlocked } from '../governance/direct-calls.ts';
 import { indexUploadedFile } from './service.ts';
 
@@ -57,7 +57,12 @@ vi.mock('../../core/lib/storage/object_store.ts', async (importOriginal) => ({
   ...(await importOriginal<
     typeof import('../../core/lib/storage/object_store.ts')
   >()),
-  s3GetObjectBytes: vi.fn(async () => Buffer.from('Refund policy: 30 days.')),
+  // The lane reads the stored file into a file of its own, as it arrives.
+  s3GetObjectToFile: vi.fn(
+    (await import('../../lib/heavy-slot/test-support.ts')).objectToFile(() =>
+      Buffer.from('Refund policy: 30 days.'),
+    ),
+  ),
 }));
 vi.mock('../../lib/object-store.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../lib/object-store.ts')>()),
@@ -269,7 +274,7 @@ describe('indexUploadedFile at a usage limit', () => {
     const log: Query[] = [];
     await indexUploadedFile(fakeSql(log), 'file-1');
 
-    expect(s3GetObjectBytes).not.toHaveBeenCalled();
+    expect(s3GetObjectToFile).not.toHaveBeenCalled();
     expect(embedderForOrg).not.toHaveBeenCalled();
     const write = lastStatusWrite(log);
     expect(write).toContain('failed');

@@ -237,23 +237,20 @@ describePosix('a release upgrade', () => {
     await converge(context.client, context.hooks, context.root, desired);
     const target = structuredClone(desired.target);
     for (const spec of target.instances)
-      if (spec.name === 'sandbox-llm-gateway')
-        spec.config['limits.memory'] = '3GiB';
-    const created = context.fake.instances.get(
-      'sandbox-llm-gateway',
-    )?.createdAt;
+      if (spec.name === 'sandbox-egress') spec.config['limits.memory'] = '3GiB';
+    const created = context.fake.instances.get('sandbox-egress')?.createdAt;
     const next = desiredOf(target);
     const { plan: made } = await planned(context.client, next);
     expect(
-      made.resources.find((item) => item.id === 'instance/sandbox-llm-gateway')
+      made.resources.find((item) => item.id === 'instance/sandbox-egress')
         ?.action,
     ).toBe('update');
     await apply(context, next, made);
     const patch = context.fake
-      .seen('PATCH /1.0/instances/sandbox-llm-gateway')
+      .seen('PATCH /1.0/instances/sandbox-egress')
       .at(-1);
     expect(patch?.headers['if-match']).toBeDefined();
-    const instance = context.fake.instances.get('sandbox-llm-gateway');
+    const instance = context.fake.instances.get('sandbox-egress');
     expect(instance?.config['limits.memory']).toBe('3GiB');
     expect(instance?.createdAt).toBe(created);
   });
@@ -288,23 +285,22 @@ describePosix('a release upgrade', () => {
     await converge(context.client, context.hooks, context.root, desired);
     const target = structuredClone(desired.target);
     for (const spec of target.instances)
-      if (spec.name === 'sandbox-llm-gateway')
-        spec.config['limits.memory'] = '3GiB';
+      if (spec.name === 'sandbox-egress') spec.config['limits.memory'] = '3GiB';
     const next = desiredOf(target);
     const { plan: made } = await planned(context.client, next);
     // Only what the apply below asks counts.
     context.fake.requests.splice(0);
     // Someone edits the instance between the plan and the apply.
-    const instance = context.fake.instances.get('sandbox-llm-gateway');
+    const instance = context.fake.instances.get('sandbox-egress');
     if (!instance) throw new Error('missing');
     instance.config = { ...instance.config, 'limits.processes': '99' };
     instance.version += 1;
     await expect(apply(context, next, made)).rejects.toThrow(
-      'instance/sandbox-llm-gateway changed since planning',
+      'instance/sandbox-egress changed since planning',
     );
-    expect(
-      context.fake.seen('PATCH /1.0/instances/sandbox-llm-gateway'),
-    ).toEqual([]);
+    expect(context.fake.seen('PATCH /1.0/instances/sandbox-egress')).toEqual(
+      [],
+    );
     expect(instance.config['limits.memory']).not.toBe('3GiB');
     expect((await readJournal(context.root))?.phase).toBe('pending');
   });
@@ -315,16 +311,15 @@ describePosix('a release upgrade', () => {
     await converge(context.client, context.hooks, context.root, desired);
     const target = structuredClone(desired.target);
     for (const spec of target.instances)
-      if (spec.name === 'sandbox-llm-gateway')
-        spec.config['limits.memory'] = '3GiB';
+      if (spec.name === 'sandbox-egress') spec.config['limits.memory'] = '3GiB';
     const next = desiredOf(target);
     const { plan: made } = await planned(context.client, next);
     // Only what the apply below asks counts.
     context.fake.requests.splice(0);
     // A racing writer edits the instance just before the PATCH arrives.
     const racing = clientOf(context.fake, (fetch) => async (url, init) => {
-      if (init.method === 'PATCH' && url.includes('sandbox-llm-gateway')) {
-        const instance = context.fake.instances.get('sandbox-llm-gateway');
+      if (init.method === 'PATCH' && url.includes('sandbox-egress')) {
+        const instance = context.fake.instances.get('sandbox-egress');
         if (instance) {
           instance.config = { ...instance.config, 'limits.processes': '77' };
           instance.version += 1;
@@ -342,18 +337,14 @@ describePosix('a release upgrade', () => {
         options: { stop: false, now: FIXED_NOW },
       }),
     ).rejects.toThrow('changed since planning');
-    const patches = context.fake.seen(
-      'PATCH /1.0/instances/sandbox-llm-gateway',
-    );
+    const patches = context.fake.seen('PATCH /1.0/instances/sandbox-egress');
     expect(patches).toHaveLength(1);
     expect(patches[0]?.headers['if-match']).toBe(
-      made.resources.find((item) => item.id === 'instance/sandbox-llm-gateway')
+      made.resources.find((item) => item.id === 'instance/sandbox-egress')
         ?.revision ?? 'none',
     );
     expect(
-      context.fake.instances.get('sandbox-llm-gateway')?.config[
-        'limits.memory'
-      ],
+      context.fake.instances.get('sandbox-egress')?.config['limits.memory'],
     ).not.toBe('3GiB');
   });
 

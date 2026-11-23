@@ -1,54 +1,38 @@
 'use node';
 
-// Sandbox LLM-gateway management client. The platform is the source of truth
-// for provider credentials + model catalogs; the gateway (pinned
-// maximhq/bifrost, management API verified against v2.2.4) is a derived
-// cache. This module:
-//   - provisions/reconciles an org's providers + upstream keys into the
-//     gateway,
-//   - mints a session-scoped virtual key (budget + model allowlist) at
-//     session create, returning the plaintext `sk-bf-*` (injected into the
-//     sandbox, never persisted) plus the key id — and a request-scoped one
-//     per request through the model endpoints for API keys, which reuses
-//     what this process verified moments ago (GatewayReuseOptions),
-//   - revokes the key at session destroy,
-//   - reads per-key spend for the usage ledger.
+// The client of the sandbox LLM gateway an earlier release ran (pinned
+// maximhq/bifrost, management API verified against v2.2.4), kept for the
+// keys that gateway minted before the in-process model relay served every
+// turn and every call of the model endpoints for API keys
+// (tale-project/tale#4942). Nothing is pushed to the gateway any more; what
+// is left is what the settlement of such a key, and a deleted
+// organization's teardown, still ask of it:
+//   - a key's cumulative spend, for the usage ledger,
+//   - moving a key's spend cap,
+//   - revoking a key,
+//   - removing a deleted organization's provider keys and records.
 //
-// Raw provider API keys + the admin password are Tier-0 secrets — they live
-// only in the platform and in the gateway, never in the sandbox.
+// A deploy retires the gateway's container once no key it minted is open
+// (`GET /api/control/gateway-keys`), and keeps its volume. A retired
+// gateway's key spend reads `gone`, so it closes without a figure, and a
+// revoke, a cap or an organization's removal finds nothing left to change.
+// `tale deploy` says the gateway is retired: once its container is gone,
+// every backend role is started with SANDBOX_LLM_GATEWAY_URL empty, and an
+// empty address is a retired gateway with no lookup and no call. Where
+// nothing says so (an operator's own compose files, Kubernetes), a gateway
+// whose name no longer resolves (`getaddrinfo ENOTFOUND`) is the retired
+// one. Any other failure (a lookup the resolver could not finish, which a
+// host without a reachable DNS server answers for any name it does not
+// know, a refused connection, a timeout, a 5xx) is a gateway away for a
+// while, and the caller tries again as before.
 //
-// Wire facts this module encodes (each verified against the pinned gateway;
-// do not "simplify" them away without re-verifying):
-//   - upstream KEYS are a provider SUB-RESOURCE (`/api/providers/:p/keys`,
-//     CRUD), NOT embedded in the provider PUT (a keys[] there is refused).
-//     Per-org keys coexist under one shared STANDARD provider record; a
-//     custom connector gets one record per (org, model) — see
-//     customGatewayProviderName.
-//   - VK create takes `provider_configs[]` where each config carries
-//     `key_ids: [<id>]` (the WRITE field — sending `keys:[id]` is silently
-//     ignored, leaving an empty binding that denies everything; the binding
-//     keeps the VK on THIS org's upstream key only) + `allowed_models`
-//     (deny-by-default, enforced on inference incl. the /anthropic route; an
-//     EMPTY list denies all) + `budgets[]` (`reset_duration` must parse —
-//     'never' is rejected). The response wraps the key as
-//     `{ virtual_key: { id, value } }`. The VK enforces its binding and
-//     allowlist whenever it is presented; no gateway-wide flag switches that.
-//   - `base_provider_type` / the presence of `custom_provider_config` are
-//     immutable per record; changing them requires delete + recreate.
+// The admin password is a Tier-0 secret: it lives only in the platform's
+// environment and in the gateway's store, never in the sandbox.
 
 import { createHash } from 'node:crypto';
+import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 
-import { isMetadataAddress, isPrivateIp } from '@tale/shared/net/private-ip';
-
-import {
-  checkProviderHostPolicy,
-  privateProviderHostsAllowed,
-} from '../../../../lib/net/host-policy';
-import { resolveHostAddresses } from '../../../../lib/net/safe-fetch';
-import { AppError } from '../../../../lib/shared/errors/app-error';
-import { providerAttributionHeaders } from '../../../../lib/shared/providers/attribution';
-import { isStandardGatewayProvider } from '../../../../lib/shared/providers/gateway_standard_providers';
 import { getString, isRecord } from '../../../../lib/utils/type-utils';
 import { sanitizeError } from '../../lib/utils/sanitize_secrets';
 import type { GatewaySpendReading } from './gateway_key_settlement';
@@ -66,21 +50,15 @@ function gatewayEnv(suffix: string): string | undefined {
   );
 }
 
-function llmGatewayUrl(): string {
-  return gatewayEnv('URL') ?? 'http://sandbox-llm-gateway:8080';
-}
-
-/**
- * Where the platform itself sends an inference request through the gateway
- * — the model endpoints for API keys (`domains/model_api`), which relay a
- * key holder's call with a per-request virtual key. The gateway serves
- * inference and its management API on one port, and the platform reaches it
- * on the internal network at the same address it manages it through; the
- * port is never published. `route` is the gateway's own path (`/openai/v1/
- * chat/completions`, `/anthropic/v1/messages`).
- */
-export function gatewayInferenceUrl(route: string): string {
-  return `${llmGatewayUrl().replace(/\/+$/, '')}${route}`;
+/** Where the gateway answers: SANDBOX_LLM_GATEWAY_URL, else its old
+ * address. Null where the deployment sets the address empty, which says that
+ * it runs no gateway any more (`tale deploy` does once the container is
+ * gone, and an operator may do the same). */
+function llmGatewayUrl(): string | null {
+  const configured = gatewayEnv('URL');
+  if (configured === undefined) return 'http://sandbox-llm-gateway:8080';
+  const url = configured.trim();
+  return url === '' ? null : url;
 }
 
 /** Admin username for the gateway management plane (auth_config). */
@@ -88,274 +66,135 @@ function adminUsername(): string {
   return gatewayEnv('ADMIN_USERNAME') ?? 'admin';
 }
 
-/**
- * Plaintext admin password for the gateway management plane. REQUIRED —
- * fail closed: the gateway is dual-homed onto the sandbox network with ONE
- * port serving both inference and `/api/*`, so an anonymous management plane
- * lets sandboxed code read the config and mint its own unlimited virtual
- * keys. Every management call sends it as HTTP Basic (managementHeaders) and
- * applyGatewayConfig enables auth_config with it, so the plane is never left
- * open. Exported so session provisioning can surface the precondition once,
- * before any network call.
- */
-export function requireGatewayAdminPassword(): string {
-  const pw = gatewayEnv('ADMIN_PASSWORD')?.trim();
-  if (!pw) {
-    throw new Error(
-      'SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD is not set — the sandbox LLM gateway management API must never ' +
-        'run anonymous (it is reachable from every sandbox session). `tale deploy` and `bun run dev` mint it ' +
-        'into .env; for a hand-rolled compose stack set it in .env (compose.dev.yml carries an insecure dev default).',
+/** The plaintext admin password of the gateway's management plane, which
+ * every management call sends as HTTP Basic; undefined when the deployment
+ * carries none (blank counts as none). A new install has none: it never ran
+ * the gateway, and nothing ever pushed an organization's provider keys into
+ * one without it. */
+function adminPassword(): string | undefined {
+  const password = gatewayEnv('ADMIN_PASSWORD')?.trim();
+  return password === undefined || password === '' ? undefined : password;
+}
+
+/** What a management call throws once the gateway is retired — the
+ * deployment says so, or its name no longer resolves: what it held can be
+ * neither read nor changed any more. */
+class GatewayRetiredError extends Error {
+  constructor(options?: ErrorOptions) {
+    const url = llmGatewayUrl();
+    super(
+      url === null
+        ? 'the deployment runs no sandbox LLM gateway any more (SANDBOX_LLM_GATEWAY_URL is empty): it is retired'
+        : `the sandbox LLM gateway at ${url} no longer resolves: it is retired`,
+      options,
+    );
+    this.name = 'GatewayRetiredError';
+  }
+}
+
+/** Whether `error`, or what caused it, says that the gateway's name does not
+ * resolve. Node's fetch carries the resolver's error as its `cause`; Bun's
+ * fetch and every `lookup` throw it as it is. `EAI_AGAIN` — a lookup the
+ * resolver could not finish — is not this: it says nothing of the name. */
+function nameNotFound(error: unknown): boolean {
+  let current: unknown = error;
+  for (let depth = 0; depth < 4 && isRecord(current); depth += 1) {
+    if (current.code === 'ENOTFOUND') return true;
+    current = current.cause;
+  }
+  return false;
+}
+
+/** Whether this process said already that the gateway is retired. */
+let retiredNoticeGiven = false;
+
+/** The retired gateway, said once per process: every key it minted then
+ * closes without a figure, each with a line of its own from the settlement. */
+function retired(cause?: unknown): GatewayRetiredError {
+  const error = new GatewayRetiredError(
+    cause === undefined ? undefined : { cause },
+  );
+  if (!retiredNoticeGiven) {
+    retiredNoticeGiven = true;
+    console.info(
+      `[llm-gateway] ${error.message}; the keys it minted close without a figure, and nothing is removed from it any more`,
     );
   }
-  return pw;
+  return error;
 }
 
-/** The floor of the per-request timeout pushed to every provider's
- * `network_config` (see gatewayRequestTimeoutSeconds). */
-const REQUEST_TIMEOUT_SECONDS = 600;
-
-/** Per-stream IDLE timeout (gateway `stream_idle_timeout_in_seconds`): how
- * long the gateway waits for ANY byte from the upstream mid-stream before
- * aborting with `ErrStreamIdleTimeout`. The gateway defaults this to 120s,
- * which is fine for a native Anthropic upstream (it pings every ~15-30s) —
- * but a CUSTOM OpenAI-compatible upstream sends NO keepalive during a long
- * prefill or a silent reasoning gap, so a large-context turn trips that
- * window and the agent's stream dies mid-run with no retry (harness CLIs do
- * not auto-retry a mid-stream failure). Default it to the request timeout's
- * floor so a silent gap is never a premature idle abort. Operator-tunable
- * (`SANDBOX_LLM_GATEWAY_STREAM_IDLE_TIMEOUT_SECONDS`); a raised value raises
- * the request timeout with it.
- *
- * The one reader of that budget: a managed harness turn carries the same
- * value (`buildExternalTurnExec`), because a CLI with its own client-side idle
- * watchdog (Claude Code gives up after 300s) would otherwise abandon a quiet
- * stream the gateway is still waiting on and send the request a second
- * time. */
-export function gatewayStreamIdleTimeoutSeconds(): number {
-  return Number(
-    gatewayEnv('STREAM_IDLE_TIMEOUT_SECONDS') ??
-      String(REQUEST_TIMEOUT_SECONDS),
-  );
-}
-
-/** Per-request timeout (gateway `default_request_timeout_in_seconds`): how
- * long the gateway waits for a whole non-streaming answer, and for a
- * stream's response headers (past them, the idle timeout bounds the gaps).
- * A harness falls back to a NON-streaming request when a stream breaks
- * (Claude Code does after a stream ends without its first event), and that
- * request then carries the full prefill: an operator who raised the stream
- * idle budget for a slow local model would still see it cut at 600 s. So the
- * timeout follows a raised budget, and never drops below 600 s.
- *
- * A managed harness turn waits at least this long for an answer
- * (`buildExternalTurnExec`), so the client never gives up on a request the
- * gateway is still serving. */
-export function gatewayRequestTimeoutSeconds(): number {
-  return Math.max(REQUEST_TIMEOUT_SECONDS, gatewayStreamIdleTimeoutSeconds());
-}
-
-/** Request workers per SHARED standard provider record. The gateway starts
- * a record's `concurrency` workers as goroutines the moment it loads the
- * record — at boot for every stored record, and again on each create or
- * update — and they stay parked, holding their stacks, whether or not
- * anything calls the record. A standard record exists once per built-in
- * vendor and carries every organization's sessions and model-endpoint
- * requests, so it keeps a deep pool. Operator-tunable
- * (`SANDBOX_LLM_GATEWAY_PROVIDER_CONCURRENCY`). */
-const STANDARD_PROVIDER_CONCURRENCY = 512;
-
-/** Request workers per org-scoped CUSTOM record. Those records multiply with
- * organizations times custom models (one per organization, connector and
- * model, plus the Anthropic-lane sibling — see customGatewayProviderName),
- * and each carries one organization's calls to one model. A worker is held
- * for a whole answer only when it is not streamed; a stream holds it until
- * the upstream's response headers arrive, then the gateway hands the stream
- * to its caller. A sandbox host sizes itself to at most 256 sessions, so 64
- * workers cover one organization's burst on one model, and a hundred such
- * records park 6,400 workers instead of 100,000. A request past the pool
- * waits in the queue, and one past the queue waits for room in it
- * (applyGatewayConfig keeps the gateway from dropping it), rather than
- * failing. Operator-tunable
- * (`SANDBOX_LLM_GATEWAY_CUSTOM_PROVIDER_CONCURRENCY`). */
-const CUSTOM_PROVIDER_CONCURRENCY = 64;
-
-/** The most workers a record is given: the gateway opens at most 5,000
- * connections to one upstream host unless told otherwise (its default
- * `max_conns_per_host`, which the platform never sets), so a worker past
- * that would only wait for a connection. */
-const MAX_PROVIDER_CONCURRENCY = 5_000;
-
-/** Queue slots per worker. A request that finds every worker busy waits in
- * the record's queue, a channel of this many pointers per worker (8 bytes a
- * slot), and the gateway refuses a queue shorter than the pool. */
-const PROVIDER_QUEUE_SLOTS_PER_WORKER = 16;
-
-/** The pool a provider record is pushed with: the gateway's
- * `concurrency_and_buffer_size`. */
-interface GatewayProviderPool {
-  concurrency: number;
-  buffer_size: number;
-}
-
-/** Operator values already warned about, so a bad setting is said once per
- * process rather than on every provision. */
-const warnedPoolSettings = new Set<string>();
-
-/** A worker count from `SANDBOX_LLM_GATEWAY_<suffix>`: a whole number from 1
- * up to {@link MAX_PROVIDER_CONCURRENCY}. Anything else falls back to the
- * default (or the ceiling) with a warning — the gateway refuses a record
- * whose pool is not positive, which would fail every session's provision. */
-function providerWorkers(suffix: string, fallback: number): number {
-  const raw = gatewayEnv(suffix)?.trim();
-  if (raw === undefined || raw === '') return fallback;
-  const workers = Number(raw);
-  const valid = Number.isSafeInteger(workers) && workers > 0;
-  const used = valid ? Math.min(workers, MAX_PROVIDER_CONCURRENCY) : fallback;
-  if (used !== workers) {
-    const setting = `SANDBOX_LLM_GATEWAY_${suffix}=${raw}`;
-    if (!warnedPoolSettings.has(setting)) {
-      warnedPoolSettings.add(setting);
-      console.warn(
-        valid
-          ? `[llm-gateway] ${setting} is above the gateway's ${MAX_PROVIDER_CONCURRENCY} connections per upstream host; using ${used}`
-          : `[llm-gateway] ${setting} is not a positive whole number; using ${used}`,
-      );
-    }
+/** Whether the gateway's name still resolves, asked when the deployment
+ * holds no admin password: without the name there is no gateway to ask;
+ * with it, the missing password is what keeps the call from being made. A
+ * lookup that cannot finish throws, and the caller tries again later. */
+async function gatewayNameResolves(url: string): Promise<boolean> {
+  const host = new URL(url).hostname.replace(/^\[|\]$/g, '');
+  if (isIP(host) !== 0) return true;
+  try {
+    await lookup(host);
+    return true;
+  } catch (error) {
+    if (nameNotFound(error)) return false;
+    throw error;
   }
-  return used;
-}
-
-/** The request-worker pool for a standard (shared) or custom (org-scoped)
- * provider record, and its queue sixteen requests deep per worker. */
-function gatewayProviderPool(custom: boolean): GatewayProviderPool {
-  const concurrency = custom
-    ? providerWorkers(
-        'CUSTOM_PROVIDER_CONCURRENCY',
-        CUSTOM_PROVIDER_CONCURRENCY,
-      )
-    : providerWorkers('PROVIDER_CONCURRENCY', STANDARD_PROVIDER_CONCURRENCY);
-  return {
-    concurrency,
-    buffer_size: concurrency * PROVIDER_QUEUE_SLOTS_PER_WORKER,
-  };
-}
-
-/** How many days the gateway keeps its request log (`log_retention_days`):
- * one row per model call with its model, tokens, cost and timing, never a
- * prompt or an answer (`disable_content_logging`). Nothing in Tale reads that
- * log — spend, budgets and usage come from each virtual key's budget counters
- * (readVirtualKeySpend), which the gateway keeps in its config store — so it
- * only serves an operator debugging recent traffic, and every day kept is
- * disk on the gateway's volume. The gateway refuses a value below 1.
- * Operator-tunable (`SANDBOX_LLM_GATEWAY_LOG_RETENTION_DAYS`); the gateway
- * reads the stored value when it starts, so a change applies from its next
- * start. */
-const LOG_RETENTION_DAYS = 3;
-
-/** The longest request log the backend asks for: a decade. The gateway reads
- * the value into a Go int and refuses a config whose number does not fit,
- * which would fail every config apply, so a larger setting is held here. */
-const MAX_LOG_RETENTION_DAYS = 3650;
-
-function gatewayLogRetentionDays(): number {
-  const raw = gatewayEnv('LOG_RETENTION_DAYS')?.trim();
-  if (raw === undefined || raw === '') return LOG_RETENTION_DAYS;
-  const days = Number(raw);
-  const valid = Number.isSafeInteger(days) && days >= 1;
-  const used = valid
-    ? Math.min(days, MAX_LOG_RETENTION_DAYS)
-    : LOG_RETENTION_DAYS;
-  if (used !== days) {
-    // Said once per process: the config apply runs on every sandbox start.
-    const setting = `SANDBOX_LLM_GATEWAY_LOG_RETENTION_DAYS=${raw}`;
-    if (!warnedPoolSettings.has(setting)) {
-      warnedPoolSettings.add(setting);
-      console.warn(
-        valid
-          ? `[llm-gateway] ${setting} is above ${MAX_LOG_RETENTION_DAYS} days; keeping the request log for ${used} days`
-          : `[llm-gateway] ${setting} is not a whole number of days of at least 1; keeping the request log for ${used} days`,
-      );
-    }
-  }
-  return used;
-}
-
-function managementHeaders(): Record<string, string> {
-  // The gateway authenticates /api/* with HTTP Basic
-  // (admin_username/admin_password), not a bearer token. ALWAYS sent:
-  // harmless before auth_config is enabled (the first applyGatewayConfig on a
-  // fresh gateway), required after — and requireGatewayAdminPassword() fails
-  // closed, so there is no anonymous management call at all.
-  const password = requireGatewayAdminPassword();
-  const basic = Buffer.from(`${adminUsername()}:${password}`).toString(
-    'base64',
-  );
-  // The gateway's setup token is this same password (the gateway image sets
-  // it so: services/sandbox-llm-gateway/docker-entrypoint.sh). The pinned
-  // gateway reads the token only from the body of the request that creates
-  // its first admin (applyGatewayConfig), so no header carries a second copy.
-  return {
-    'content-type': 'application/json',
-    authorization: `Basic ${basic}`,
-  };
 }
 
 /** The waits before each repeat of a management call the gateway's store
  * turned away for a moment — about three seconds in all. */
 const STORE_BUSY_RETRY_DELAYS_MS = [250, 750, 2_000] as const;
 
-/** How the gateway names its SQLite store turning a statement away while
- * another write holds it. That alone does not say whether a write was
- * stored: a create can commit, then meet the lock on the read that follows. */
-const STORE_BUSY = /database is locked/i;
+/** Every call left is idempotent: a read, a cap's update, a delete. */
+type ManagementMethod = 'GET' | 'PUT' | 'DELETE';
 
-type ManagementMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
-
-/** How long one attempt of a management call may take, unless its caller
- * gives it a bound of its own. */
+/** How long one attempt of a management call may take. */
 const MANAGEMENT_TIMEOUT_MS = 15_000;
 
 /**
  * One call to the gateway's management API: `path` under its base URL, with
- * the admin credentials and a 15 s bound per attempt (`timeoutMs` for
- * another), `json` as the body.
+ * the admin credentials as HTTP Basic and a 15 s bound per attempt, `json` as
+ * the body. Throws {@link GatewayRetiredError} where the deployment says the
+ * gateway is retired or its name no longer resolves, and, on a deployment
+ * without the admin password, an error that says so while the name still
+ * resolves.
  *
  * The gateway keeps its config in SQLite, which turns away a write that
- * collides with another one — right after the gateway starts, while it syncs
- * its own catalogs, and under the platform's concurrent writes (a revoke
- * beside a budget move). It answers those with a 500 that names the locked
- * store, except a virtual key's DELETE, which says only that it failed. So a
- * call answered with a 5xx is sent again after a short wait, up to three
- * times, when that is safe: for the idempotent methods whatever the answer
- * says, and for a POST only when it matches `storedNothing`, the answer its
- * endpoint gives only when it stored nothing. Naming the locked store is not
- * proof of that — a provider key's create commits, then re-reads the key,
- * and a lock on that read leaves the key stored, so a second POST only
- * collides with it. Any other answer to a POST, and every answer to one with
- * no `storedNothing`, comes back at once: it may have created what it asked
- * for. The last answer is returned either way, for the caller to read as
- * before. A caller that must look at the gateway before a write goes out
- * again passes `resend: false` and gets the first answer.
+ * collides with another one. It answers those with a 500 that names the
+ * locked store, except a virtual key's DELETE, which says only that it
+ * failed. Every call here is idempotent, so a call answered with a 5xx is
+ * sent again after a short wait, up to three times, and the last answer is
+ * returned for the caller to read.
  */
 async function managementFetch(
   path: string,
-  init: {
-    method?: ManagementMethod;
-    json?: unknown;
-    timeoutMs?: number;
-    resend?: boolean;
-    storedNothing?: RegExp;
-  } = {},
+  init: { method?: ManagementMethod; json?: unknown } = {},
 ): Promise<Response> {
+  const url = llmGatewayUrl();
+  // Said by the deployment: nothing to look up, and nobody to ask.
+  if (url === null) throw retired();
+  const password = adminPassword();
+  if (password === undefined) {
+    if (!(await gatewayNameResolves(url))) throw retired();
+    throw new Error(
+      `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD is not set, so the sandbox LLM gateway at ${url} cannot be asked about the keys it minted: set it to the password the gateway was deployed with, or retire the gateway`,
+    );
+  }
   const method = init.method ?? 'GET';
-  const request = (): Promise<Response> =>
-    fetch(`${llmGatewayUrl()}${path}`, {
-      method,
-      headers: managementHeaders(),
-      ...(init.json !== undefined ? { body: JSON.stringify(init.json) } : {}),
-      signal: AbortSignal.timeout(init.timeoutMs ?? MANAGEMENT_TIMEOUT_MS),
-    });
-  if (init.resend === false) return request();
+  const authorization = `Basic ${Buffer.from(
+    `${adminUsername()}:${password}`,
+  ).toString('base64')}`;
+  const request = async (): Promise<Response> => {
+    try {
+      return await fetch(`${url}${path}`, {
+        method,
+        headers: { 'content-type': 'application/json', authorization },
+        ...(init.json !== undefined ? { body: JSON.stringify(init.json) } : {}),
+        signal: AbortSignal.timeout(MANAGEMENT_TIMEOUT_MS),
+      });
+    } catch (error) {
+      if (nameNotFound(error)) throw retired(error);
+      throw error;
+    }
+  };
   for (const delayMs of STORE_BUSY_RETRY_DELAYS_MS) {
     const res = await request();
     if (res.status < 500) return res;
@@ -366,9 +205,6 @@ async function managementFetch(
       );
       return '';
     });
-    if (method === 'POST' && !(init.storedNothing?.test(text) ?? false)) {
-      return new Response(text, { status: res.status, headers: res.headers });
-    }
     const said = sanitizeError(text).replace(/\s+/g, ' ').trim().slice(0, 200);
     console.warn(
       `[llm-gateway] ${method} ${path} answered ${res.status} (${said}); sending it again in ${delayMs} ms`,
@@ -378,365 +214,20 @@ async function managementFetch(
   return request();
 }
 
-// The gateway's built-in provider set lives in lib/shared/providers (the
-// serving resolver reads it too); re-exported so this module stays the
-// gateway-facing entry point for the provisioner and the mint.
-export { isStandardGatewayProvider };
-
-/** Gateway provider name for a CUSTOM connector's per-(org, model) upstream.
- * The model's effective (baseUrl, apiFormat, key) lives on its own provider
- * record so model-level routing actually works — one gateway record holds
- * exactly one base_url + base_provider_type. The record is ORG-SCOPED: a
- * custom connector is an org-defined file (`<orgSlug>/providers/*.yml`) and
- * two orgs may define the same connector name with different endpoints or
- * wire formats. A shared `<slug>__<model>` record let the last org to
- * provision rewrite `base_url` for every org sharing the name — org A's
- * key then went to org B's endpoint — and an apiFormat flip recreated the
- * record and deleted the other orgs' keys. Only the gateway's STANDARD
- * providers (whose URL + format the gateway owns) keep one shared record.
- * `/` is sanitized out of the NAME segment because the gateway routes on the
- * FIRST `/`; the model id keeps its own form (matched against the key
- * catalog after the prefix is stripped). */
-function customGatewayProviderName(
-  organizationId: string,
-  slug: string,
-  modelId: string,
-  anthropicHarnessLane = false,
-): string {
-  // A harness on the Anthropic-wire lane (Claude Code; Codex on a chat-only
-  // upstream) of a connector that declares a native Anthropic harness endpoint
-  // rides a DISTINCT record so its upstream (base_provider_type: anthropic)
-  // never overwrites the OpenAI record other harnesses use for the same
-  // (org, model). `__anthropic` is a safe suffix:
-  // `/` is still stripped below, and the segment stays one gateway record name.
-  const base = `${organizationId}__${slug}__${modelId}`;
-  return (anthropicHarnessLane ? `${base}__anthropic` : base).replace(
-    /\//g,
-    '_',
-  );
-}
-
-export interface GatewayRouting {
-  /** Gateway provider (record) name the request routes to. */
-  gatewayProvider: string;
-  /** Full gateway model ref (`<gatewayProvider>/<modelId>`) for the harness
-   * model env + the VK allowed_models. */
-  gatewayModel: string;
-}
-
-/** Extra routing inputs beyond the (org, connector, model) triple. */
-export interface GatewayRoutingOpts {
-  /** The connector declares a native Anthropic harness endpoint AND the
-   * requesting harness should ride it (it speaks the Anthropic wire, or the
-   * Responses wire onto a chat-only upstream — `agent_serving.ts` decides), so
-   * this session rides a distinct per-model record (`…__anthropic`) whose
-   * upstream is that endpoint. A STANDARD connector that declares one (OpenRouter's Anthropic
-   * Messages door) takes the same org-scoped record: the gateway's built-in
-   * implementation of the vendor only speaks the OpenAI wire to it, so the
-   * native pass-through needs a custom record of its own. Only serving sets
-   * this flag, and only for a connector that declares the endpoint. */
-  anthropicHarnessLane?: boolean;
-}
-
-/**
- * Map an (org, connector, catalog model id) triple onto gateway routing. A
- * standard connector name routes to the shared native provider record
- * (`<name>/<modelId>`); any other connector routes to the org's own
- * per-model upstream record (`<orgId>__<name>__<modelId>/<modelId>`), or its
- * anthropic-harness sibling (`…__anthropic/<modelId>`) when opts say so — a
- * standard connector on that lane takes the sibling too (its built-in
- * gateway implementation cannot ride the vendor's Anthropic door). Single
- * source of truth shared by the harness glue (model env), the mint (VK
- * binding), and the provisioner (record names) so they can never drift — pass
- * the SAME opts at every call site for one session's model.
- */
-export function resolveGatewayRouting(
-  organizationId: string,
-  providerSlug: string,
-  modelId: string,
-  opts: GatewayRoutingOpts = {},
-): GatewayRouting {
-  if (
-    isStandardGatewayProvider(providerSlug) &&
-    opts.anthropicHarnessLane !== true
-  ) {
-    return {
-      gatewayProvider: providerSlug,
-      gatewayModel: `${providerSlug}/${modelId}`,
-    };
-  }
-  const name = customGatewayProviderName(
-    organizationId,
-    providerSlug,
-    modelId,
-    opts.anthropicHarnessLane,
-  );
-  return { gatewayProvider: name, gatewayModel: `${name}/${modelId}` };
-}
-
-/** One model the virtual key may call: the connector it belongs to plus its
- * catalog id in that connector's own dialect. */
-export interface AllowedModelRef {
-  providerSlug: string;
-  modelId: string;
-  /** Route this model through the connector's native Anthropic harness
-   * endpoint (the Anthropic-wire lane — Claude Code, and Codex on a chat-only
-   * upstream). See {@link GatewayRoutingOpts}. */
-  anthropicHarnessLane?: boolean;
-}
-
-/**
- * What a provision may take from this process's own recent gateway calls
- * instead of asking the gateway again. A request through the model endpoints
- * for API keys mints a key per request, so the listings and the config round
- * trip a sandbox session create pays once would otherwise run on every call.
- * A sandbox session passes nothing and checks everything on every create.
- */
-export interface GatewayReuseOptions {
-  /** Trust what this process pushed or verified moments ago: the auth
-   * posture it applied within {@link GATEWAY_CONFIG_REUSE_MS}
-   * (`applyGatewayConfig`), and an organization's upstream key for a record
-   * it pushed or saw listed within {@link RECENT_PROVIDER_KEY_TTL_MS} under
-   * an unchanged provision fingerprint (`provisionProviders`,
-   * `mintVirtualKey`). */
-  reuseRecent?: boolean;
-}
-
-export interface MintVirtualKeyArgs {
-  /** Hard spend cap; the gateway rejects inference once exhausted. */
-  budgetCents: number;
-  /** Models the key may call (already filtered by org availability). */
-  allowedModels: AllowedModelRef[];
-  /** Attribution anchored in the key name for usage lookup + debugging. */
-  organizationId: string;
-  sessionId: string;
-  /** The one request a request-scoped key serves. The model endpoints mint
-   * every request of an API key under that key's session, so it ends the
-   * key's name: two requests minting in the same millisecond would
-   * otherwise collide on the gateway's unique name. */
-  requestId?: string;
-}
-
-export interface MintedVirtualKey {
-  /** Plaintext `sk-bf-*` — injected into the sandbox, never persisted. */
-  key: string;
-  /** Stable id for revoke + spend queries. */
-  keyId: string;
-}
-
-/** The gateway keeps a virtual key's name in a `varchar(255)` column under a
- * unique index (`governance_virtual_keys.name`): a longer name fails the
- * create on a Postgres-backed store, a repeated one answers 409. Its
- * handler checks nothing but presence. */
-const VIRTUAL_KEY_NAME_MAX_LENGTH = 255;
-
-/** `tale-<org>-<session>-<mint time>[-<request id>]`. The tail makes the
- * name unique, so a name past the gateway's bound gives up characters of
- * its head (the attribution), never of the tail. */
-function virtualKeyName(args: MintVirtualKeyArgs): string {
-  const mintedAt = Date.now().toString(36);
-  const tail =
-    args.requestId !== undefined ? `${mintedAt}-${args.requestId}` : mintedAt;
-  const head = `tale-${args.organizationId}-${args.sessionId}`;
-  const room = Math.max(0, VIRTUAL_KEY_NAME_MAX_LENGTH - tail.length - 1);
-  return `${head.slice(0, room)}-${tail}`.slice(0, VIRTUAL_KEY_NAME_MAX_LENGTH);
-}
-
-/** Key ids verified or written by ONE provisioning invocation. This is
- * carried directly to its mint, never cached across sandbox sessions. */
-interface ProvisionedProviderKeys {
-  organizationId: string;
-  keyIds: ReadonlyMap<string, string>;
-}
-
-interface MintVirtualKeyOptions extends GatewayReuseOptions {
-  provisionedKeys?: ProvisionedProviderKeys;
-}
-
-/** POST /api/governance/virtual-keys — mint a session-scoped key.
- *
- * The gateway enforces both axes on the inference path:
- *   - `key_ids: [<this org's key id>]` binds the VK to THIS org's upstream
- *     key only — a request can never be served by another org's key under
- *     the same shared provider record (cross-org isolation).
- *   - `allowed_models` is deny-by-default (an EMPTY list denies all), so an
- *     empty resolution fails closed here — throw, never mint a deny-all key.
- *
- * A sandbox mint can bind ids its own provision just verified, avoiding a
- * second listing while every new session still checks its credentials.
- * A request-scoped mint (`options.reuseRecent`) binds the key id the
- * provision it follows pushed or saw listed moments ago instead of listing
- * the keys again. A failed mint forgets the records it bound, whatever the
- * failure — a remembered id the gateway no longer holds (a record another
- * process recreated, a reset store) is one cause — so the next provision of
- * them lists again.
- */
-export async function mintVirtualKey(
-  args: MintVirtualKeyArgs,
-  options: MintVirtualKeyOptions = {},
-): Promise<MintedVirtualKey> {
-  if (
-    options.provisionedKeys !== undefined &&
-    options.provisionedKeys.organizationId !== args.organizationId
-  ) {
-    throw new Error(
-      'mintVirtualKey: provisioned keys belong to another organization',
-    );
-  }
-  // Group the allowed models by the GATEWAY provider record they route to
-  // (the shared record for standard connectors; this org's per-model records
-  // for custom ones). Allow both the bare model id and the full gateway ref so the
-  // allowlist matches however the requesting client spells the model.
-  //
-  // One whitelist entry per spelling: the gateway refuses a duplicate value
-  // outright (400 "duplicate value … in whitelist"), and a turn routinely
-  // names the same model twice — the serving model and the org's vision
-  // model are one and the same for most connectors. On the Anthropic lane
-  // the two land on different records, so only the OpenAI-wire harnesses
-  // (Codex, OpenCode, …) ever hit it — every managed Codex + DeepSeek run
-  // failed to start on it (2026-09-26 evaluation, C-08).
-  const byProvider = new Map<string, Set<string>>();
-  for (const ref of args.allowedModels) {
-    const { gatewayProvider, gatewayModel } = resolveGatewayRouting(
-      args.organizationId,
-      ref.providerSlug,
-      ref.modelId,
-      { anthropicHarnessLane: ref.anthropicHarnessLane },
-    );
-    const models = byProvider.get(gatewayProvider) ?? new Set<string>();
-    models.add(ref.modelId);
-    models.add(gatewayModel);
-    byProvider.set(gatewayProvider, models);
-  }
-  if (byProvider.size === 0) {
-    throw new Error('mintVirtualKey: no allowed models resolved');
-  }
+/** DELETE /api/governance/virtual-keys/:id — instant revoke (session
+ * teardown, a turn's settlement). A 404 means it is already gone, and so is
+ * every key of a retired gateway. */
+export async function revokeVirtualKey(keyId: string): Promise<void> {
+  let res: Response;
   try {
-    return await postVirtualKey(args, byProvider, options);
+    res = await managementFetch(
+      `/api/governance/virtual-keys/${encodeURIComponent(keyId)}`,
+      { method: 'DELETE' },
+    );
   } catch (error) {
-    for (const provider of byProvider.keys()) {
-      const memoKey = providerMemoKey(args.organizationId, provider);
-      recentProviderKeys.delete(memoKey);
-    }
+    if (error instanceof GatewayRetiredError) return;
     throw error;
   }
-}
-
-/** The mint's binding and its POST, over the allowed models grouped by the
- * gateway record they route to. */
-async function postVirtualKey(
-  args: MintVirtualKeyArgs,
-  byProvider: ReadonlyMap<string, ReadonlySet<string>>,
-  options: MintVirtualKeyOptions,
-): Promise<MintedVirtualKey> {
-  // Bind each provider config to THIS org's key id (resolved by stable
-  // name). The key must already exist (provisionProviders ran at session
-  // create); fail closed if not — an unbound or over-permissive key is
-  // exactly the hole this binding closes, so a missing key must surface, not
-  // silently widen access.
-  const providerConfigs: Array<{
-    provider: string;
-    key_ids: string[];
-    allowed_models: string[];
-  }> = [];
-  for (const [provider, allowedModels] of byProvider) {
-    const keyId =
-      options.provisionedKeys?.keyIds.get(provider) ??
-      (options.reuseRecent === true
-        ? recentProviderKey(providerMemoKey(args.organizationId, provider))
-            ?.keyId
-        : undefined) ??
-      (await resolveOrgProviderKeyId(provider, args.organizationId));
-    if (!keyId) {
-      throw new Error(
-        `mintVirtualKey: no gateway key for provider '${provider}' / org '${args.organizationId}' (provisioning did not run or failed)`,
-      );
-    }
-    providerConfigs.push({
-      provider,
-      key_ids: [keyId],
-      allowed_models: [...allowedModels],
-    });
-  }
-  const body = {
-    // team_id/customer_id are mutually-exclusive FK references in the
-    // gateway; attribution is anchored in the (required) name instead. The
-    // gateway has no native TTL; session teardown revokes the key.
-    name: virtualKeyName(args),
-    provider_configs: providerConfigs,
-    // `budgets` (plural, one entry per reset window) is the gateway's
-    // multi-budget contract. Its JSON decoder drops unknown fields, so the
-    // pre-multi-budget singular `budget` object is accepted with a 200 and
-    // silently stores the key WITHOUT a cap — which is why the response is
-    // checked below rather than trusted.
-    budgets: [
-      {
-        max_limit: args.budgetCents / 100, // the governance API takes dollars
-        // Smallest accepted horizon ('never' is rejected); the key is revoked
-        // at session end, long before any reset matters.
-        reset_duration: '1M',
-      },
-    ],
-    is_active: true,
-  };
-  const res = await managementFetch('/api/governance/virtual-keys', {
-    method: 'POST',
-    json: body,
-    // The gateway meets its locked store here only reading the providers
-    // before it writes, or inside the one transaction that writes the key,
-    // which rolls back; once that commits it answers 200, a failed reload
-    // only logged. So any locked answer stored nothing.
-    storedNothing: STORE_BUSY,
-  });
-  if (!res.ok) {
-    // The gateway names what it refused (a field it did not accept, a
-    // provider it does not know); a bare status left every start failure
-    // reading "mint key failed (400)" with nothing to act on (2026-09-26
-    // evaluation, C-08). Bounded, and never the key material — the body of
-    // a refusal is the validation message, never a credential.
-    const detail = await res
-      .text()
-      .then((text) => text.replace(/\s+/g, ' ').trim().slice(0, 300))
-      .catch(() => '');
-    throw new Error(
-      `llm-gateway mint key failed (${res.status})${detail !== '' ? `: ${detail}` : ''}`,
-    );
-  }
-  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-  const parsed = (await res.json()) as {
-    virtual_key?: { id?: string; value?: string; budgets?: unknown };
-  };
-  const key = parsed.virtual_key?.value;
-  const keyId = parsed.virtual_key?.id;
-  if (!key || !keyId) {
-    throw new Error('llm-gateway mint key returned no key/id');
-  }
-  // The budget is the only thing bounding what a runaway turn can spend, and
-  // its `current_usage` is the only spend signal the ledger has. A key the
-  // gateway stored without one is an uncapped, unmetered credential — revoke
-  // it and refuse the session rather than serve it.
-  const budgets = parsed.virtual_key?.budgets;
-  if (!Array.isArray(budgets) || budgets.length === 0) {
-    await revokeVirtualKey(keyId).catch((err: unknown) =>
-      console.warn(
-        `[llm-gateway] revoke of budget-less key ${keyId} failed:`,
-        err,
-      ),
-    );
-    throw new Error(
-      'llm-gateway mint key returned a key without its budget (the spend cap did not attach)',
-    );
-  }
-  return { key, keyId };
-}
-
-/** DELETE /api/governance/virtual-keys/:id — instant revoke (session destroy
- * / teardown). A 404 means it is already gone. */
-export async function revokeVirtualKey(keyId: string): Promise<void> {
-  const res = await managementFetch(
-    `/api/governance/virtual-keys/${encodeURIComponent(keyId)}`,
-    { method: 'DELETE' },
-  );
   if (!res.ok && res.status !== 404) {
     throw new Error(
       `llm-gateway revoke key failed (${res.status}): ${sanitizeError(await res.text())}`,
@@ -755,9 +246,22 @@ const MIN_KEY_BUDGET_CENTS = 0.01;
  * survives the update, and a cap moved below it refuses the next call (402).
  * A turn's generated images are paid outside its key but from the same
  * allowance, so the cap gives up their cost as they are admitted and booked.
- * A key the gateway no longer holds answers `gone`; any other failure throws.
+ * A key the gateway no longer holds answers `gone`, and so does every key of
+ * a retired gateway; any other failure throws.
  */
 export async function setVirtualKeyBudget(
+  keyId: string,
+  budgetCents: number,
+): Promise<'ok' | 'gone'> {
+  try {
+    return await moveVirtualKeyBudget(keyId, budgetCents);
+  } catch (error) {
+    if (error instanceof GatewayRetiredError) return 'gone';
+    throw error;
+  }
+}
+
+async function moveVirtualKeyBudget(
   keyId: string,
   budgetCents: number,
 ): Promise<'ok' | 'gone'> {
@@ -806,10 +310,11 @@ export async function setVirtualKeyBudget(
  * largest figure is the key's spend. The budget figure is the gateway's only
  * authoritative spend signal — and the only usage source that works where a
  * harness's own stream reports 0 tokens. The three answers are the
- * settlement's three branches: a figure, a key the gateway no longer knows
- * (its figure is gone — book nothing and move on), or a gateway that could
- * not answer (try again later; never delete the key before its spend is
- * read). A key held without any budget answers 0, flagged `unmetered`.
+ * settlement's three branches: a figure, a key the gateway no longer knows —
+ * or a gateway that is retired — whose figure is gone (book nothing and move
+ * on), or a gateway that could not answer (try again later; never delete the
+ * key before its spend is read). A key held without any budget answers 0,
+ * flagged `unmetered`.
  *
  * Read LIVE (`from_memory=true`): the gateway meters in memory and dumps the
  * counters to its store only every ~10 s, and the plain read serves the
@@ -825,8 +330,14 @@ export async function readVirtualKeySpend(
   const path = `/api/governance/virtual-keys/${encodeURIComponent(keyId)}`;
   const read = (fromMemory: boolean) =>
     managementFetch(fromMemory ? `${path}?from_memory=true` : path);
-  let res = await read(true);
-  if (res.status === 404) res = await read(false);
+  let res: Response;
+  try {
+    res = await read(true);
+    if (res.status === 404) res = await read(false);
+  } catch (error) {
+    if (error instanceof GatewayRetiredError) return { status: 'gone' };
+    throw error;
+  }
   if (res.status === 404) return { status: 'gone' };
   if (!res.ok) {
     // A down gateway is not "key not found" — say so, and let the caller
@@ -856,8 +367,8 @@ export async function readVirtualKeySpend(
       typeof usage === 'number' && Number.isFinite(usage),
   );
   if (usages.length === 0) {
-    // A key without a budget is unmetered (see mintVirtualKey); say so
-    // instead of stamping a silent zero.
+    // A key without a budget is unmetered: say so instead of stamping a
+    // silent zero.
     console.warn(
       `[llm-gateway] key ${keyId} carries no budget; its spend is unknown`,
     );
@@ -867,435 +378,18 @@ export async function readVirtualKeySpend(
   return { status: 'ok', cents: Math.max(...usages) * 100 };
 }
 
-/** The price the gateway should bill one model at, in the catalog's unit
- * (cents per million tokens). */
-export interface ModelPricingOverride {
-  /** Gateway provider (record) name the model routes to. */
-  gatewayProvider: string;
-  /** The model id as the client sends it under that record — an override
-   * matches the wire model, i.e. the ref with its provider prefix stripped. */
-  modelId: string;
-  inputCentsPerMillion: number;
-  outputCentsPerMillion: number;
-  /** The vendor's prompt-cache HIT price. Absent ⇒ the gateway bills a
-   * cached token at the input rate (its documented fallback) — right only
-   * for a vendor with no cache discount. */
-  cacheReadCentsPerMillion?: number;
-  /** The vendor's prompt-cache WRITE price (Anthropic-style cache creation).
-   * Absent ⇒ the input rate, which is what most vendors charge a write. */
-  cacheWriteCentsPerMillion?: number;
-}
-
-/** Request kinds a sandbox harness turn bills under (stream variants ride
- * their base type). The gateway rejects an override with an empty list. */
-const PRICING_OVERRIDE_REQUEST_TYPES = [
-  'chat_completion',
-  'responses',
-  'text_completion',
-] as const;
-
-/** Page size for listing a provider's pricing overrides. */
-const PRICING_OVERRIDE_PAGE = 200;
-
 /**
- * Drift signal for the pricing reconcile: the patch this process last saw
- * on the gateway per override name. Module-scoped like the provider memo — a
- * fresh process re-reads each override once and then skips it.
- */
-const pushedPricingFingerprints = new Map<string, string>();
-
-function pricingOverrideName(override: ModelPricingOverride): string {
-  return `tale-pricing-${override.gatewayProvider}-${override.modelId}`;
-}
-
-/** Dollars per token from the catalog's cents per million tokens. */
-function dollarsPerToken(centsPerMillion: number): number {
-  return centsPerMillion / 100 / 1_000_000;
-}
-
-/** One override as the gateway lists it (`pricing_patch` is the stored patch
- * as a JSON string). */
-interface GatewayPricingOverride {
-  id: string;
-  name: string;
-  pattern?: string;
-  match_type?: string;
-  request_types?: string[];
-  pricing_patch?: unknown;
-}
-
-/** The gateway's pricing patch for one model: dollars per token, and only
- * the fields the catalog prices — the gateway applies a patch field by field
- * over its datasheet row, so an absent cache price leaves the row's own (or
- * its input-rate fallback), never a zero. */
-interface GatewayPricingPatch {
-  input_cost_per_token: number;
-  output_cost_per_token: number;
-  cache_read_input_token_cost?: number;
-  cache_creation_input_token_cost?: number;
-}
-
-const PRICING_PATCH_FIELDS = [
-  'input_cost_per_token',
-  'output_cost_per_token',
-  'cache_read_input_token_cost',
-  'cache_creation_input_token_cost',
-] as const satisfies readonly (keyof GatewayPricingPatch)[];
-
-function pricingPatchOf(override: ModelPricingOverride): GatewayPricingPatch {
-  return {
-    input_cost_per_token: dollarsPerToken(override.inputCentsPerMillion),
-    output_cost_per_token: dollarsPerToken(override.outputCentsPerMillion),
-    ...(override.cacheReadCentsPerMillion !== undefined
-      ? {
-          cache_read_input_token_cost: dollarsPerToken(
-            override.cacheReadCentsPerMillion,
-          ),
-        }
-      : {}),
-    ...(override.cacheWriteCentsPerMillion !== undefined
-      ? {
-          cache_creation_input_token_cost: dollarsPerToken(
-            override.cacheWriteCentsPerMillion,
-          ),
-        }
-      : {}),
-  };
-}
-
-/** Whether the gateway's stored patch already prices at `patch` — every
- * field the catalog prices, and NO cache field the catalog no longer prices
- * (a stale cache figure would keep billing after the catalog dropped it).
- * The gateway's JSON round-trips the floats, so an exact compare is enough. */
-function samePricingPatch(
-  stored: unknown,
-  patch: GatewayPricingPatch,
-): boolean {
-  let parsed: unknown = stored;
-  if (typeof stored === 'string') {
-    try {
-      parsed = JSON.parse(stored);
-    } catch (err) {
-      // Not JSON → not our patch; the caller rewrites it.
-      console.warn('[llm-gateway] unreadable pricing override patch:', err);
-      return false;
-    }
-  }
-  return (
-    isRecord(parsed) &&
-    PRICING_PATCH_FIELDS.every((field) => parsed[field] === patch[field])
-  );
-}
-
-/** Every override on a provider record, paged until the gateway's own total
- * is reached. */
-async function listPricingOverrides(
-  gatewayProvider: string,
-): Promise<GatewayPricingOverride[]> {
-  const overrides: GatewayPricingOverride[] = [];
-  // Advance by what the gateway actually returned, not the requested page
-  // size — a server-side cap below it would otherwise skip a stride.
-  for (let offset = 0; ; offset = overrides.length) {
-    const res = await managementFetch(
-      `/api/governance/pricing-overrides?provider_id=${encodeURIComponent(gatewayProvider)}&limit=${PRICING_OVERRIDE_PAGE}&offset=${offset}`,
-    );
-    if (!res.ok) {
-      throw new Error(
-        `llm-gateway list pricing overrides failed (${res.status})`,
-      );
-    }
-    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-    const page = (await res.json()) as {
-      pricing_overrides?: GatewayPricingOverride[];
-      total_count?: number;
-    };
-    const items = page.pricing_overrides ?? [];
-    overrides.push(...items);
-    const total = typeof page.total_count === 'number' ? page.total_count : 0;
-    if (items.length === 0 || overrides.length >= total) return overrides;
-  }
-}
-
-/**
- * Ensure the gateway bills `modelId` under `gatewayProvider` at the catalog's
- * price (`/api/governance/pricing-overrides`, scope `provider`, exact model
- * match). The gateway meters a virtual key's budget from the cost it computes
- * per request, and that cost comes from its own pricing datasheet — which
- * knows nothing about an org's custom upstream records
- * (`<org>__<slug>__<model>`) and lags for the rest. Without the override
- * every request under such a record costs 0: the budget never fills, the
- * hard cap never trips, and the spend ledger stays empty. Idempotent by
- * override name: a matching override is left alone, a stale one (the catalog
- * price moved) is updated in place, and the per-process memo makes the
- * steady state zero gateway calls. A zero/zero price is skipped — the
- * gateway applies only non-zero patch fields, and a zero token price marks a
- * free tier or non-token billing, never a rate.
- */
-export async function ensureModelPricingOverride(
-  override: ModelPricingOverride,
-): Promise<void> {
-  if (
-    override.inputCentsPerMillion <= 0 &&
-    override.outputCentsPerMillion <= 0
-  ) {
-    return;
-  }
-  const name = pricingOverrideName(override);
-  const patch = pricingPatchOf(override);
-  const fingerprint = JSON.stringify(patch);
-  if (pushedPricingFingerprints.get(name) === fingerprint) return;
-
-  const existing = (await listPricingOverrides(override.gatewayProvider)).find(
-    (entry) => entry.name === name,
-  );
-  const requestTypes = [...PRICING_OVERRIDE_REQUEST_TYPES];
-  if (
-    existing &&
-    existing.pattern === override.modelId &&
-    existing.match_type === 'exact' &&
-    samePricingPatch(existing.pricing_patch, patch) &&
-    requestTypes.every((type) => existing.request_types?.includes(type))
-  ) {
-    pushedPricingFingerprints.set(name, fingerprint);
-    return;
-  }
-  const desired = {
-    scope_kind: 'provider',
-    provider_id: override.gatewayProvider,
-    match_type: 'exact',
-    pattern: override.modelId,
-    request_types: requestTypes,
-    patch,
-  };
-  // A create carries no `storedNothing`: the gateway's 5xx to it never names
-  // the store's error, and one of them ("Failed to upsert pricing override")
-  // comes after the override was stored, so it comes back at once.
-  const res = await managementFetch(
-    existing
-      ? `/api/governance/pricing-overrides/${encodeURIComponent(existing.id)}`
-      : '/api/governance/pricing-overrides',
-    {
-      method: existing ? 'PUT' : 'POST',
-      json: existing ? desired : { name, ...desired },
-    },
-  );
-  if (!res.ok) {
-    throw new Error(
-      `llm-gateway ${existing ? 'update' : 'create'} pricing override ${name} failed (${res.status}): ${sanitizeError(await res.text())}`,
-    );
-  }
-  pushedPricingFingerprints.set(name, fingerprint);
-}
-
-export interface ProviderProvision {
-  /** Gateway provider name. A standard gateway name uses native dispatch;
-   * any other name is provisioned as a custom upstream and requires a
-   * `baseUrl`. */
-  name: string;
-  baseUrl?: string;
-  /** Wire format for a CUSTOM upstream → gateway `base_provider_type`.
-   * Absent ⇒ 'openai'. Ignored for standard providers (the gateway owns
-   * their format). */
-  apiFormat?: 'openai' | 'anthropic';
-  apiKey: string;
-  /** Catalog model ids (the connector's own dialect) this key may serve. */
-  models: string[];
-  /** Platform-side metadata only (never pushed to the gateway): the
-   * connector's native Anthropic harness endpoint, applied to the per-model
-   * record when an anthropic-wire harness rides this provider. See
-   * {@link GatewayRoutingOpts.anthropicHarnessLane}. */
-  harnessEndpoint?: { baseUrl: string; apiFormat: 'openai' | 'anthropic' };
-}
-
-/**
- * Drift signal for the provision reconcile: the fingerprint this process
- * last pushed per (org, provider). `GET /api/providers` redacts key values,
- * so the platform can only compare against its own pushes. Module-scoped —
- * lives for the Node action runtime's lifetime; an empty memo (fresh
- * process) makes the next provision rewrite each provider once, which is
- * also what picks up env-var key rotations (env changes only land via a
- * restart).
- */
-const pushedProviderFingerprints = new Map<string, string>();
-
-/** The memo key of an organization's upstream key on one gateway record. */
-function providerMemoKey(organizationId: string, provider: string): string {
-  return `${organizationId}:${provider}`;
-}
-
-/** How long a request-scoped provision trusts an organization's upstream key
- * this process pushed or saw listed, before it lists the record's keys
- * again. Short, because the key can change under its stable name without
- * this process: another platform process recreating the record, a reset
- * gateway store, an operator's edit — a mint bound to an id the gateway no
- * longer holds is refused. */
-const RECENT_PROVIDER_KEY_TTL_MS = 60_000;
-
-interface RecentProviderKey {
-  keyId: string;
-  /** The provision fingerprint the key was pushed or verified under. */
-  fingerprint: string;
-  at: number;
-}
-
-/**
- * An organization's upstream key per gateway record (keyed like the
- * fingerprint memo), as this process last pushed it or found it in the
- * gateway's listing while the memo matched. Every provision writes it; only
- * a request-scoped one reads it (GatewayReuseOptions), to skip the listing
- * and hand the mint its key id. A rewrite of the key, or a failed mint that
- * bound it, drops the entry.
- */
-const recentProviderKeys = new Map<string, RecentProviderKey>();
-
-/** The entry for a record, while it is younger than the TTL. */
-function recentProviderKey(memoKey: string): RecentProviderKey | undefined {
-  const recent = recentProviderKeys.get(memoKey);
-  return recent !== undefined &&
-    Date.now() - recent.at < RECENT_PROVIDER_KEY_TTL_MS
-    ? recent
-    : undefined;
-}
-
-function providerFingerprint(
-  p: ProviderProvision,
-  allowPrivateNetwork: boolean,
-): string {
-  // baseUrl IS included: for a custom provider it is pushed to the gateway
-  // as network_config.base_url, so a base-URL-only change must bust the memo
-  // and re-provision. Inert for standard providers (their baseUrl is never
-  // pushed and is a stable value). The worker pool is included for the same
-  // reason: a record whose pool the platform resized is rewritten, so the
-  // gateway restarts its workers at the new count, on the next provision.
-  return createHash('sha256')
-    .update(
-      JSON.stringify({
-        apiKey: p.apiKey,
-        baseUrl: p.baseUrl ?? null,
-        apiFormat: p.apiFormat ?? null,
-        allowPrivateNetwork,
-        models: [...p.models].sort(),
-        pool: gatewayProviderPool(!isStandardGatewayProvider(p.name)),
-      }),
-    )
-    .digest('hex');
-}
-
-/** Check the custom upstream before gateway I/O or memo reuse. The gateway
- * resolves DNS itself, so hostname spelling alone cannot determine whether
- * its private-network guard needs the operator's explicit opt-in. This is a
- * provisioning preflight, not a DNS pin for the gateway's later requests. */
-async function privateBaseUrl(baseUrl: string): Promise<boolean> {
-  const parsed = checkProviderHostPolicy(baseUrl);
-  const host = parsed.hostname
-    .toLowerCase()
-    .replace(/^\[|\]$/g, '')
-    .replace(/\.$/, '');
-  const addresses = isIP(host)
-    ? [{ address: host }]
-    : await resolveHostAddresses(host);
-  if (addresses.length === 0) {
-    throw new Error(`Provider host "${host}" did not resolve to an address.`);
-  }
-  if (addresses.some(({ address }) => isMetadataAddress(address))) {
-    throw new AppError({
-      code: 'BLOCKED_HOST',
-      message: `Provider host "${host}" resolves to a cloud metadata endpoint.`,
-    });
-  }
-  const isPrivate =
-    isPrivateIp(host) || addresses.some(({ address }) => isPrivateIp(address));
-  if (isPrivate && !privateProviderHostsAllowed()) {
-    throw new AppError({
-      code: 'PRIVATE_HOST_BLOCKED',
-      message:
-        `Provider host "${host}" resolves to a private/loopback address. ` +
-        'Set TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1 in the platform process env ' +
-        'to enable self-hosted backends.',
-    });
-  }
-  return isPrivate;
-}
-
-/** True when a provider cannot be provisioned at all: a custom upstream with
- * no base URL — the gateway requires `network_config.base_url` for it, so
- * there is nothing to point it at. Warn + skip. */
-function skipUnprovisionable(p: ProviderProvision): boolean {
-  if (isStandardGatewayProvider(p.name) || p.baseUrl) return false;
-  console.warn(
-    `[llm-gateway] skipping custom provider '${p.name}' (no base URL to route to)`,
-  );
-  return true;
-}
-
-/** The upstream base URL the gateway appends the completions PATH to. That
- * path is pinned to `/chat/completions` via `request_path_overrides` (see
- * ensureProviderConfig), so the gateway builds `<base>/chat/completions` —
- * exactly the platform chat path's contract. The base therefore carries the
- * provider's OWN API version in its path (`/v1`, `/api/paas/v4`, …) and must
- * not end in a slash (which would double the join). Strip only a trailing
- * slash; PRESERVE the version segment — stripping `/v1` and relying on the
- * gateway's default `/v1/chat/completions` breaks any provider whose version
- * segment is not `/v1` (maximhq/bifrost issue #2356). */
-function stripTrailingSlash(url: string): string {
-  return url.replace(/\/+$/, '');
-}
-
-/**
- * Stable per-(org, provider) upstream-key name. Keys are a provider
- * sub-resource, but their NAME must be unique GLOBALLY across all providers
- * (the gateway's config store enforces one key-name index). The name embeds
- * BOTH the org and the provider so each org's key coexists under one shared
- * provider record without clobbering, and one org's per-provider keys never
- * collide with each other. The id is gateway-side state (changes if its
- * store is reset); the NAME is the durable handle the mint path resolves by.
+ * The name an organization's upstream key carried on a gateway record:
+ * unique across the gateway, since its config store holds one key-name index
+ * over all providers, so each organization's key could sit beside the
+ * others' under one shared record.
  */
 function gatewayKeyName(organizationId: string, provider: string): string {
   return `tale-${organizationId}-${provider}`;
 }
 
-interface GatewayKey {
-  id: string;
-  name: string;
-  models: string[];
-}
-
-/** GET /api/providers/:provider/keys — the provider's key sub-resources
- * (values are masked). Empty when the provider has no keys / is absent. */
-async function listProviderKeys(provider: string): Promise<GatewayKey[]> {
-  const res = await managementFetch(
-    `/api/providers/${encodeURIComponent(provider)}/keys`,
-  );
-  if (!res.ok) {
-    // Treat as "no keys" but log: a transient gateway failure here would
-    // otherwise look like a clean empty set, masking the real cause behind
-    // the mint path's fail-closed error.
-    console.warn(
-      `[llm-gateway] list keys for provider ${provider} failed (${res.status}); treating as none`,
-    );
-    return [];
-  }
-  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-  const parsed = (await res.json()) as { keys?: GatewayKey[] | null };
-  return parsed.keys ?? [];
-}
-
-/** Resolve THIS org's upstream-key id for a provider (by stable name). Null
- * when absent — the mint path treats that as fail-closed. */
-async function resolveOrgProviderKeyId(
-  provider: string,
-  organizationId: string,
-): Promise<string | null> {
-  const want = gatewayKeyName(organizationId, provider);
-  const keys = await listProviderKeys(provider);
-  return keys.find((k) => k.name === want)?.id ?? null;
-}
-
-/** DELETE /api/providers/:name — remove a provider RECORD (and its key
- * sub-resources; verified: GET 404s after). Used to recreate a custom
- * provider whose immutable `base_provider_type` must change
- * (openai↔anthropic) — the gateway forbids mutating it in place. Tolerates
- * 404 (already gone). */
+/** DELETE /api/providers/:name — remove a provider RECORD with its key
+ * sub-resources (verified: GET 404s after). Tolerates 404 (already gone). */
 async function deleteGatewayProvider(name: string): Promise<void> {
   const res = await managementFetch(
     `/api/providers/${encodeURIComponent(name)}`,
@@ -1391,41 +485,41 @@ export interface GatewayOrganizationRemoval {
  * Remove what the gateway still holds for a deleted organization. Revoking
  * its virtual keys leaves the provider credentials they spent through in the
  * gateway's store: its upstream key on every shared record (each standard
- * provider's, found by the exact name {@link gatewayKeyName} gives it), and
+ * provider's, found by the exact name {@link gatewayKeyName} gave it), and
  * its own records — the per-(org, connector, model) ones
- * {@link customGatewayProviderName} names, which go with their keys.
+ * `resolveGatewayRouting` names, which go with their keys.
  *
  * Idempotent: a record or key already gone counts as removed, and a second
  * run finds nothing to do. Every record is tried; the call throws when the
  * gateway cannot be listed or any removal failed, so the caller retries.
- * An own record is `<org>__<slug>__<model>`; one that goes on with another
- * `_` after `<org>__` is the record of an organization whose id continues
- * with `_`, and is left alone.
+ * Nothing is left to remove on a deployment without the admin password —
+ * nothing ever pushed an organization into a gateway without it — nor on a
+ * retired gateway. An own record is `<org>__<slug>__<model>`; one that goes
+ * on with another `_` after `<org>__` is the record of an organization whose
+ * id continues with `_`, and is left alone.
  */
 export async function removeOrganizationFromGateway(
   organizationId: string,
 ): Promise<GatewayOrganizationRemoval> {
+  const removed: GatewayOrganizationRemoval = { records: 0, keys: 0 };
+  if (adminPassword() === undefined) return removed;
   const ownPrefix = `${organizationId}__`.replace(/\//g, '_');
   const keyName = (provider: string) =>
     gatewayKeyName(organizationId, provider);
-  const removed: GatewayOrganizationRemoval = { records: 0, keys: 0 };
+  let providers: string[];
+  try {
+    providers = await listGatewayProviderNames();
+  } catch (error) {
+    if (error instanceof GatewayRetiredError) return removed;
+    throw error;
+  }
   const failed: string[] = [];
-  for (const provider of await listGatewayProviderNames()) {
-    // Nothing this process remembers of the organization's keys holds any
-    // more, whether the removal lands or not.
-    const memoKey = providerMemoKey(organizationId, provider);
-    pushedProviderFingerprints.delete(memoKey);
-    recentProviderKeys.delete(memoKey);
+  for (const provider of providers) {
     try {
       if (
         provider.startsWith(ownPrefix) &&
         provider[ownPrefix.length] !== '_'
       ) {
-        // A resize of this record already sent lands first; none is sent
-        // after this mark (see removedProviderRecords).
-        removedProviderRecords.add(provider);
-        const shrinking = shrinkingProviderRecords.get(provider);
-        if (shrinking !== undefined) await shrinking;
         await deleteGatewayProvider(provider);
         removed.records += 1;
         continue;
@@ -1436,6 +530,9 @@ export async function removeOrganizationFromGateway(
         removed.keys += 1;
       }
     } catch (error) {
+      // Retired while this ran: what it still held is out of reach, and
+      // nothing serves it any more.
+      if (error instanceof GatewayRetiredError) return removed;
       console.error(
         `[llm-gateway] removing organization ${organizationId} from provider ${provider} failed:`,
         error,
@@ -1451,871 +548,8 @@ export async function removeOrganizationFromGateway(
   return removed;
 }
 
-/** Provider records whose config this process has started to write. Every
- * such write carries the pool the record's kind is sized to now
- * (gatewayProviderPool) and a config newer than any earlier listing, so the
- * shrink pass leaves these records alone (see shrinkProviderPools). */
-const configuredProviderRecords = new Set<string>();
-
-/** Records an organization teardown in this process has deleted, or is
- * deleting: the gateway's PUT creates a record it does not hold, so the
- * shrink pass never writes one of these, and a teardown waits for a write
- * of the pass already in flight before it deletes. A provision takes a name
- * off again, since it means the record is in use. Another backend process's
- * teardown is not seen here: a resize it races can bring a deleted
- * organization's record back without keys, which serves nothing and goes
- * with that process's next teardown retry or by hand. */
-const removedProviderRecords = new Set<string>();
-
-/** The shrink pass's write to a record, from the moment it is sent until the
- * pass is done with it. A provision of the same record waits for it before
- * writing, so the config the pass echoes from its read never lands after,
- * and over, the provision's newer one. The promise never rejects. */
-const shrinkingProviderRecords = new Map<string, Promise<unknown>>();
-
-/** PUT /api/providers/:name — provider RECORD config only (network +
- * concurrency; keys are a sub-resource, a keys[] in this body is refused;
- * the config validator 400s unless 0 < concurrency <= buffer_size — see
- * gatewayProviderPool for how each record kind is sized). Idempotent.
- *
- * A STANDARD gateway provider carries its own base URL — overriding it
- * breaks the built-in URL construction and custom_provider_config on it is
- * rejected — so only the timeouts are widened and, for OpenRouter, the Tale
- * attribution headers added (`extra_headers` ride every upstream request the
- * gateway makes, so sandbox-agent traffic shows up as Tale instead of
- * Unknown — the same canonical helper as the in-platform chat path).
- *
- * A CUSTOM provider is provisioned as an upstream in its declared wire
- * format: `network_config.base_url` (trailing slash stripped — see
- * stripTrailingSlash) + `custom_provider_config`. The openai format
- * restricts requests to chat completions (most custom upstreams have no
- * /v1/responses) and pins the completions path to `/chat/completions`; the
- * anthropic format takes the base URL verbatim (the native handler appends
- * `/v1/messages` itself) and allows all request types so pass-through server
- * tools survive.
- */
-async function ensureProviderConfig(
-  p: ProviderProvision,
-  allowPrivateNetwork: boolean,
-): Promise<{ recreated: boolean }> {
-  configuredProviderRecords.add(p.name);
-  removedProviderRecords.delete(p.name);
-  const shrinking = shrinkingProviderRecords.get(p.name);
-  if (shrinking !== undefined) await shrinking;
-  const attribution = providerAttributionHeaders({
-    providerName: p.name,
-    baseUrl: p.baseUrl ?? '',
-  });
-  const custom = !isStandardGatewayProvider(p.name);
-  const anthropic = custom && p.apiFormat === 'anthropic';
-  const baseUrl =
-    custom && p.baseUrl
-      ? anthropic
-        ? p.baseUrl
-        : stripTrailingSlash(p.baseUrl)
-      : undefined;
-  const body = {
-    network_config: {
-      default_request_timeout_in_seconds: gatewayRequestTimeoutSeconds(),
-      stream_idle_timeout_in_seconds: gatewayStreamIdleTimeoutSeconds(),
-      ...(baseUrl ? { base_url: baseUrl } : {}),
-      // A self-hosted upstream lives on a private address, and the gateway
-      // refuses one by default ("Invalid base URL: private IP addresses are
-      // not allowed") — it resolves the host first, so a LAN hostname is
-      // refused too and TLS makes no difference. Lift that guard for exactly
-      // the providers the operator already admitted with
-      // TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1, the same knob that lets the
-      // provider file name a private host and lets a request reach it. A
-      // deployment without the opt-in keeps the gateway's default refusal.
-      ...(baseUrl && allowPrivateNetwork
-        ? { allow_private_network: true }
-        : {}),
-      ...(Object.keys(attribution).length > 0
-        ? { extra_headers: attribution }
-        : {}),
-    },
-    concurrency_and_buffer_size: gatewayProviderPool(custom),
-    ...(custom
-      ? {
-          custom_provider_config: anthropic
-            ? { base_provider_type: 'anthropic' }
-            : {
-                base_provider_type: 'openai',
-                allowed_requests: {
-                  chat_completion: true,
-                  chat_completion_stream: true,
-                },
-                request_path_overrides: {
-                  chat_completion: '/chat/completions',
-                  chat_completion_stream: '/chat/completions',
-                },
-              },
-        }
-      : {}),
-  };
-  const putConfig = () =>
-    managementFetch(`/api/providers/${encodeURIComponent(p.name)}`, {
-      method: 'PUT',
-      json: body,
-    });
-
-  const res = await putConfig();
-  if (res.ok) return { recreated: false };
-
-  // A PUT that changes the immutable base type 400s ("base_provider_type
-  // cannot be changed from X to Y after creation") — this happens when a
-  // custom provider's apiFormat flips. Recreate: delete the record (its keys
-  // go too — the caller re-POSTs) then PUT fresh.
-  const errBody = sanitizeError(await res.text());
-  if (res.status === 400 && /cannot be (changed|removed)/i.test(errBody)) {
-    console.warn(
-      `[llm-gateway] provider '${p.name}' base type is immutable; recreating: ${errBody}`,
-    );
-    await deleteGatewayProvider(p.name);
-    const retry = await putConfig();
-    if (!retry.ok) {
-      throw new Error(
-        `llm-gateway provider config ${p.name} failed after recreate (${retry.status}): ${sanitizeError(await retry.text())}`,
-      );
-    }
-    return { recreated: true };
-  }
-  throw new Error(
-    `llm-gateway provider config ${p.name} failed (${res.status}): ${errBody}`,
-  );
-}
-
-/** The one locked-store answer to a provider key's create that stored
- * nothing: the gateway's own insert, whose transaction rolled back. The same
- * lock met on the read after that insert commits answers "failed to re-read
- * provider key after create" — the key is stored, and a second POST only
- * meets its unique name (409). `[^"]*` keeps both phrases in the one JSON
- * string the gateway's message is. */
-const PROVIDER_KEY_STORE_BUSY =
-  /failed to create provider key in store: [^"]*database is locked/i;
-
-/**
- * POST (create) / PUT (rotate) THIS org's upstream key as a sub-resource of
- * the provider. `existing` is the already-resolved key row (or null) so the
- * caller's single GET serves both the skip check and this write. Answers the
- * key's id: the rotated row's own, or the one the gateway gave the created
- * key (it answers a create with the stored key, its value redacted) — null
- * when that answer names none.
- */
-async function writeProviderKey(
-  organizationId: string,
-  p: ProviderProvision,
-  existing: GatewayKey | null,
-): Promise<string | null> {
-  const keyBody = {
-    name: gatewayKeyName(organizationId, p.name),
-    value: p.apiKey,
-    models: p.models,
-    weight: 1,
-  };
-  const path = existing
-    ? `/api/providers/${encodeURIComponent(p.name)}/keys/${encodeURIComponent(existing.id)}`
-    : `/api/providers/${encodeURIComponent(p.name)}/keys`;
-  const res = await managementFetch(
-    path,
-    existing
-      ? { method: 'PUT', json: keyBody }
-      : {
-          method: 'POST',
-          json: keyBody,
-          storedNothing: PROVIDER_KEY_STORE_BUSY,
-        },
-  );
-  if (!res.ok) {
-    throw new Error(
-      `llm-gateway ${existing ? 'update' : 'create'} key for ${p.name}/org ${organizationId} failed (${res.status}): ${sanitizeError(await res.text())}`,
-    );
-  }
-  if (existing) return existing.id;
-  const created: unknown = await res.json().catch((err: unknown) => {
-    console.warn(
-      `[llm-gateway] the key created for ${p.name}/org ${organizationId} came back unreadable; the next mint lists the keys:`,
-      err,
-    );
-    return null;
-  });
-  return isRecord(created) &&
-    typeof created.id === 'string' &&
-    created.id !== ''
-    ? created.id
-    : null;
-}
-
-/**
- * Ensure a provider's record config + this org's key sub-resource are in the
- * gateway. One GET (list keys) drives both the skip check and the
- * POST-vs-PUT decision: when this org's key already exists AND the
- * fingerprint memo (keyed by org:provider) matches, the whole provider is
- * skipped — no config PUT, no key write — so steady-state session create is
- * one GET per provider. An empty memo (fresh process) or a missing key
- * rewrites once. GET masks the key value, so memo drift — not a value diff —
- * is the rotation signal.
- *
- * A request-scoped provision (`reuseRecent`) skips even the GET while this
- * process pushed or saw the key within {@link RECENT_PROVIDER_KEY_TTL_MS}
- * under the same fingerprint. The secret is part of the fingerprint, so a
- * rotated credential still pushes at once; the host policy is rechecked
- * first all the same.
- */
-const provisioning = new Map<string, Promise<string | null>>();
-
-async function provisionOne(
-  organizationId: string,
-  p: ProviderProvision,
-  reuseRecent: boolean,
-): Promise<string | null> {
-  // Recheck DNS and the opt-in before a cached key can authorize a session.
-  const allowPrivateNetwork =
-    !isStandardGatewayProvider(p.name) && p.baseUrl
-      ? await privateBaseUrl(p.baseUrl)
-      : false;
-  const fingerprint = providerFingerprint(p, allowPrivateNetwork);
-  const memoKey = providerMemoKey(organizationId, p.name);
-  const recent = recentProviderKey(memoKey);
-  if (reuseRecent && recent?.fingerprint === fingerprint) return recent.keyId;
-  // Only equivalent calls already in flight share work. DNS policy and the
-  // caller's live credential resolution still happen for every provision.
-  const flightKey = `${llmGatewayUrl()}:${memoKey}:${fingerprint}`;
-  const pending = provisioning.get(flightKey);
-  if (pending !== undefined) return pending;
-  const work = reconcileProvider(
-    organizationId,
-    p,
-    allowPrivateNetwork,
-    fingerprint,
-  );
-  provisioning.set(flightKey, work);
-  try {
-    return await work;
-  } finally {
-    if (provisioning.get(flightKey) === work) provisioning.delete(flightKey);
-  }
-}
-
-async function reconcileProvider(
-  organizationId: string,
-  p: ProviderProvision,
-  allowPrivateNetwork: boolean,
-  fingerprint: string,
-): Promise<string | null> {
-  const memoKey = providerMemoKey(organizationId, p.name);
-  const existing =
-    (await listProviderKeys(p.name)).find(
-      (k) => k.name === gatewayKeyName(organizationId, p.name),
-    ) ?? null;
-  if (existing && pushedProviderFingerprints.get(memoKey) === fingerprint) {
-    recentProviderKeys.set(memoKey, {
-      keyId: existing.id,
-      fingerprint,
-      at: Date.now(),
-    });
-    return existing.id; // fully provisioned by this process already
-  }
-  // The key is rewritten below, or recreated under a new id: what this
-  // process remembered of it no longer holds, whether the write lands or not.
-  recentProviderKeys.delete(memoKey);
-  const { recreated } = await ensureProviderConfig(p, allowPrivateNetwork);
-  // A recreate (immutable base-type change) deleted the record + its keys,
-  // so the previously-fetched key row is gone — POST a fresh one.
-  const keyId = await writeProviderKey(
-    organizationId,
-    p,
-    recreated ? null : existing,
-  );
-  pushedProviderFingerprints.set(memoKey, fingerprint);
-  if (keyId !== null) {
-    recentProviderKeys.set(memoKey, { keyId, fingerprint, at: Date.now() });
-  }
-  return keyId;
-}
-
-/** One provider the reconcile could not push: the gateway record name and
- * the error the write failed with. */
-export interface ProviderProvisionFailure {
-  name: string;
-  error: unknown;
-}
-
-interface ProviderProvisionOptions extends GatewayReuseOptions {
-  /** Receives only ids this invocation verified/wrote. A session may carry
-   * them directly to its own mint; this does not enable cross-session reuse. */
-  onProviderKey?: (provider: string, keyId: string) => void;
-}
-
-/**
- * Reconcile the org's providers into the gateway: ensure each provider's
- * record config + this org's upstream key. Called once per session create
- * and once per model-endpoint request — this is the ONLY push (no
- * credential-save action pushes eagerly), so a fresh gateway, a rotated key,
- * or a push that failed in an earlier process (gateway down) all land here,
- * before the first mint. A request-scoped call passes `reuseRecent`
- * (GatewayReuseOptions, see provisionOne).
- *
- * Per-org keys coexist under one shared STANDARD provider record, so
- * multiple orgs holding distinct keys for the same provider never clobber
- * each other, and each session VK binds to its own org's key (see
- * mintVirtualKey). A CUSTOM connector's record is already org-scoped by name
- * (resolveGatewayRouting), so its base_url / wire format are this org's own.
- *
- * Per-provider resilient: a single provider's failure is logged and skipped
- * rather than aborting the whole reconcile — one misconfigured upstream must
- * not starve the others. Never throws; the failures are RETURNED so the
- * caller decides. The session mint must treat any failure for a provider it
- * needs as fatal: the gateway still holds that org's key from the last
- * successful push, and `mintVirtualKey` resolves it by stable name — so a
- * mint after a swallowed failure would bind a fresh virtual key to the
- * pre-rotation secret and keep serving a credential the admin replaced.
- */
-export async function provisionProviders(
-  organizationId: string,
-  providers: ProviderProvision[],
-  options: ProviderProvisionOptions = {},
-): Promise<ProviderProvisionFailure[]> {
-  const failures: ProviderProvisionFailure[] = [];
-  for (const p of providers) {
-    if (skipUnprovisionable(p)) continue;
-    try {
-      const keyId = await provisionOne(
-        organizationId,
-        p,
-        options.reuseRecent === true,
-      );
-      if (keyId !== null) options.onProviderKey?.(p.name, keyId);
-    } catch (err) {
-      console.warn(
-        `[llm-gateway] provisioning provider '${p.name}' for org '${organizationId}' failed (continuing):`,
-        err,
-      );
-      failures.push({ name: p.name, error: err });
-    }
-  }
-  return failures;
-}
-
-/** The fields of a provider record the shrink pass sends back as the
- * gateway answered them, because `PUT /api/providers/:name` would otherwise
- * reset them: the network block (base URL, timeouts, headers, private-network
- * opt-in), which every PUT replaces whole — a masked CA certificate in it the
- * gateway restores itself; the custom upstream, without which the gateway
- * refuses a custom record's PUT; and the raw-payload switches, which fall
- * back to off when absent. The blocks a PUT leaves alone when absent (proxy,
- * OpenAI and prompt-cache settings, whose secrets the gateway masks in its
- * answer) are not sent. */
-const ECHOED_PROVIDER_FIELDS = [
-  'network_config',
-  'custom_provider_config',
-  'send_back_raw_request',
-  'send_back_raw_response',
-  'store_raw_request_response',
-] as const;
-
-/** GET /api/providers — every provider record the gateway holds, in the
- * shape `GET /api/providers/:name` answers one (keys left out). Throws when
- * the gateway answers no listing. */
-async function listProviderRecords(): Promise<Record<string, unknown>[]> {
-  const res = await managementFetch('/api/providers');
-  if (!res.ok) {
-    throw new Error(
-      `llm-gateway list providers failed (${res.status}): ${sanitizeError(await res.text())}`,
-    );
-  }
-  const listed: unknown = await res.json();
-  if (!isRecord(listed) || !Array.isArray(listed.providers)) {
-    throw new Error('llm-gateway list providers answered no providers list');
-  }
-  return listed.providers.filter(isRecord);
-}
-
-/** The request workers a record holds, as the gateway answers it. */
-function recordWorkers(record: Record<string, unknown>): unknown {
-  return isRecord(record.concurrency_and_buffer_size)
-    ? record.concurrency_and_buffer_size.concurrency
-    : undefined;
-}
-
-/** The pool a listed record shrinks to: its kind's (gatewayProviderPool),
- * when the record holds more workers than that, else undefined. */
-function poolToShrinkTo(
-  name: string,
-  record: Record<string, unknown>,
-): GatewayProviderPool | undefined {
-  const current = recordWorkers(record);
-  const pool = gatewayProviderPool(!isStandardGatewayProvider(name));
-  return typeof current === 'number' && current > pool.concurrency
-    ? pool
-    : undefined;
-}
-
-/** How long the gateway may take to answer the shrink pass's write to one
- * record. It resolves a custom record's base URL first (up to 5 s), then
- * stores the record and restarts its workers, and only then asks the
- * upstream for its models (up to 15 s) before it answers. A write to a record
- * whose upstream is unreachable has therefore landed long before its answer
- * comes, up to 20 s later: past the 15 s every other management call is
- * given. */
-const RESIZE_WRITE_TIMEOUT_MS = 30_000;
-
-/** What the shrink pass did with one record it listed as oversized:
- * `resized` it holds its kind's pool now; `refused` the gateway refused the
- * write, or the record came back without the config the write must send, and
- * it keeps its workers; `unconfirmed` the gateway failed the write or did not
- * answer, and reading the record back did not show the new pool; `left`
- * nothing to do any more — the record is gone, already sized, or being
- * written by a provision of this process. */
-type ResizeOutcome = 'resized' | 'refused' | 'unconfirmed' | 'left';
-
-/** GET /api/providers/:name — one provider record, or null when the gateway
- * holds none by that name. Throws on any other answer. */
-async function readProviderRecord(
-  name: string,
-): Promise<Record<string, unknown> | null> {
-  const res = await managementFetch(
-    `/api/providers/${encodeURIComponent(name)}`,
-  );
-  if (res.status === 404) return null;
-  if (!res.ok) {
-    throw new Error(
-      `llm-gateway read provider ${name} failed (${res.status}): ${sanitizeError(await res.text())}`,
-    );
-  }
-  const record: unknown = await res.json();
-  if (!isRecord(record)) {
-    throw new Error(`llm-gateway read provider ${name} answered no record`);
-  }
-  return record;
-}
-
-/** Read a record back after a write the gateway failed or did not answer:
- * the outcome, when that settles it, else the record as it reads now, still
- * over its pool. The gateway stores a record before it asks the upstream for
- * its models, so a write whose answer came too late has usually landed. */
-async function readBackResize(
-  name: string,
-  pool: GatewayProviderPool,
-): Promise<ResizeOutcome | Record<string, unknown>> {
-  // A provision of this process is waiting to write the record, with its
-  // pool: nothing is left for the pass to do.
-  if (configuredProviderRecords.has(name)) return 'left';
-  let record: Record<string, unknown> | null;
-  try {
-    record = await readProviderRecord(name);
-  } catch (error) {
-    console.warn(
-      `[llm-gateway] reading provider '${name}' back after its resize failed:`,
-      error,
-    );
-    return 'unconfirmed';
-  }
-  if (record === null) return 'left';
-  if (recordWorkers(record) === pool.concurrency) return 'resized';
-  if (poolToShrinkTo(name, record) === undefined) return 'left';
-  if (configuredProviderRecords.has(name)) return 'left';
-  return isRecord(record.network_config) ? record : 'unconfirmed';
-}
-
-/** Send one record back once with `pool` and its own config (see
- * ECHOED_PROVIDER_FIELDS): `failed` when the gateway answered a 5xx, `no
- * answer` when it did not answer in time. */
-async function sendResize(
-  name: string,
-  record: Record<string, unknown>,
-  pool: GatewayProviderPool,
-): Promise<'resized' | 'refused' | 'failed' | 'no answer'> {
-  const body: Record<string, unknown> = { concurrency_and_buffer_size: pool };
-  for (const field of ECHOED_PROVIDER_FIELDS) {
-    const value = record[field];
-    if (value !== undefined && value !== null) body[field] = value;
-  }
-  const failed = `[llm-gateway] resizing provider '${name}' to ${pool.concurrency} workers failed`;
-  try {
-    const res = await managementFetch(
-      `/api/providers/${encodeURIComponent(name)}`,
-      {
-        method: 'PUT',
-        json: body,
-        timeoutMs: RESIZE_WRITE_TIMEOUT_MS,
-        resend: false,
-      },
-    );
-    if (res.ok) return 'resized';
-    const said = sanitizeError(await res.text());
-    if (res.status < 500) {
-      // The gateway resolves the base URL a write carries and refuses one
-      // whose host no longer resolves, so a record of a removed connector or
-      // a decommissioned host is refused at every pass. Deleting such a
-      // record is safe, since a provision sets up one still in use again; a
-      // built-in provider's record carries no base URL and holds every
-      // organization's key, so the hint is never given for it.
-      const carriesBaseUrl =
-        isRecord(record.network_config) &&
-        typeof record.network_config.base_url === 'string';
-      console.warn(
-        carriesBaseUrl
-          ? `${failed} (${res.status}): ${said}; it keeps its workers. If its upstream is gone for good, delete it from the gateway (DELETE /api/providers/${encodeURIComponent(name)}): a provision sets up a record still in use again`
-          : `${failed} (${res.status}): ${said}; it keeps its workers`,
-      );
-      return 'refused';
-    }
-    console.warn(`${failed} (${res.status}): ${said}; reading it back`);
-    return 'failed';
-  } catch (error) {
-    console.warn(`${failed}; reading it back:`, error);
-    return 'no answer';
-  }
-}
-
-/** Write one record back with `pool`, sending it again after a 5xx — the
- * gateway's store turns a write away while another one holds it — up to
- * three times, 250, 750 and 2,000 ms later. The gateway's PUT creates a
- * record it does not hold, so a write goes out again only to a record that
- * is still there and still over its pool when read back after the wait, and
- * carries the config the record has then. A write the gateway did not answer
- * may still be under way there, and is never sent again. Never throws. */
-async function writeResizedRecord(
-  name: string,
-  record: Record<string, unknown>,
-  pool: GatewayProviderPool,
-): Promise<ResizeOutcome> {
-  let current = record;
-  for (let attempt = 0; ; attempt += 1) {
-    if (removedProviderRecords.has(name)) return 'left';
-    const sent = await sendResize(name, current, pool);
-    if (sent === 'resized' || sent === 'refused') return sent;
-    const delayMs: number | undefined = STORE_BUSY_RETRY_DELAYS_MS[attempt];
-    if (sent === 'failed' && delayMs !== undefined) {
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
-    }
-    const now = await readBackResize(name, pool);
-    if (typeof now === 'string') return now;
-    if (sent === 'no answer' || delayMs === undefined) return 'unconfirmed';
-    current = now;
-  }
-}
-
-/** Write one record back with its kind's pool and its own config. The record
- * is read again first: the listing may be minutes old by the time the pass
- * reaches it, and another platform process may have provisioned the record
- * since — with its pool already, or with a newer config this write must not
- * undo. Never throws. */
-async function resizeProviderRecord(name: string): Promise<ResizeOutcome> {
-  let record: Record<string, unknown> | null;
-  try {
-    record = await readProviderRecord(name);
-  } catch (error) {
-    console.warn(
-      `[llm-gateway] reading provider '${name}' to resize its workers failed:`,
-      error,
-    );
-    return 'unconfirmed';
-  }
-  if (record === null) return 'left';
-  const pool = poolToShrinkTo(name, record);
-  // A provision of this process that began during the read writes the record
-  // with its pool and a newer config.
-  if (
-    pool === undefined ||
-    configuredProviderRecords.has(name) ||
-    removedProviderRecords.has(name)
-  )
-    return 'left';
-  if (!isRecord(record.network_config)) {
-    console.warn(
-      `[llm-gateway] provider '${name}' came back without its network config; keeping its workers, since a resize would drop its base URL`,
-    );
-    return 'refused';
-  }
-  // Nothing is awaited between the check above and this entry, so a
-  // provision of the record either made the pass leave it or finds the write
-  // in flight and waits for it.
-  const write = writeResizedRecord(name, record, pool);
-  shrinkingProviderRecords.set(name, write);
-  try {
-    return await write;
-  } finally {
-    shrinkingProviderRecords.delete(name);
-  }
-}
-
-/** Resize every record the gateway lists with more workers than its kind's
- * pool, one at a time, so the writes never contend for the gateway's store,
- * and log one line with what came of them once it is done, whatever the
- * counts. Throws only when the listing fails. */
-async function runProviderPoolShrink(): Promise<void> {
-  const records = await listProviderRecords();
-  const counts: Record<ResizeOutcome, number> = {
-    resized: 0,
-    refused: 0,
-    unconfirmed: 0,
-    left: 0,
-  };
-  for (const listed of records) {
-    const name = getString(listed, 'name');
-    if (name === undefined || poolToShrinkTo(name, listed) === undefined) {
-      continue;
-    }
-    // A record this process provisioned already carries its pool, and the
-    // provision's config is newer than the listing.
-    if (configuredProviderRecords.has(name)) continue;
-    counts[await resizeProviderRecord(name)] += 1;
-  }
-  console.info(
-    `[llm-gateway] provider worker resize finished: ${counts.resized} resized, ${counts.refused} refused, ${counts.unconfirmed} unconfirmed`,
-  );
-}
-
-/** This process's shrink pass, once started (see shrinkProviderPools). */
-let providerPoolShrink: Promise<void> | undefined;
-
-/**
- * Shrink the worker pools of the provider records no provision rewrites.
- * A provision resizes only the records it names, so a record nothing
- * provisions again — a model an organization removed or renamed, an
- * `__anthropic` sibling of a lane no session rides, an inactive
- * organization's records, a rarely used model — would keep whatever pool it
- * was stored with, up to the gateway's default of 1,000 workers, and the
- * gateway starts those workers again at every boot. Once per process (see
- * scheduleProviderPoolShrink for when), this lists every record and writes
- * each one with more workers than its kind's pool back with that pool
- * (gatewayProviderPool) and its own config. The gateway is the platform's
- * derived cache, so a record an operator added by hand is sized the same way.
- *
- * The pass must not write an old config over a newer one. A record this
- * process already provisioned is skipped, and a provision of a record waits
- * for the pass's write to it; a record another process may provision is read
- * again right before its write. That leaves the time the gateway takes to
- * handle the write: it writes the record's keys back as it found them when the
- * write arrived, and the config the pass read, so a key or config another
- * process writes to the record meanwhile is undone, and that process's memo
- * keeps it from writing the record again until it restarts (a key it lost is
- * written again at its next provision, which lists the keys). Never rejects: a
- * failed listing is logged and the next call lists again; a record the gateway
- * refuses, or whose write it fails without the new pool showing when the record
- * is read back, is logged and kept, for the next process to retry. A finished
- * pass logs one line that counts the records it resized, the ones the gateway
- * refused and the ones it could not confirm, so an operator waiting for the
- * pass sees it end even when nothing was resized. Answers the pass so a caller
- * may wait for it; the session provisioning does not.
- */
-export function shrinkProviderPools(): Promise<void> {
-  providerPoolShrink ??= runProviderPoolShrink().catch((error: unknown) => {
-    providerPoolShrink = undefined;
-    console.warn(
-      '[llm-gateway] could not list the provider records to resize their request workers; trying again at the next provision:',
-      error,
-    );
-  });
-  return providerPoolShrink;
-}
-
-/** How long after the first provision a backend process waits before its
- * shrink pass, and the most it adds to that at random. A fresh process's
- * provisions rewrite every record and key they name once, since its memo is
- * empty, and so do those of every other process a deploy starts in the same
- * minutes; a key rotated through the environment lands in exactly that
- * burst. The pass's write to a record undoes a key or config another process
- * writes to it while the gateway handles the write (see shrinkProviderPools),
- * so the pass starts after the burst, and at a different moment in each
- * process. */
-const SHRINK_PASS_DELAY_MS = 2 * 60_000;
-const SHRINK_PASS_JITTER_MS = 3 * 60_000;
-
-/** Whether this process's shrink pass is waiting for its start. */
-let providerPoolShrinkScheduled = false;
-
-/**
- * Start this process's shrink pass (shrinkProviderPools) two to five minutes
- * from now, unless it is waiting for that already or has run. Called at every
- * provision once the auth posture is applied, so a pass whose listing failed
- * is scheduled again by the next one. The timer never keeps the process
- * alive.
- */
-export function scheduleProviderPoolShrink(): void {
-  if (providerPoolShrink !== undefined || providerPoolShrinkScheduled) return;
-  providerPoolShrinkScheduled = true;
-  setTimeout(
-    () => {
-      providerPoolShrinkScheduled = false;
-      void shrinkProviderPools();
-    },
-    SHRINK_PASS_DELAY_MS + Math.floor(Math.random() * SHRINK_PASS_JITTER_MS),
-  ).unref();
-}
-
-/** How long a request-scoped provision trusts the auth posture this process
- * applied (see applyGatewayConfig). */
-const GATEWAY_CONFIG_REUSE_MS = 5 * 60_000;
-
-/** When this process last applied the auth posture successfully — for any
- * caller; a failed apply leaves it where it was. */
-let gatewayConfigAppliedAt: number | undefined;
-
-/**
- * Harden the gateway's auth posture (idempotent; safe to call every
- * provision):
- *   - `client_config.enforce_auth_on_inference` → inference REQUIRES a
- *     minted virtual key (closes open inference); the key itself then holds
- *     its call to its allowed_models and bound upstream key.
- *   - `auth_config` (admin Basic auth over /api/*) from the REQUIRED
- *     SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD → the management plane is never
- *     anonymous (it shares the gateway's single port on the sandbox network).
- *     The gateway hashes the stored password itself and compares with bcrypt;
- *     managementHeaders() sends the plaintext as Basic.
- *   - `client_config.drop_excess_requests` off → a request that finds a
- *     provider record's queue full waits for room in it instead of being
- *     refused (see gatewayProviderPool).
- *
- * GET-merge-PUT: `PUT /api/config` reads several client_config fields
- * directly from the payload, so the FULL current client_config is sent with
- * only the enforce flags flipped, never a partial.
- *
- * Only a request-scoped key reuses an apply (`options.reuseRecent`: none
- * within {@link GATEWAY_CONFIG_REUSE_MS} of the last successful one). The
- * posture guards the sandbox network: a sandbox session's key goes to code
- * running there, beside the port the management plane shares, so every
- * session create re-asserts it before that code gets a key — a posture lost
- * to a restored store or a hand edit never outlives one create. A
- * request-scoped key never leaves the platform process, which relays the
- * model-endpoint request with it itself, so re-checking every few minutes
- * spares a GET and a PUT of the whole config per request while session
- * creates keep re-asserting it in between. A failed apply is never
- * remembered: it throws, and the next call applies again.
- */
-const applyingGatewayConfig = new Map<string, Promise<void>>();
-
-export async function applyGatewayConfig(
-  options: GatewayReuseOptions = {},
-): Promise<void> {
-  if (
-    options.reuseRecent === true &&
-    gatewayConfigAppliedAt !== undefined &&
-    Date.now() - gatewayConfigAppliedAt < GATEWAY_CONFIG_REUSE_MS
-  ) {
-    return;
-  }
-  const identity = createHash('sha256')
-    .update(
-      JSON.stringify([
-        llmGatewayUrl(),
-        adminUsername(),
-        requireGatewayAdminPassword(),
-      ]),
-    )
-    .digest('hex');
-  const pending = applyingGatewayConfig.get(identity);
-  if (pending !== undefined) return pending;
-  const work = verifyGatewayConfig();
-  applyingGatewayConfig.set(identity, work);
-  try {
-    await work;
-  } finally {
-    if (applyingGatewayConfig.get(identity) === work)
-      applyingGatewayConfig.delete(identity);
-  }
-}
-
-async function verifyGatewayConfig(): Promise<void> {
-  const getRes = await managementFetch('/api/config');
-  if (!getRes.ok) {
-    throw new Error(
-      `llm-gateway get config failed (${getRes.status}): ${sanitizeError(await getRes.text())}`,
-    );
-  }
-  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-  const cfg = (await getRes.json()) as {
-    client_config?: Record<string, unknown>;
-    auth_config?: { is_enabled?: boolean };
-  };
-  const current = cfg.client_config ?? {};
-  const logRetentionDays = gatewayLogRetentionDays();
-  // Authenticate and inspect on every sandbox create; write only on drift.
-  // A restored/insecure store is repaired before any virtual key is minted,
-  // and a gateway keeping its request log for any other span is moved to
-  // this one.
-  if (
-    cfg.auth_config?.is_enabled === true &&
-    current.enforce_auth_on_inference === true &&
-    current.disable_content_logging === true &&
-    current.drop_excess_requests !== true &&
-    current.log_retention_days === logRetentionDays
-  ) {
-    gatewayConfigAppliedAt = Date.now();
-    return;
-  }
-  // `PUT /api/config` re-validates the whole client_config, but GET returns
-  // server-side zero-defaults that fail it — notably log_retention_days=0 vs
-  // the `min=1` validator — so the retention is always sent, never copied.
-  const clientConfig = {
-    ...current,
-    log_retention_days: logRetentionDays,
-    enforce_auth_on_inference: true,
-    // The gateway's request log would otherwise keep every prompt and
-    // answer — agent turns and model-endpoint calls alike — for its
-    // retention window, outside the organization's retention policy and
-    // erasure. Tale never reads that log: spend is read from each virtual
-    // key's usage, which the governance plugin keeps without content.
-    disable_content_logging: true,
-    // With it on, the gateway answers a request that finds a provider
-    // record's queue full with a 503 "request dropped: queue is full". Each
-    // record's pool and queue are sized for the load one record carries
-    // (gatewayProviderPool), so a burst past them must wait for room — the
-    // gateway's default, until the caller hangs up — never fail an agent's
-    // call outright.
-    drop_excess_requests: false,
-  };
-  // The gateway (Bifrost >= v1.6.9) enforces an admin-password strength policy
-  // (>=12 chars, an upper, a lower, a digit and a non-alphanumeric special
-  // char) — but ONLY when the password is being CHANGED. It treats a plaintext
-  // `admin_password` as a change, so re-asserting one on every apply 400s
-  // ("auth password must include one special character") for any secret minted
-  // before the policy (a base64url secret has no special char ~half the time).
-  // Once auth is established we therefore send the password in "preserve
-  // stored" form (an empty value → SecretVar.ShouldPreserveStored on the
-  // gateway): it keeps the existing hash and skips the policy, and Basic auth
-  // keeps matching the unchanged secret. Only the FIRST-time bootstrap sends
-  // the plaintext to establish auth — and that minted secret is policy-
-  // compliant by construction (the ensure-env / dev-secret generators). The
-  // gateway hashes the stored password itself (bcrypt); managementHeaders()
-  // sends the plaintext as Basic.
-  //
-  // That bootstrap also carries the gateway's setup token (Bifrost >= v2.2
-  // refuses to create its first admin account without it, 403). The gateway
-  // image always sets the token to this same password (a BIFROST_SETUP_TOKEN
-  // given to the container is replaced), so the one secret proves the
-  // platform may claim a fresh gateway; once the account exists the gateway
-  // ignores the field, and the preserve-stored apply leaves it out.
-  const authAlreadyEnabled = cfg.auth_config?.is_enabled === true;
-  const password = requireGatewayAdminPassword();
-  const body: Record<string, unknown> = {
-    client_config: clientConfig,
-    auth_config: {
-      is_enabled: true,
-      admin_username: adminUsername(),
-      ...(authAlreadyEnabled
-        ? { admin_password: '' }
-        : { admin_password: password, setup_token: password }),
-    },
-  };
-  const putRes = await managementFetch('/api/config', {
-    method: 'PUT',
-    json: body,
-  });
-  if (!putRes.ok) {
-    // The gateway says why it refused (e.g. its admin-password policy on the
-    // first bootstrap); without its words an operator sees a bare 400.
-    throw new Error(
-      `llm-gateway apply config failed (${putRes.status}): ${sanitizeError(await putRes.text())}`,
-    );
-  }
-  gatewayConfigAppliedAt = Date.now();
-}
-
-/** sha256 hex of a minted virtual key — what gets persisted (never the
- * plaintext). */
+/** sha256 hex of a turn's key or bridge token — what gets persisted (never
+ * the plaintext). */
 export function hashVirtualKey(key: string): string {
   return createHash('sha256').update(key).digest('hex');
 }

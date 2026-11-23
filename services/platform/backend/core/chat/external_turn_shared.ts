@@ -17,13 +17,17 @@
  * confuse a missing task-start event with a finished background task. Older
  * runtimes without checkpoints keep their seq-0 compatibility path.
  * This module owns the lane-neutral
- * core: exec construction (`buildExternalTurnExec`, with the model window
- * `resolveHarnessTurnContextWindow` reads), the window drain
+ * core: exec construction (`buildExternalTurnExec`, with the model limits
+ * `resolveHarnessTurnModelLimits` reads), the window drain
  * (`drainHarnessWindow`), end classification (`classifyHarnessEnd`), and the
  * bounded event→transcript projection (`HarnessProjection`); each host wraps it
  * with its own token mint, progress sink, and settle.
  */
 
+import {
+  stdinModeHolds,
+  type ModelCatalogEntry,
+} from '@tale/shared/schemas/providers';
 import { z } from 'zod';
 
 import { resolveEffectiveWindow } from '../../../lib/chat/budget';
@@ -36,6 +40,12 @@ import {
   type HarnessEvent,
   type HarnessExec,
 } from '../../../lib/harnesses/types';
+import { DEFAULT_HARNESS } from '../../../lib/shared/harness-offer';
+import {
+  requestTimeoutSeconds,
+  streamIdleSeconds,
+} from '../../../lib/shared/model-relay-budget';
+import { modelRelayUrlForSessions } from '../../../lib/shared/model-relay-url';
 import { traceSandboxPhase } from '../../tracing';
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
@@ -59,10 +69,6 @@ import {
   type SessionExecBody,
   type SessionExecResult,
 } from '../node_only/sandbox/helpers/session_client';
-import {
-  gatewayRequestTimeoutSeconds,
-  gatewayStreamIdleTimeoutSeconds,
-} from '../node_only/sandbox/llm_gateway_admin';
 
 /** Session-relative dir every staged skill lands in — the work lanes' org
  * skills and the per-connector skills alike, so the instructions can point
@@ -128,12 +134,10 @@ export function nextWindowDelayMs(window: HarnessWindowResult): number {
     : 0;
 }
 
-/** The gateway base URL as a session's CONTAINER reaches it (sandbox network
- * alias, never the host address). */
+/** The model relay's base URL as a session's CONTAINER reaches it (sandbox
+ * network alias, never the host address). */
 function gatewayBaseUrlForSessions(): string {
-  const url =
-    process.env.EXTERNAL_AGENT_GATEWAY_URL ?? 'http://sandbox-llm-gateway:8080';
-  return url.replace(/\/$/, '');
+  return modelRelayUrlForSessions();
 }
 
 /** The connectors-bridge base URL as a session's CONTAINER reaches it — the
@@ -157,13 +161,13 @@ export function isManagedHarness(harness: string): boolean {
   return def?.credentialPolicy.managed === true;
 }
 
-/** Whether a harness holds its stdin open as a steering channel (the
- * `ndjson-user-message` stdin mode): such a CLI answers turn after turn and
+/** Whether a harness holds its stdin open as a steering channel (a held
+ * stdin mode, `stdinModeHolds`): such a CLI answers turn after turn and
  * exits only on stdin EOF. */
 function harnessHoldsStdin(harness: string): boolean {
   if (!isHarnessSlug(harness)) return false;
   const def = loadHarnesses().find((h) => h.slug === harness);
-  return def?.exec.stdin.mode === 'ndjson-user-message';
+  return def !== undefined && stdinModeHolds(def.exec.stdin.mode);
 }
 
 /** The session-relative file a harness's subscription credential is staged
@@ -318,20 +322,35 @@ function attributedUserId(attribution: unknown): string {
     : '';
 }
 
+/** How large a managed harness turn's model is, in tokens, as
+ * `buildExternalTurnExec` hands it to the harness: its effective context
+ * window, and the most one answer may take. Each is absent when unknown. */
+export interface HarnessTurnModelLimits {
+  readonly contextWindow?: number;
+  readonly maxOutputTokens?: number;
+  /** Beside the limits, from the same entry: the model can be told how hard
+   * to think on a turn that carries tools (`HarnessRunSpec.reasoning`). */
+  readonly reasoning?: true;
+}
+
 /**
- * The effective context window of a managed harness turn's model, in tokens:
- * what `buildExternalTurnExec` hands the harness, so a CLI that does not know
- * a foreign model (Claude Code assumes 200,000 tokens) sizes its conversation
- * to the window the model serves. It means what the chat lane means: the
- * serving connector's catalog entry (`resolveModel`, held to that connector),
+ * The limits of a managed harness turn's model, read from one catalog entry
+ * (`HarnessTurnModelLimits`), so a CLI that does not know a foreign model
+ * sizes its conversation and its answers to what the model serves: Claude
+ * Code assumes a window of 200,000 tokens, Pi one of 128,000 and answers of
+ * at most 16,384. The window means what the chat lane means: the serving
+ * connector's catalog entry (`resolveModel`, held to that connector),
  * narrowed by the organization's context limit (`resolveEffectiveWindow`) for
  * the person the turn acts for — the run's starter, whom its spend cap binds.
+ * The output limit is the entry's `maxOutputTokens`, never more than that
+ * window.
  *
  * Best-effort by design, never a reason to fail the turn: an entry that
- * cannot be resolved answers `undefined` (the harness keeps its own sizing),
- * and an unreadable context limit leaves the catalog window standing.
+ * cannot be resolved answers no limit (the harness keeps its own sizing), an
+ * entry without an output limit answers the window alone, and an unreadable
+ * context limit leaves the catalog window standing.
  */
-export async function resolveHarnessTurnContextWindow(
+export async function resolveHarnessTurnModelLimits(
   ctx: ActionCtx,
   args: {
     organizationId: string;
@@ -344,23 +363,22 @@ export async function resolveHarnessTurnContextWindow(
     execId: string;
     kind: 'task-agent' | 'workflow-agent';
   },
-): Promise<number | undefined> {
-  let contextWindow: number;
+): Promise<HarnessTurnModelLimits> {
+  let entry: ModelCatalogEntry;
   try {
-    const { entry } = await resolveModel(
+    ({ entry } = await resolveModel(
       ctx,
       args.organizationId,
       args.modelId,
       args.providerSlug,
       true,
-    );
-    contextWindow = entry.contextWindow;
+    ));
   } catch (err) {
     console.warn(
-      `[harness-turn] ${args.execId}: no catalog window for ${args.providerSlug}/${args.modelId} — the harness sizes its conversation on its own:`,
+      `[harness-turn] ${args.execId}: no catalog entry for ${args.providerSlug}/${args.modelId} — the harness sizes its conversation and its answers on its own:`,
       err,
     );
-    return undefined;
+    return {};
   }
   let governanceMaxContext: number | null = null;
   try {
@@ -387,7 +405,24 @@ export async function resolveHarnessTurnContextWindow(
       err,
     );
   }
-  return resolveEffectiveWindow({ contextWindow, governanceMaxContext });
+  const contextWindow = resolveEffectiveWindow({
+    contextWindow: entry.contextWindow,
+    governanceMaxContext,
+  });
+  return {
+    contextWindow,
+    ...(entry.maxOutputTokens !== undefined
+      ? { maxOutputTokens: Math.min(entry.maxOutputTokens, contextWindow) }
+      : {}),
+    // A model with a reasoning knob can be told how hard to think — except
+    // where its endpoint refuses any effort beside tools, which an agent
+    // turn always carries: the model relay sends such a call the model's
+    // `off` effort itself, whatever the harness asked (RELAY-R11).
+    ...(entry.reasoning !== undefined &&
+    entry.reasoning.toolsRequireOff !== true
+      ? { reasoning: true as const }
+      : {}),
+  };
 }
 
 /** Build the harness exec for a managed external turn. */
@@ -395,9 +430,16 @@ export function buildExternalTurnExec(args: {
   harness: string;
   gatewayModel: string;
   /** The model's effective context window in tokens, when resolved
-   * (`resolveHarnessTurnContextWindow`); absent leaves the harness to size
+   * (`resolveHarnessTurnModelLimits`); absent leaves the harness to size
    * its conversation on its own. */
   contextWindow?: number;
+  /** The most tokens one answer of the model may take, when resolved
+   * (`resolveHarnessTurnModelLimits`); absent leaves the harness to cap its
+   * answers on its own. */
+  maxOutputTokens?: number;
+  /** The model can be told how hard to think on a turn with tools
+   * (`resolveHarnessTurnModelLimits`); absent counts as no. */
+  reasoning?: boolean;
   serving: ExternalTurnServing;
   instructions: string;
   prompt: string;
@@ -428,6 +470,10 @@ export function buildExternalTurnExec(args: {
     ...(args.contextWindow !== undefined
       ? { contextWindow: args.contextWindow }
       : {}),
+    ...(args.maxOutputTokens !== undefined
+      ? { maxOutputTokens: args.maxOutputTokens }
+      : {}),
+    ...(args.reasoning === true ? { reasoning: true } : {}),
     // BOTH lanes run the managed env shell — the capability bridge, the
     // vision/steering hooks, and the managed model-pin slots all read the
     // gateway pair. A subscription turn substitutes its session bridge
@@ -443,15 +489,13 @@ export function buildExternalTurnExec(args: {
           args.serving.kind === 'gateway'
             ? args.serving.token
             : args.serving.bridgeToken,
-        // The gateway's own idle budget: a CLI with a client-side idle
-        // watchdog must not give up on (and send again) a request the gateway
+        // The relay's own idle budget: a CLI with a client-side idle
+        // watchdog must not give up on (and send again) a request the relay
         // is still waiting on. Rounded to whole milliseconds for the env.
-        streamIdleTimeoutMs: Math.round(
-          gatewayStreamIdleTimeoutSeconds() * 1000,
-        ),
+        streamIdleTimeoutMs: Math.round(streamIdleSeconds() * 1000),
         // And its request timeout: the same rule for the wait on a whole
-        // answer, so the CLI never abandons a request the gateway serves.
-        requestTimeoutMs: Math.round(gatewayRequestTimeoutSeconds() * 1000),
+        // answer, so the CLI never abandons a request the relay serves.
+        requestTimeoutMs: Math.round(requestTimeoutSeconds() * 1000),
       },
     },
     ...(args.serving.kind === 'subscription'
@@ -600,8 +644,10 @@ export async function drainHarnessWindow(args: {
    * from its start. */
   spawnerOutageSince?: number;
 }): Promise<HarnessWindowResult> {
+  // A slug this image does not know (a row from a newer image) is parsed as
+  // the default runtime's stream.
   const glue = getHarnessGlue(
-    isHarnessSlug(args.harness) ? args.harness : 'claude-code',
+    isHarnessSlug(args.harness) ? args.harness : DEFAULT_HARNESS,
     loadHarnesses(),
   );
   const parser = glue.createParser();

@@ -26,9 +26,9 @@
       "features.networks": "false",
       "features.profiles": "true",
       "features.storage.volumes": "true",
-      "limits.instances": "22",
-      "limits.memory": "112384MiB",
-      "limits.processes": "55296",
+      "limits.instances": "21",
+      "limits.memory": "109056MiB",
+      "limits.processes": "53248",
       "limits.virtual-machines": "0",
       "restricted": "true",
       "restricted.backups": "block",
@@ -155,11 +155,10 @@
           "10.30.1.160/28",
           "10.30.1.4/32",
           "10.30.1.10/32",
-          "10.30.1.9/32",
           "10.30.1.12/32",
           "10.30.1.16/28"
         ],
-        "purpose": "The roles that reach the internet: the backend, the platform, the sessions egress proxy, the LLM gateway, the proxy (ACME) and the bgutil provider.",
+        "purpose": "The roles that reach the internet: the backend (and its model relay), the platform, the sessions egress proxy, the proxy (ACME) and the bgutil provider.",
         "check": "probe"
       },
       {
@@ -195,25 +194,25 @@
         "check": "listed"
       },
       {
-        "id": "sessions-to-llm-gateway",
+        "id": "sessions-to-model-relay",
         "acl": "sessions",
         "direction": "egress",
         "source": ["10.40.0.0/24"],
-        "destination": ["10.30.1.9/32"],
+        "destination": ["10.30.1.5/32"],
         "protocol": "tcp",
         "ports": [8080],
-        "purpose": "A session calls the LLM gateway.",
+        "purpose": "A session calls its models through the switch, at the model relay of the backend API.",
         "check": "listed"
       },
       {
-        "id": "stack-from-sessions-llm-gateway",
+        "id": "stack-from-sessions-model-relay",
         "acl": "stack",
         "direction": "ingress",
         "source": ["10.40.0.0/24"],
-        "destination": ["10.30.1.9/32"],
+        "destination": ["10.30.1.5/32"],
         "protocol": "tcp",
         "ports": [8080],
-        "purpose": "A session calls the LLM gateway.",
+        "purpose": "A session calls its models through the switch, at the model relay of the backend API.",
         "check": "listed"
       },
       {
@@ -332,11 +331,6 @@
         }
       },
       {
-        "name": "llm-gateway-data",
-        "kind": "data",
-        "config": {}
-      },
-      {
         "name": "object-store-data",
         "kind": "data",
         "config": {}
@@ -365,9 +359,9 @@
   },
   "peak": {
     "description": "the stateful tier, two colours during a flip, and 2 helpers",
-    "instances": 22,
-    "memoryBytes": 117843165184,
-    "processes": 55296,
+    "instances": 21,
+    "memoryBytes": 114353504256,
+    "processes": 53248,
     "diskBytes": null,
     "imageVersions": 2
   },
@@ -400,6 +394,6 @@
     "Instance-to-instance traffic on the app bridge and DNS to the bridge itself pass an Incus bridge ACL without a rule; their rules are listed for operators who enforce them elsewhere, and check expects no drop there.",
     "Host firewall state cannot be read with the stack's restricted certificate: check judges forwarding by a helper's connections from the app bridge.",
     "The 10/50/90 stop groups bound the data services' signal to about 60 s on a host that runs only Tale; another project's stop priority inside the band adds 30 s per group, so a shared host stops Tale with tale stop first.",
-    "limits.disk.pool.tale is left out: Incus refuses a volume without a size in a project that limits the pool, and caddy-config, caddy-data, config-data, db-backup, llm-gateway-data, object-store-data, static-assets, names-config, sandbox-credentials, switch-config declare none (runtime.incus.volumes)."
+    "limits.disk.pool.tale is left out: Incus refuses a volume without a size in a project that limits the pool, and caddy-config, caddy-data, config-data, db-backup, object-store-data, static-assets, names-config, sandbox-credentials, switch-config declare none (runtime.incus.volumes)."
   ]
 }

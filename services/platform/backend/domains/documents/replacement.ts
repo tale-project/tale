@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import path from 'node:path';
 
 import type { Sql, TransactionSql } from 'postgres';
 
@@ -7,7 +8,7 @@ import {
   DOCUMENT_MAX_FILE_SIZE,
   isRagIndexableFile,
 } from '../../../lib/shared/file-types.ts';
-import { attestDocumentContentType } from '../../core/documents/attest_document_bytes.ts';
+import { attestDocumentFile } from '../../core/documents/attest_document_file.ts';
 import {
   putImmutableS3Blob,
   s3BlobSize,
@@ -19,10 +20,13 @@ import {
 } from '../../core/lib/storage/blob_ref.ts';
 import {
   browserFacing,
-  s3GetObjectBytes,
+  ObjectTooLargeError,
+  s3GetObjectToFile,
+  s3ObjectSha256,
 } from '../../core/lib/storage/object_store.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx, PRIORITY_INTERACTIVE } from '../../jobs/enqueue.ts';
+import { newJobDir, removeJobDir } from '../../lib/heavy-slot/job-dir.ts';
 import {
   buildObjectKey,
   deleteOrgObject,
@@ -55,6 +59,11 @@ import {
  * binds under the same guards the intent was minted with. A crashed
  * finalize resumes through the same lease machine; cancel/expiry leave
  * durable cleanup work the sweeper drains.
+ *
+ * The staged file is never in memory (`promoteStagedReplacement`). A
+ * replacement of the largest size a document may have used to be held twice
+ * over, and a third time while its text was told from its bytes
+ * (tale-project/tale#4942).
  */
 
 const REPLACEMENT_UPLOAD_LEASE_MS = 10 * 60 * 1000;
@@ -195,12 +204,12 @@ function replacementTargetMatches(
  * serialized payload. Only the attester's own refusal is translated; anything
  * else (a store read failing mid-attest) stays the infrastructure error it is.
  */
-export async function attestReplacementBytes(
-  bytes: Uint8Array,
+export async function attestReplacementFile(
+  filePath: string,
   fileName: string,
 ): Promise<string> {
   try {
-    return await attestDocumentContentType(bytes, fileName);
+    return await attestDocumentFile(filePath, fileName);
   } catch (error) {
     if (error instanceof AppError && isMimeMismatch(error.data)) {
       throw new DocumentError('UPLOAD_MIME_MISMATCH', error.data.message, 400, {
@@ -425,6 +434,114 @@ export async function beginReplacementUpload(
 // Finalize (acquire → attest → promote → bind, resumable by lease)
 // ---------------------------------------------------------------------------
 
+/** The refusal of a staged file over the size a document may have. */
+function fileTooLarge(): DocumentError {
+  return new DocumentError(
+    'FILE_TOO_LARGE',
+    `File exceeds the ${Math.round(DOCUMENT_MAX_FILE_SIZE / (1024 * 1024))} MB limit`,
+    400,
+    { reasonCode: 'file_too_large', limitBytes: DOCUMENT_MAX_FILE_SIZE },
+  );
+}
+
+/** What a staged replacement was attested as, once it stands at its final
+ * key. */
+export interface PromotedReplacement {
+  verifiedContentType: string;
+  contentHash: string;
+  size: number;
+}
+
+/**
+ * Attest the staged file of an intent and promote it to the intent's
+ * reserved final key: the size cap, the content type its bytes say, its
+ * SHA-256, then a create-only write and a read-back of what the final key
+ * holds. All of it is network and disk, so it runs outside any transaction.
+ *
+ * Nothing of the file is in memory. It goes from the store to a file in a
+ * job directory, is attested there and sent on from there, and what the
+ * final key holds is read back as a digest. The directory goes however this
+ * ends.
+ */
+export async function promoteStagedReplacement(
+  intent: Pick<
+    ReplacementIntentRow,
+    'orgSlug' | 'stagingRef' | 'finalRef' | 'fileName'
+  >,
+): Promise<PromotedReplacement> {
+  const declaredSize = await s3BlobSize(intent.orgSlug, intent.stagingRef);
+  if (declaredSize === null) {
+    throw new DocumentError(
+      'UPLOAD_BLOB_INVALID',
+      'The uploaded replacement file no longer exists.',
+    );
+  }
+  if (declaredSize > DOCUMENT_MAX_FILE_SIZE) throw fileTooLarge();
+  const store = await resolveObjectStore(intent.orgSlug);
+  const stagingParsed = parseBlobRef(intent.stagingRef);
+  if (
+    stagingParsed.backend !== 's3' ||
+    !s3KeyBelongsToOrg(stagingParsed.key, intent.orgSlug)
+  ) {
+    throw invalidIntent('The replacement staging key is invalid.');
+  }
+  const finalParsed = parseBlobRef(intent.finalRef);
+  if (finalParsed.backend !== 's3') {
+    throw invalidIntent('The replacement final key is invalid.');
+  }
+  const jobDir = await newJobDir();
+  try {
+    const filePath = path.join(jobDir, 'replacement');
+    const hash = createHash('sha256');
+    // The size the store declared a moment ago is not what it must send
+    // now: the staging link can still be written to. So the bytes are
+    // counted as they arrive, and one past the limit ends the read.
+    const staged = await s3GetObjectToFile(store, stagingParsed.key, filePath, {
+      maxBytes: DOCUMENT_MAX_FILE_SIZE,
+      onChunk: (chunk) => {
+        hash.update(chunk);
+      },
+    }).catch((error: unknown) => {
+      if (error instanceof ObjectTooLargeError) throw fileTooLarge();
+      throw error;
+    });
+    if (staged === null) {
+      throw new DocumentError(
+        'UPLOAD_BLOB_INVALID',
+        'The uploaded replacement file no longer exists.',
+      );
+    }
+    const verifiedContentType = await attestReplacementFile(
+      filePath,
+      intent.fileName,
+    );
+    const contentHash = hash.digest('hex');
+    await putImmutableS3Blob(
+      intent.orgSlug,
+      intent.finalRef,
+      { path: filePath, size: staged.size },
+      verifiedContentType,
+    );
+    // What the final key holds, whoever wrote it: this attempt, or one
+    // that died before it could say that it had.
+    const stored = await s3ObjectSha256(store, finalParsed.key);
+    if (stored === null) {
+      throw new Error(
+        `S3 GET ${finalParsed.key} failed: 404 the object does not exist`,
+      );
+    }
+    if (stored.sha256 !== contentHash) {
+      throw new DocumentError(
+        'UPLOAD_BLOB_INVALID',
+        'The immutable replacement object does not match its attestation.',
+      );
+    }
+    return { verifiedContentType, contentHash, size: staged.size };
+  } finally {
+    await removeJobDir(jobDir);
+  }
+}
+
 function rejectionError(code: string): DocumentError {
   return new DocumentError(
     code,
@@ -549,74 +666,16 @@ export async function finalizeReplacementUpload(
     if (phase.kind === 'attest') {
       // Attest OUTSIDE any transaction (network reads): size cap, magic-byte
       // content type, sha256; then create-only promotion + verified readback.
-      const declaredSize = await s3BlobSize(intent.orgSlug, intent.stagingRef);
-      if (declaredSize === null) {
-        throw new DocumentError(
-          'UPLOAD_BLOB_INVALID',
-          'The uploaded replacement file no longer exists.',
-        );
-      }
-      if (declaredSize > DOCUMENT_MAX_FILE_SIZE) {
-        throw new DocumentError(
-          'FILE_TOO_LARGE',
-          `File exceeds the ${Math.round(DOCUMENT_MAX_FILE_SIZE / (1024 * 1024))} MB limit`,
-          400,
-          { reasonCode: 'file_too_large', limitBytes: DOCUMENT_MAX_FILE_SIZE },
-        );
-      }
-      const store = await resolveObjectStore(intent.orgSlug);
-      const stagingParsed = parseBlobRef(intent.stagingRef);
-      if (
-        stagingParsed.backend !== 's3' ||
-        !s3KeyBelongsToOrg(stagingParsed.key, intent.orgSlug)
-      ) {
-        throw invalidIntent('The replacement staging key is invalid.');
-      }
-      const bytes = await s3GetObjectBytes(store, stagingParsed.key);
-      if (bytes.byteLength > DOCUMENT_MAX_FILE_SIZE) {
-        throw new DocumentError(
-          'FILE_TOO_LARGE',
-          `File exceeds the ${Math.round(DOCUMENT_MAX_FILE_SIZE / (1024 * 1024))} MB limit`,
-          400,
-          { reasonCode: 'file_too_large', limitBytes: DOCUMENT_MAX_FILE_SIZE },
-        );
-      }
-      const verifiedContentType = await attestReplacementBytes(
-        bytes,
-        intent.fileName,
-      );
-      const contentHash = createHash('sha256').update(bytes).digest('hex');
-      await putImmutableS3Blob(
-        intent.orgSlug,
-        intent.finalRef,
-        bytes,
-        verifiedContentType,
-      );
-      const finalParsed = parseBlobRef(intent.finalRef);
-      if (finalParsed.backend !== 's3') {
-        throw invalidIntent('The replacement final key is invalid.');
-      }
-      const promoted = await s3GetObjectBytes(store, finalParsed.key);
-      const promotedHash = createHash('sha256').update(promoted).digest('hex');
-      if (promotedHash !== contentHash) {
-        throw new DocumentError(
-          'UPLOAD_BLOB_INVALID',
-          'The immutable replacement object does not match its attestation.',
-        );
-      }
+      const promoted = await promoteStagedReplacement(intent);
       await sql`
         UPDATE app.document_replacement_uploads SET
-          state = 'promoted', verified_content_type = ${verifiedContentType},
-          content_hash = ${contentHash}, size = ${bytes.byteLength},
+          state = 'promoted',
+          verified_content_type = ${promoted.verifiedContentType},
+          content_hash = ${promoted.contentHash}, size = ${promoted.size},
           updated_at_ms = ${Date.now()}
         WHERE id = ${intent.id} AND lease_id = ${leaseId}
       `;
-      intent = {
-        ...intent,
-        verifiedContentType,
-        contentHash,
-        size: bytes.byteLength,
-      };
+      intent = { ...intent, ...promoted };
     }
 
     // Bind: one transaction under the lease.

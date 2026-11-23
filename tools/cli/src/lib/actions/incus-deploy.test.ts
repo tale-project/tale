@@ -360,7 +360,6 @@ describePosix('the first deploy (design 7.2)', () => {
       'proxy',
       'sandbox',
       'sandbox-egress',
-      'sandbox-llm-gateway',
       'switch',
     ])
       expect(instances[singleton]).toStartWith('Running');

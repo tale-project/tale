@@ -21,11 +21,14 @@ export const DEV_VOLUME_NAMES = [
   'config-data',
   // The BLOB store's data. Separate from the config store on purpose:
   // config is small, text and diffable; blobs are large and opaque.
+  'blob-data',
+  // The blob store's volume while MinIO was the store, in MinIO's format: a
+  // deployment that still runs MinIO has its blobs here, and one that was
+  // moved keeps it until its operator removes it (backup/constants.ts).
   'object-store-data',
   'caddy-data',
   'caddy-config',
   'proxy-data',
-  'llm-gateway-data',
 ] as const;
 
 // All volumes that must exist before any `docker compose up` in production.
@@ -43,13 +46,28 @@ export const REQUIRED_VOLUMES = [
   'proxy-data',
   'db-data',
   'db-backup',
+  // The blob store's volume, and what it was called while MinIO was the
+  // store (see DEV_VOLUME_NAMES).
+  'blob-data',
   'object-store-data',
-  'llm-gateway-data',
 ] as const;
 
 /**
- * Where the backend tier reaches the BUNDLED blob store (`object-store`, the
- * MinIO service on `object-store-data`). The backend seeds the deployment
+ * Volumes an earlier release created that this one never creates, but which
+ * a deployment keeps until its operator removes them: `llm-gateway-data`,
+ * the store of the sandbox LLM gateway the model relay replaced
+ * (RETIRED_SERVICES in ../types.ts). It holds the keys of the providers the
+ * gateway reached and the spend of the keys it minted. No deploy, rollback,
+ * stop or restore removes it; a teardown that deletes the project's data
+ * volumes (`tale reset --all`, `tale uninstall --purge`, `tale runtime
+ * migrate --finish`) deletes it with them.
+ */
+export const RETIRED_VOLUMES = ['llm-gateway-data'] as const;
+
+/**
+ * Where the backend tier reaches the BUNDLED blob store (`object-store`:
+ * versitygw on `blob-data`, or MinIO on `object-store-data` where a
+ * deployment's blobs still are in it). The backend seeds the deployment
  * default `default/object-storage/connection.json` against this address at
  * boot, so a default connection that still points here means the blobs live
  * on the local volume — the test the backup uses to decide whether to

@@ -13,6 +13,7 @@ import {
   searchForWorkspaceRoot,
 } from 'vite';
 
+import { objectStoreProxy } from './scripts/dev-blob-store';
 import { injectAcceptLanguage } from './vite-plugins/inject-accept-language';
 import { injectBootShellPlugin } from './vite-plugins/inject-boot-shell';
 import { injectEnv } from './vite-plugins/inject-env';
@@ -58,6 +59,9 @@ const backendProxy = {
   // URLs (`/http_api/scim/v2`) — so the login flow addresses it and prod
   // Caddy forwards it; without this lane no SSO flow can run under `bun dev`.
   '/http_api': { target: BACKEND_BASE, changeOrigin: true },
+  // The blob store, at its bucket's path, as the edge publishes it: the
+  // browser's upload and download links are signed for this origin.
+  ...objectStoreProxy(process.env),
 };
 
 // The dev server's file allow-list. Vite's default is the workspace root, which

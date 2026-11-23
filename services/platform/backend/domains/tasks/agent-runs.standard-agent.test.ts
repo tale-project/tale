@@ -78,6 +78,7 @@ describe('kickAgentRun — the standard agent runs what its policy says at the s
       model: 'claude-sonnet-5',
       modelProvider: 'anthropic',
       engine: 'harness',
+      harnessReason: 'subscription_bound',
     });
     const { tx, calls } = fakeTx((text) =>
       text.startsWith('INSERT INTO app.project_agent_runs')
@@ -104,6 +105,13 @@ describe('kickAgentRun — the standard agent runs what its policy says at the s
       expect.arrayContaining(['claude-code', 'claude-sonnet-5', 'anthropic']),
     );
     expect(insert?.values).not.toContain('stale-model');
+    // The run keeps why the kick chose its harness, right after the harness:
+    // each of its turns records that, never the rule read again.
+    expect(insert?.text).toContain('harness, harness_reason, engine');
+    const values = insert?.values ?? [];
+    expect(values[values.indexOf('claude-code') + 1]).toBe(
+      'subscription_bound',
+    );
   });
 
   it.each([
@@ -137,6 +145,7 @@ describe('kickAgentRun — which engine a run starts on [TASK-R30]', () => {
     model: 'claude-sonnet-5',
     modelProvider: 'anthropic',
     engine,
+    harnessReason: 'default' as const,
   });
 
   it.each([
@@ -211,9 +220,10 @@ describe('kickAgentRun — which engine a run starts on [TASK-R30]', () => {
       const insert = calls.find((call) =>
         call.text.startsWith('INSERT INTO app.project_agent_runs'),
       );
-      // The column's value rides after the harness in the insert's values.
+      // The engine rides after the harness and its reason in the insert's
+      // values.
       const values = insert?.values ?? [];
-      expect(values[values.indexOf('claude-code') + 1]).toBe(engine);
+      expect(values[values.indexOf('claude-code') + 2]).toBe(engine);
       expect(addJobInTx).toHaveBeenCalledWith(
         tx,
         job,
@@ -231,6 +241,7 @@ describe('kickAgentRun — a retry carries the brief of the hand-over [TASK-R31]
       model: 'm',
       modelProvider: 'p',
       engine: 'native',
+      harnessReason: 'default',
     });
     const { tx, calls } = fakeTx((text) =>
       text.startsWith('INSERT INTO app.project_agent_runs')

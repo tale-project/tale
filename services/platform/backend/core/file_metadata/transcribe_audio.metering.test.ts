@@ -12,6 +12,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { functionRefName } from '../../../lib/shared/handlers/function-refs';
+import { memoryLimitSentence } from '../../../lib/shared/memory-limit';
+import { HeavyLimitError } from '../../lib/heavy-slot/slot';
 
 const mocks = vi.hoisted(() => ({
   compressAudio: vi.fn(),
@@ -40,7 +42,19 @@ vi.mock('../lib/helpers/org_slug', () => ({
   orgSlugFromIdOrNull: vi.fn(async () => 'org-slug'),
 }));
 vi.mock('../lib/storage/blob_access', () => ({
-  readBlobBytes: vi.fn(async () => new Uint8Array([1, 2, 3])),
+  // The recording is read into a file as it arrives, its bytes seen on
+  // their way past.
+  readBlobToFile: vi.fn(
+    async (
+      _orgSlug: string,
+      _ref: string,
+      _filePath: string,
+      opts?: { onChunk?: (chunk: Uint8Array) => void },
+    ) => {
+      opts?.onChunk?.(new Uint8Array([1, 2, 3]));
+      return { size: 3, contentType: null };
+    },
+  ),
 }));
 vi.mock('../../../lib/net/host-policy', () => ({
   checkProviderHostPolicy: vi.fn(),
@@ -102,10 +116,10 @@ const called = (suffix: string) =>
 
 function compressedTo(durationSec: number, sizeBytes = 1_000) {
   mocks.compressAudio.mockResolvedValue({
+    path: '/nonexistent/compressed.ogg',
     blob: new Blob([new Uint8Array(4)]),
     durationSec,
     sizeBytes,
-    cleanup: vi.fn(async () => undefined),
   });
 }
 
@@ -178,13 +192,10 @@ describe('transcribeAudioImpl and the uploader’s limits', () => {
 
   it('books the chunks a failed attempt finished, and retries holding afresh', async () => {
     compressedTo(120, Number.MAX_SAFE_INTEGER);
-    mocks.chunkCompressedAudio.mockResolvedValue({
-      chunks: [
-        { blob: new Blob([new Uint8Array(2)]), durationSec: 60, index: 0 },
-        { blob: new Blob([new Uint8Array(2)]), durationSec: 60, index: 1 },
-      ],
-      cleanup: vi.fn(async () => undefined),
-    });
+    mocks.chunkCompressedAudio.mockResolvedValue([
+      { blob: new Blob([new Uint8Array(2)]), durationSec: 60, index: 0 },
+      { blob: new Blob([new Uint8Array(2)]), durationSec: 60, index: 1 },
+    ]);
     mocks.requestTranscription
       .mockResolvedValueOnce({ text: 'One.', segments: [], duration: 60 })
       .mockRejectedValueOnce(
@@ -248,13 +259,10 @@ describe('transcribeAudioImpl and the uploader’s limits', () => {
 
   it('stops at a removal mid-way, booking the chunks already transcribed', async () => {
     compressedTo(120, Number.MAX_SAFE_INTEGER);
-    mocks.chunkCompressedAudio.mockResolvedValue({
-      chunks: [
-        { blob: new Blob([new Uint8Array(2)]), durationSec: 60, index: 0 },
-        { blob: new Blob([new Uint8Array(2)]), durationSec: 60, index: 1 },
-      ],
-      cleanup: vi.fn(async () => undefined),
-    });
+    mocks.chunkCompressedAudio.mockResolvedValue([
+      { blob: new Blob([new Uint8Array(2)]), durationSec: 60, index: 0 },
+      { blob: new Blob([new Uint8Array(2)]), durationSec: 60, index: 1 },
+    ]);
     mocks.requestTranscription.mockResolvedValueOnce({
       text: 'One.',
       segments: [],
@@ -290,5 +298,50 @@ describe('transcribeAudioImpl and the uploader’s limits', () => {
       (mutation) => mutation.args.transcriptionStatus === 'failed',
     );
     expect(failed?.args.transcriptionErrorCode).toBe('budgetExceeded');
+  });
+});
+
+// The recording is converted in the heavy slot, in a process of its own
+// under the slot's memory cap (tale-project/tale#4942).
+describe('transcribeAudioImpl and the heavy slot', () => {
+  it('fails a recording that needs more memory than one file is given, with the limit, and never retries it', async () => {
+    mocks.compressAudio.mockRejectedValue(new HeavyLimitError(96));
+
+    await transcribeAudioImpl(fakeCtx() as never, ARGS);
+
+    expect(mocks.requestTranscription).not.toHaveBeenCalled();
+    // The same recording meets the same limit: no retry is scheduled.
+    expect(scheduled).toEqual([]);
+    const failed = called(':updateFileTranscription').find(
+      (mutation) => mutation.args.transcriptionStatus === 'failed',
+    );
+    // The sentence the recording's chip reads the limit back from.
+    expect(failed?.args.transcriptionError).toBe(memoryLimitSentence(96));
+    // Nothing was held against anyone's limits for it.
+    expect(called(':openTranscriptionCall')).toEqual([]);
+  });
+
+  it('hands its job’s cancel to the conversion, and to the split of a long one', async () => {
+    const job = new AbortController();
+    compressedTo(4 * 60 * 60, 30 * 1024 * 1024);
+    mocks.chunkCompressedAudio.mockResolvedValue([
+      { blob: new Blob([new Uint8Array(4)]), durationSec: 90, index: 0 },
+    ]);
+
+    await transcribeAudioImpl(fakeCtx() as never, ARGS, {
+      signal: job.signal,
+    });
+
+    expect(mocks.compressAudio.mock.calls[0]?.[2]).toEqual({
+      signal: job.signal,
+    });
+    expect(mocks.chunkCompressedAudio.mock.calls[0]?.[2]).toEqual({
+      signal: job.signal,
+    });
+  });
+
+  it('converts with no cancel where its caller has none', async () => {
+    await transcribeAudioImpl(fakeCtx() as never, ARGS);
+    expect(mocks.compressAudio.mock.calls[0]?.[2]).toEqual({});
   });
 });

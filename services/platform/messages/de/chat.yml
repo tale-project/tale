@@ -306,6 +306,8 @@ transcription:
   couldNotTranscribe: Transkription fehlgeschlagen
   limitReached: Nutzungslimit erreicht
   limitReachedHint: Ein Nutzungslimit, das für dich gilt, ist erreicht. Unter Einstellungen > Nutzung siehst du, wann es zurückgesetzt wird; wähle Erneut versuchen, sobald es zurückgesetzt oder erhöht wurde.
+  tooHeavy: Braucht zu viel Arbeitsspeicher
+  tooHeavyHint: Diese Aufnahme braucht mehr Arbeitsspeicher als die {limit} MiB, die dieser Server einer Datei gibt. Bitte einen Admin, {setting} zu erhöhen, und wähle danach Erneut versuchen.
   viewTranscript: Transkript anzeigen
   previewSubtitle: '{seconds}s transkribiert'
   retry: Erneut versuchen
@@ -338,6 +340,8 @@ documentNoText: Kein lesbarer Text
 documentNoTextDescription: '{filename} enthält keinen Text, den der Assistent lesen kann — vielleicht ist die Datei leer oder ein Scan ohne Textebene.'
 documentMalformed: Lässt sich nicht öffnen
 documentMalformedDescription: '{filename} lässt sich nicht als dieser Dateityp öffnen — vielleicht ist die Datei beschädigt oder mit einem Passwort geschützt. Der Assistent kann sie deshalb nicht lesen.'
+documentTooHeavy: Braucht zu viel Arbeitsspeicher
+documentTooHeavyDescription: '{filename} braucht mehr Arbeitsspeicher als die {limit} MiB, die dieser Server einer Datei gibt. Der Assistent kann die Datei deshalb nicht lesen. Bitte einen Admin, {setting} zu erhöhen.'
 deferredSend:
   waiting: Eingereiht — geht raus, sobald die Anhänge bereit sind
   sending: Sendet…
@@ -364,6 +368,7 @@ videoLink:
     unsupported: Diese Seite wird nicht unterstützt
     transient: Vorübergehender Fehler — erneut versuchen
     botDetection: Video-Plattform hat automatisierten Zugriff blockiert — später erneut versuchen oder andere Plattform nutzen
+    poTokenProviderOff: YouTube verlangt von diesem Server den Nachweis, kein Bot zu sein — Administrator bitten, den Token-Anbieter für Videolinks zu aktivieren
     rateLimited: Video-Plattform drosselt Anfragen — einige Minuten warten und erneut versuchen
     RATE_LIMITED: Das Upload-Limit ist erreicht. Versuch es in einem Moment erneut.
     RATE_LIMITED_RETRY: 'Das Upload-Limit ist erreicht. Versuch es in {seconds, plural, one {# Sekunde} other {# Sekunden}} erneut.'
@@ -376,6 +381,7 @@ videoLink:
     retryCooldown: Dieses Video wurde gerade gedrosselt — bitte einige Minuten warten
     timeout: Anfrage hat zu lange gedauert — erneut versuchen
     outputValidationFailed: Heruntergeladene Video-Datei konnte nicht validiert werden
+    videoTooLarge: Video ist zu groß für die Verarbeitung
     videoTooLong: Video überschreitet das 4-Stunden-Limit
     whisperFailed: Transkription fehlgeschlagen
     invalidUrl: URL ist ungültig

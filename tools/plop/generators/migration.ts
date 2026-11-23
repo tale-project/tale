@@ -58,7 +58,7 @@ function nextSteps(file: string, kind: MigrationKind): string {
       `  4. pin its decision table in backend/db/data-migrations.test.ts, and\n` +
       `     seed the rows, run migrate twice, in backend/integration-check.ts\n` +
       `  5. bun run --filter @tale/platform backend:integration (see\n` +
-      `     backend/README.md for the throwaway Postgres + MinIO invocation)`
+      `     backend/README.md for the throwaway Postgres + S3 store invocation)`
     );
   }
   return (
@@ -74,7 +74,7 @@ function nextSteps(file: string, kind: MigrationKind): string {
     `     is a rule the database cannot forget)\n` +
     `  4. add a probe to backend/integration-check.ts for what it enables\n` +
     `  5. bun run --filter @tale/platform backend:integration (see\n` +
-    `     backend/README.md for the throwaway Postgres + MinIO invocation)`
+    `     backend/README.md for the throwaway Postgres + S3 store invocation)`
   );
 }
 

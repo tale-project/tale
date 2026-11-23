@@ -1,12 +1,22 @@
+import { externalDepError } from '../../utils/fail';
 import { getProjectId, type ReplicaCounts } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
-import type { DeploymentColor, RotatableService } from '../compose/types';
+import {
+  appTierOfPlatformRole,
+  describeReplicas,
+  THREE_WAY,
+  type AppTier,
+} from '../compose/app-tier';
+import {
+  ROTATABLE_SERVICES,
+  type DeploymentColor,
+  type RotatableService,
+} from '../compose/types';
 import type { listComposeContainers } from '../docker/list-service-containers';
 import type { waitForHealthy } from '../docker/wait-for-healthy';
 import { dockerRuntime } from '../runtime/docker/docker-runtime';
 import type { StackRuntime } from '../runtime/types';
 import type { FlipPending } from '../state/flip-pending';
-import { getCurrentColor } from '../state/get-current-color';
 import { drainBackend, endDrainBackend } from './drain-backend';
 
 /**
@@ -14,9 +24,12 @@ import { drainBackend, endDrainBackend } from './drain-backend';
  * `tale deploy` and `tale rollback` share, so the two cannot drift on the
  * order that keeps a flip from dropping requests.
  *
- * A colour is the whole stateless application tier at one version. Both
- * colours answer the same `platform` / `backend-api` aliases while they
- * overlap, which is safe in this order and no other:
+ * A colour is the whole stateless application tier at one version, in one
+ * of the shapes compose/app-tier.ts names: one `platform` process that is the
+ * whole application, `platform` with the job runners apart, or the three
+ * services. Two colours need not share a shape. Both answer the same
+ * `platform` / `backend-api` aliases while they overlap, whichever of their
+ * services does, which is safe in this order and no other:
  *
  *   1. the idle colour comes up — a replica that is still booting is not
  *      listening, so the resolver falls through to the live colour;
@@ -65,12 +78,55 @@ export async function colorPlatformVersion(
   return pinned;
 }
 
-/** True when every requested role has at least `replicas[role]` running. */
+/**
+ * The shape a colour was started in, read off its `platform`: the role that
+ * container runs names it (`appTierOfPlatformRole`).
+ *
+ * A colour without a `platform` container has nothing to ask. One that still
+ * has a `backend-api` is a colour of three services that lost its web tier,
+ * the only shape with that service; any other says nothing, and reads null.
+ * So does a `platform` in a role no shape starts it in.
+ *
+ * A `platform` that is there and cannot be read is not guessed around: a
+ * caller that then took the shape of the image instead would start the whole
+ * application in a container that is the web tier of three services.
+ */
+export async function colorTier(
+  color: DeploymentColor,
+  runtime: StackRuntime = dockerRuntime,
+): Promise<AppTier | null> {
+  const instances = await runtime.list({ stack: colorProject(color) });
+  const platform = instances.find(
+    (instance) => instance.service === 'platform',
+  );
+  if (platform === undefined)
+    return instances.some((instance) => instance.service === 'backend-api')
+      ? THREE_WAY
+      : null;
+  const info = await runtime.inspect(platform.name);
+  if (info === null)
+    throw externalDepError(
+      `Could not read which services the ${color} colour runs: ${platform.name} did not answer an inspect. Nothing was changed.`,
+    );
+  return appTierOfPlatformRole(info.environment.TALE_ROLE);
+}
+
+/**
+ * True when every requested role has at least `replicas[role]` running.
+ *
+ * With `shape`, the colour must also BE a colour of that shape: no container
+ * of an application service the shape lacks, and `platform` in the shape's
+ * role. A flip is resumed onto a colour that is already up without starting
+ * it again, so one an earlier deploy started in another shape must not pass
+ * for the one asked: its `platform` would run without the jobs, or beside a
+ * backend this deploy never checked.
+ */
 export async function colorLooksUp(
   color: DeploymentColor,
   services: readonly RotatableService[],
   replicas: ReplicaCounts,
   runtime: StackRuntime = dockerRuntime,
+  shape?: AppTier,
 ): Promise<boolean> {
   const project = colorProject(color);
   for (const service of services) {
@@ -79,41 +135,171 @@ export async function colorLooksUp(
     );
     if (running.length < replicas[service]) return false;
   }
-  return true;
+  if (shape === undefined) return true;
+  const present = new Set(
+    (await runtime.list({ stack: project })).map(
+      (container) => container.service,
+    ),
+  );
+  if (
+    ROTATABLE_SERVICES.some(
+      (service) => present.has(service) && !shape.services.includes(service),
+    )
+  )
+    return false;
+  return (await colorTier(color, runtime))?.shape === shape.shape;
+}
+
+/** One running replica of each service: what a colour that serves has at
+ *  least, whatever counts a deploy asks for. */
+const AT_LEAST_ONE: ReplicaCounts = {
+  platform: 1,
+  'backend-api': 1,
+  'backend-worker': 1,
+};
+
+/** What a flip does with the colour it promotes, and what it then retires. */
+export interface ColorFlip {
+  /** The colour that takes the traffic. */
+  promoting: DeploymentColor;
+  /** The colour retired once it has; null on a first deploy. */
+  retiring: DeploymentColor | null;
+  /** This continues a flip an earlier run recorded and did not finish. */
+  resumed: boolean;
+  /**
+   * What is left to do for `promoting`:
+   * - `start`  bring it up afresh. It serves nothing, so whatever an earlier
+   *            run left of it is removed first.
+   * - `wait`   it is up as asked: wait for its replicas, then switch.
+   * - `keep`   it already HOLDS the traffic: the earlier run recorded the
+   *            switch and stopped before it retired the old colour. It is
+   *            never started again, whatever this run asks for; its health
+   *            is waited for and the old colour retired.
+   */
+  step: 'start' | 'wait' | 'keep';
+  /** The services of `promoting` to wait on and to hold to the admitted
+   *  image: the ones asked, or under `keep` the ones it runs. */
+  services: readonly RotatableService[];
+  /** How many replicas of each to wait for. */
+  replicas: ReplicaCounts;
+  /** Under `keep`: what the colour runs, where that differs from what this
+   *  run asks for (`platform×1, backend-worker×2`); null where it is as
+   *  asked. The next deploy applies the difference with a flip of its own. */
+  runsInstead: string | null;
 }
 
 /**
- * A crash mid-flip left both colours up (or the new one up and the switch
- * not recorded). Resume that flip instead of `startColor` wiping the colour
- * that is already answering the alias.
+ * Decide, once, what a flip onto the idle colour does: start it, wait for
+ * it, or finish an interrupted flip around a colour that already serves.
+ *
+ * A crash mid-flip leaves a record (`pending`) and either the new colour up
+ * with the switch not recorded, or the switch recorded with the old colour
+ * still up. The first is resumed only onto a colour that is up AS ASKED NOW:
+ * one left in another shape, or short of replicas, serves nothing yet and is
+ * started again. The second is the delicate one. The promoting colour holds
+ * the traffic, and the old one may already be cut out of the serving names,
+ * so starting it again (which removes it first) would take the site down,
+ * and would put whatever image this run admitted in place of the one that
+ * serves without the check a resume makes. It is kept as it is, in the shape
+ * and at the counts it has, and what this run asks for beyond that waits for
+ * the next deploy. Only a colour that holds the traffic on record and serves
+ * none of it (a service of its shape has no running replica) is started
+ * again, since that takes nothing away.
  */
-export async function isUnfinishedColorFlip(
-  deployDir: string,
-  pending: FlipPending,
-  services: readonly RotatableService[],
-  replicas: ReplicaCounts,
-  runtime: StackRuntime = dockerRuntime,
-): Promise<boolean> {
-  const current = await getCurrentColor(deployDir);
-  const promotingUp = await colorLooksUp(
-    pending.promoting,
-    services,
+export async function planColorFlip(args: {
+  pending: FlipPending | null;
+  /** The colour recorded as live; null before a first deploy. */
+  current: DeploymentColor | null;
+  /** The colour a flip that resumes nothing promotes. */
+  next: DeploymentColor;
+  tier: AppTier;
+  replicas: ReplicaCounts;
+  runtime?: StackRuntime;
+}): Promise<ColorFlip> {
+  const runtime = args.runtime ?? dockerRuntime;
+  const { pending, current, tier, replicas } = args;
+  const asked = {
+    services: tier.services,
     replicas,
-    runtime,
-  );
-  const retiringUp =
-    pending.retiring !== null &&
-    (await runtime.list({ stack: colorProject(pending.retiring) })).some(
-      (container) => container.running,
-    );
+    runsInstead: null,
+  } as const;
+  const upAsAsked = (color: DeploymentColor) =>
+    colorLooksUp(color, tier.services, replicas, runtime, tier);
 
-  if (current === pending.promoting && retiringUp) return true;
-  if (current !== pending.promoting && promotingUp) return true;
-  return false;
+  if (pending !== null && current === pending.promoting) {
+    const retiringUp =
+      pending.retiring !== null &&
+      (await runtime.list({ stack: colorProject(pending.retiring) })).some(
+        (container) => container.running,
+      );
+    if (retiringUp) {
+      const resumed = {
+        promoting: pending.promoting,
+        retiring: pending.retiring,
+        resumed: true,
+      } as const;
+      const live = await colorTier(pending.promoting, runtime);
+      if (
+        live !== null &&
+        (await colorLooksUp(
+          pending.promoting,
+          live.services,
+          AT_LEAST_ONE,
+          runtime,
+        ))
+      ) {
+        const running: ReplicaCounts = { ...AT_LEAST_ONE };
+        for (const service of live.services)
+          running[service] = (
+            await runtime.list({
+              stack: colorProject(pending.promoting),
+              service,
+            })
+          ).filter((container) => container.running).length;
+        const runs = describeReplicas(live, running);
+        return {
+          ...resumed,
+          step: 'keep',
+          services: live.services,
+          replicas: AT_LEAST_ONE,
+          runsInstead: runs === describeReplicas(tier, replicas) ? null : runs,
+        };
+      }
+      return { ...resumed, step: 'start', ...asked };
+    }
+    // The old colour is gone: that flip finished and left its record behind.
+  } else if (pending !== null) {
+    const up = await upAsAsked(pending.promoting);
+    if (up)
+      return {
+        promoting: pending.promoting,
+        retiring: pending.retiring,
+        resumed: true,
+        step: 'wait',
+        ...asked,
+      };
+    if (pending.promoting === args.next)
+      return {
+        promoting: args.next,
+        retiring: current,
+        resumed: false,
+        step: 'start',
+        ...asked,
+      };
+  }
+  return {
+    promoting: args.next,
+    retiring: current,
+    resumed: false,
+    step: (await upAsAsked(args.next)) ? 'wait' : 'start',
+    ...asked,
+  };
 }
 
-/** The colour-rolled services that carry a serving DNS alias. The worker has
- *  none — it is reached only through the job queue. */
+/** The colour-rolled services that carry a serving DNS alias, in a colour
+ *  of any shape: one without a `backend-api` has no replica of it to
+ *  withdraw, and its `platform` holds both names. The worker has none — it
+ *  is reached only through the job queue. */
 const ALIASED_SERVICES: readonly RotatableService[] = [
   'platform',
   'backend-api',

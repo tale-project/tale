@@ -83,7 +83,6 @@ runs:
         BUILD_platform: ${{ steps.filter.outputs.build_platform }}
         BUILD_db: ${{ steps.filter.outputs.build_db }}
         BUILD_proxy: ${{ steps.filter.outputs.build_proxy }}
-        BUILD_sandbox_llm_gateway: ${{ steps.filter.outputs.build_sandbox-llm-gateway }}
         BUILD_web: ${{ steps.filter.outputs.build_web }}
         BUILD_docs: ${{ steps.filter.outputs.build_docs }}
         BUILD_ui_docs: ${{ steps.filter.outputs.build_ui-docs }}

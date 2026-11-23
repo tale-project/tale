@@ -234,7 +234,7 @@ describe('committed source runtime preparation', () => {
     expect(Object.keys(verified.compose.volumes).sort()).toEqual(
       Object.keys(fixture.source.volumes).sort(),
     );
-    expect(bundle.images).toHaveLength(11);
+    expect(bundle.images).toHaveLength(10);
     for (const image of bundle.images) {
       expect(image.reference).toBe(`${image.repository}@${image.digest}`);
       expect(image.architecture).toBe('amd64');
@@ -714,17 +714,14 @@ describe('the Incus shape of the sandbox service', () => {
     expect(omit(sandbox, 'volumes', 'environment')).toEqual(
       omit(plain.compose.services.sandbox, 'volumes', 'environment'),
     );
+    // The API and the model relay beside it, where the gateway's 8080 was.
     expect(incus.compose.services['backend-api'].ports).toEqual([
       '10.200.50.2:3005:3005',
-    ]);
-    expect(incus.compose.services['sandbox-llm-gateway'].ports).toEqual([
       '10.200.50.2:8080:8080',
     ]);
     for (const service of RUNTIME_SERVICES) {
       if (service === 'sandbox') continue;
-      const published = ['backend-api', 'sandbox-llm-gateway'].includes(
-        service,
-      );
+      const published = service === 'backend-api';
       expect(
         omit(incus.compose.services[service], ...(published ? ['ports'] : [])),
       ).toEqual(

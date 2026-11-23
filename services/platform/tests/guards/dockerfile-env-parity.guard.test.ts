@@ -77,7 +77,7 @@ describe('Dockerfile squash-stage ENV parity', () => {
     const runnerEnv = envOfStage(runner);
     const squashEnv = envOfStage(squash);
     // Sanity: the parser actually saw the blocks.
-    expect(runnerEnv.size).toBeGreaterThanOrEqual(9);
+    expect(runnerEnv.size).toBeGreaterThanOrEqual(8);
     // Set equality with per-var messages: a drift names the variable.
     for (const [name, value] of runnerEnv) {
       expect(squashEnv.get(name), `squash ENV drops or changes ${name}`).toBe(
@@ -86,6 +86,22 @@ describe('Dockerfile squash-stage ENV parity', () => {
     }
     for (const name of squashEnv.keys()) {
       expect(runnerEnv.has(name), `squash-only ENV var ${name}`).toBe(true);
+    }
+  });
+
+  // PORT is the API's port, and the web tier beside it in the same process
+  // listens on APP_PORT. The image used to bake PORT=3000 for a web tier that
+  // ran alone: an api or all role started without a PORT of its own would
+  // read 3000 for the API, find the web tier's default there too, and refuse
+  // to boot. Each default lives in the code that reads it.
+  it('bakes no PORT into any image: it would name both listeners of one process', () => {
+    const { dev, runner, squash } = stages();
+    for (const [name, stage] of Object.entries({ dev, runner, squash })) {
+      const env = envOfStage(stage);
+      expect(env.has('PORT'), `the ${name} stage bakes PORT`).toBe(false);
+      expect(env.has('APP_PORT'), `the ${name} stage bakes APP_PORT`).toBe(
+        false,
+      );
     }
   });
 

@@ -251,7 +251,7 @@ describePosix('preparing a managed bundle for Incus', () => {
       ),
     ) as { services: Record<string, { ports?: string[] }> };
     expect(compose.services['backend-api']?.ports).toBeUndefined();
-    expect(compose.services['sandbox-llm-gateway']?.ports).toBeUndefined();
+    expect(compose.services['sandbox-llm-gateway']).toBeUndefined();
   });
 
   test('keeps a declared egress proxy (R-13)', async () => {

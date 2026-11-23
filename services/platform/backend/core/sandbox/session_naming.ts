@@ -32,6 +32,14 @@ export function sessionIdForRender(renderKey: string): string {
   return `rnd-${suffix}`.slice(0, 64);
 }
 
+/** Session id for one run of a video link's job: the throwaway sandbox its
+ * yt-dlp runs in, created and torn down within the run. `runKey` is unique
+ * to the run, so a retry, and a second delivery of the same job, each get a
+ * session of their own and never meet what another run left. */
+export function sessionIdForVideo(jobId: string, runKey: string): string {
+  return `vid-${fnv1a64Hex(`${jobId}:${runKey}`)}`.slice(0, 64);
+}
+
 /** Deterministic spawner session id for an automation run's sandbox — one
  * workspace per execution, shared by every agent node of the run and torn
  * down when the execution completes. The hash suffix folds the execution id

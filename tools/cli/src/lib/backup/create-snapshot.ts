@@ -12,8 +12,10 @@ import {
   CONFIG_VOLUME,
   LEGACY_CONFIG_VOLUME,
   SNAPSHOT_VOLUMES,
+  tarHelper,
 } from './constants';
 import { type BlobStoreLayout, inspectBlobStore } from './inspect-blob-store';
+import { liveBlobVolume } from './live-blob-volume';
 import {
   nativeSnapshotName,
   nativeSource,
@@ -84,8 +86,11 @@ async function archiveVolume(
   pausedCount: number,
 ): Promise<SnapshotVolumeInfo> {
   const volumeName = `${prefix}${volume}`;
+  // The blob store's files carry their objects' metadata in extended
+  // attributes, which only a tar that knows of them keeps.
+  const tar = tarHelper(volume);
   const tarResult = await runtime.oneShot({
-    image: BACKUP_HELPER_IMAGE,
+    image: tar.image,
     mounts: [
       { volume: volumeName, target: '/data', readOnly: true },
       { volume: backupVolume, target: '/backup' },
@@ -95,7 +100,7 @@ async function archiveVolume(
       '-c',
       // tee writes the .sha256 sidecar AND echoes it so sha256 + byte size
       // are parseable from the last two stdout lines below.
-      `mkdir -p /backup/${id} && tar czf /backup/${id}/${volume}.tar.gz -C /data . && cd /backup/${id} && sha256sum ${volume}.tar.gz | tee ${volume}.tar.gz.sha256 && wc -c < ${volume}.tar.gz`,
+      `mkdir -p /backup/${id} && tar czf /backup/${id}/${volume}.tar.gz${tar.flags} -C /data . && cd /backup/${id} && sha256sum ${volume}.tar.gz | tee ${volume}.tar.gz.sha256 && wc -c < ${volume}.tar.gz`,
     ],
     timeoutS: archiveTimeoutSeconds(volume),
   });
@@ -241,6 +246,15 @@ export async function createSnapshot(
       ) {
         present.push(LEGACY_CONFIG_VOLUME);
       }
+      continue;
+    }
+    if (volume === BLOB_VOLUME) {
+      // The volume the blobs are in: versitygw's, or MinIO's on a deployment
+      // that still runs it. What is in them decides (live-blob-volume.ts):
+      // `blob-data` exists, empty, on every deployment, and a deployment
+      // that was moved keeps MinIO's volume, which is not archived again.
+      const live = await liveBlobVolume(prefix, runtime);
+      if (await runtime.volumeExists(`${prefix}${live}`)) present.push(live);
       continue;
     }
     if (await runtime.volumeExists(`${prefix}${volume}`)) {
@@ -392,8 +406,13 @@ async function createNativeSnapshot(
   const blobStore = await inspectBlobStore('', runtime);
   const present: string[] = [];
   for (const volume of SNAPSHOT_VOLUMES) {
-    if (volume === BLOB_VOLUME && blobStore.default.kind === 'external')
+    if (volume === BLOB_VOLUME) {
+      if (blobStore.default.kind === 'external') continue;
+      // As for an archive snapshot: the volume the blobs are in.
+      const live = await liveBlobVolume('', runtime);
+      if (await runtime.volumeExists(live)) present.push(live);
       continue;
+    }
     if (await runtime.volumeExists(volume)) present.push(volume);
   }
   if (present.length === 0) {

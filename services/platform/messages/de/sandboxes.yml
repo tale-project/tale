@@ -47,7 +47,7 @@ quota:
   budgetHints:
     project: Jede Aufgabe, an der ein Agent gleichzeitig arbeitet, läuft in einer eigenen Sandbox.
     workflow: Agent- und Skriptschritte teilen sich eine Sandbox pro Workflow-Lauf.
-    render: Temporäre Sandboxes rendern Webseiten beim Crawlen deiner Websites.
+    render: Temporäre Sandboxes rendern Webseiten beim Crawlen deiner Websites und rufen die Videos eingefügter Links ab.
     light: Chats und Aufgabenläufe führen Code in einer kleinen Wegwerf-Sandbox aus, um Dokumente und Diagramme zu erstellen; eine unbenutzte macht der nächsten Platz.
 cleanup:
   title: Bereinigung der Arbeitsbereiche

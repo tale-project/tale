@@ -1,7 +1,8 @@
 // pi-jsonl family tests. Parser expectations derive from the captured
 // fixtures/pi/shell-turn.yml stream (two agent cycles: a tool call, then
-// the closing text); the synthetic cases pin the auto-retry hold semantics
-// the family documents. Exec construction is covered by the golden fixtures
+// the closing text, from a CLI before 1.0, which never settles) and the
+// settled-*.yml streams the real Pi 1.6.0 wrote; the synthetic cases pin
+// the auto-retry hold semantics the family documents. Exec construction is covered by the golden fixtures
 // + interpreter tests, not here.
 
 import { describe, expect, it } from 'vitest';
@@ -43,7 +44,8 @@ describe('pi-jsonl parser', () => {
       { type: 'text-delta', text: 'Mock turn complete: ' },
       { type: 'text-delta', text: '2 + 2 = 4.' },
       { type: 'usage', inputTokens: 35, outputTokens: 13, model: MODEL },
-      // agent_end on a clean cycle is terminal; totals sum BOTH cycles.
+      // A stream that never settles ends at its last clean agent_end;
+      // totals sum BOTH cycles.
       {
         type: 'turn-ended',
         status: 'completed',
@@ -290,6 +292,240 @@ describe('pi-jsonl parser', () => {
     ]);
   });
 
+  it('ends a Pi 1.x turn where Pi settles, not at its first agent_end', () => {
+    const parser = createParser('pi');
+    // Fed whole without the stream's end: agent_settled ends the turn.
+    const events = parser.feed(`${readFixture('pi', 'settled-shell-turn')}\n`);
+    expect(events.at(-1)).toEqual({
+      type: 'turn-ended',
+      status: 'completed',
+      sessionId: '01a204dc-cf02-70fc-bbd2-ca8e226e0b3f',
+      finalText: 'Done.',
+      usageTotals: { inputTokens: 240, outputTokens: 24 },
+    });
+    expect(events.filter((event) => event.type === 'tool-use')).toEqual([
+      {
+        type: 'tool-use',
+        toolUseId: 'call_lab_1',
+        toolName: 'bash',
+        input: { command: 'echo hello' },
+      },
+    ]);
+    expect(parser.end()).toEqual([]);
+  });
+
+  it('completes a Pi 1.x turn whose first model call was retried', () => {
+    const events = createParser('pi').feed(
+      `${readFixture('pi', 'settled-retry-turn')}\n`,
+    );
+    expect(events.filter((event) => event.type !== 'text-delta')).toEqual([
+      {
+        type: 'turn-started',
+        harness: 'pi',
+        sessionId: '01a204dc-d357-77b3-b9af-e3a0d55c1110',
+      },
+      { type: 'usage', inputTokens: 120, outputTokens: 12, model: 'lab-model' },
+      {
+        type: 'turn-ended',
+        status: 'completed',
+        sessionId: '01a204dc-d357-77b3-b9af-e3a0d55c1110',
+        finalText: 'Done.',
+        usageTotals: { inputTokens: 120, outputTokens: 12 },
+      },
+    ]);
+  });
+
+  it('ends a Pi 1.x turn whose model call failed with the error, where it settles', () => {
+    const events = createParser('pi').feed(
+      `${readFixture('pi', 'settled-error-turn')}\n`,
+    );
+    expect(events.slice(-2)).toEqual([
+      {
+        type: 'error',
+        message: '400: {"message":"lab upstream 400","type":"lab"}',
+      },
+      {
+        type: 'turn-ended',
+        status: 'error',
+        sessionId: '01a204dc-df7d-7180-96bc-4145efd5de6d',
+        isError: true,
+      },
+    ]);
+  });
+
+  it('keeps the turn open across a run that a steer continues', () => {
+    const parser = createParser('pi');
+    const assistant = (text: string) => ({
+      type: 'message_end',
+      message: {
+        role: 'assistant',
+        content: [{ type: 'text', text }],
+        stopReason: 'stop',
+        usage: { input: 10, output: 2 },
+      },
+    });
+    const first = parser.feed(
+      ndjson([
+        { type: 'session', version: 3, id: 'pi-steer' },
+        { type: 'agent_start' },
+        assistant('Working on it.'),
+        { type: 'agent_end', messages: [] },
+      ]),
+    );
+    expect(first.some((event) => event.type === 'turn-ended')).toBe(false);
+    const second = parser.feed(
+      ndjson([
+        { type: 'agent_start' },
+        assistant('Done, with the change you asked for.'),
+        { type: 'agent_end', messages: [] },
+        { type: 'agent_settled', aborted: false },
+      ]),
+    );
+    expect(second.at(-1)).toEqual({
+      type: 'turn-ended',
+      status: 'completed',
+      sessionId: 'pi-steer',
+      finalText: 'Done, with the change you asked for.',
+      usageTotals: { inputTokens: 20, outputTokens: 4 },
+    });
+  });
+
+  it('ends a turn Pi settled as aborted as cancelled', () => {
+    const events = createParser('pi').feed(
+      ndjson([
+        { type: 'session', version: 3, id: 'pi-aborted' },
+        { type: 'agent_start' },
+        { type: 'agent_end', messages: [] },
+        { type: 'agent_settled', aborted: true },
+      ]),
+    );
+    expect(events.at(-1)).toEqual({
+      type: 'turn-ended',
+      status: 'cancelled',
+      sessionId: 'pi-aborted',
+      isError: true,
+    });
+  });
+
+  it('carries a clean run across a checkpoint, for a stream that never settles', () => {
+    const before = createParser('pi');
+    before.feed(
+      ndjson([
+        { type: 'session', version: 3, id: 'pi-ckpt' },
+        {
+          type: 'message_end',
+          message: {
+            role: 'assistant',
+            content: [{ type: 'text', text: 'All done.' }],
+            stopReason: 'stop',
+            usage: { input: 5, output: 1 },
+          },
+        },
+        { type: 'agent_end', messages: [] },
+      ]),
+    );
+    const after = createParser('pi');
+    after.restore(before.snapshot());
+    expect(after.end()).toEqual([
+      {
+        type: 'turn-ended',
+        status: 'completed',
+        sessionId: 'pi-ckpt',
+        finalText: 'All done.',
+        usageTotals: { inputTokens: 5, outputTokens: 1 },
+      },
+    ]);
+  });
+
+  it('reads a turn Pi 1.6.0 ran over RPC and was steered in, to where it settled', () => {
+    const SESSION_RPC = '29cce009-9292-4ce8-92ca-01757c8b5be7';
+    const events = createParser('pi').feed(
+      `${readFixture('pi', 'rpc-steered-turn')}\n`,
+    );
+    expect(events[0]).toEqual({
+      type: 'turn-started',
+      harness: 'pi',
+      sessionId: SESSION_RPC,
+    });
+    // The command answers (the prompt started, the steer queued) end nothing.
+    expect(events.filter((event) => event.type === 'raw')).toEqual([]);
+    expect(events.at(-1)).toEqual({
+      type: 'turn-ended',
+      status: 'completed',
+      sessionId: SESSION_RPC,
+      finalText: 'Steered.',
+      usageTotals: { inputTokens: 200, outputTokens: 20 },
+    });
+  });
+
+  it('ends an RPC turn whose prompt Pi refused, with its error', () => {
+    const events = createParser('pi').feed(
+      ndjson([
+        { type: 'session', id: 'pi-rpc-refused' },
+        {
+          type: 'response',
+          command: 'prompt',
+          success: false,
+          error: 'Model not found: tale-gateway/none',
+        },
+      ]),
+    );
+    expect(events.slice(-2)).toEqual([
+      { type: 'error', message: 'Model not found: tale-gateway/none' },
+      {
+        type: 'turn-ended',
+        status: 'error',
+        sessionId: 'pi-rpc-refused',
+        isError: true,
+      },
+    ]);
+  });
+
+  it('ends an RPC turn whose prompt Pi handled without a run', () => {
+    const events = createParser('pi').feed(
+      ndjson([
+        { type: 'session', id: 'pi-rpc-handled' },
+        {
+          type: 'response',
+          command: 'prompt',
+          success: true,
+          data: { disposition: 'handled' },
+        },
+      ]),
+    );
+    expect(events.at(-1)).toEqual({
+      type: 'turn-ended',
+      status: 'completed',
+      sessionId: 'pi-rpc-handled',
+    });
+  });
+
+  it('keeps an RPC turn running past a steer Pi could not read', () => {
+    const refused = {
+      type: 'response',
+      command: 'parse',
+      success: false,
+      error: 'Failed to parse command',
+    };
+    const events = createParser('pi').feed(
+      ndjson([
+        { type: 'session', id: 'pi-rpc-steer' },
+        {
+          type: 'response',
+          command: 'prompt',
+          success: true,
+          data: { disposition: 'started' },
+        },
+        { type: 'agent_start' },
+        refused,
+      ]),
+    );
+    expect(events).toEqual([
+      { type: 'turn-started', harness: 'pi', sessionId: 'pi-rpc-steer' },
+      { type: 'raw', harness: 'pi', payload: refused },
+    ]);
+  });
+
   it('consumes lifecycle noise silently and passes unknown events as raw', () => {
     const unknown = { type: 'novel_pi_event', w: 5 };
     const events = collectEvents(
@@ -300,6 +536,7 @@ describe('pi-jsonl parser', () => {
         { type: 'turn_start' },
         { type: 'message_start', message: { role: 'assistant' } },
         { type: 'tool_execution_update', toolCallId: 'c1' },
+        { type: 'entry_appended', entry: { type: 'custom' } },
         unknown,
       ]),
     );

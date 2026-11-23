@@ -61,7 +61,7 @@ vi.mock('../node_only/sandbox/agent_session', () => ({
   ensureAgentSession: async () => ({ liveCreatedAt: 1000 }),
 }));
 vi.mock('../node_only/sandbox/gateway_provisioning', () => ({
-  provisionSessionGatewayKey: async () => ({
+  issueRelayKey: async () => ({
     token: 'test-token',
     keyId: 'key-new',
     keyHash: 'hash-new',

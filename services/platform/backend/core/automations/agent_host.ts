@@ -33,6 +33,15 @@ import { textTail } from '../../../lib/harnesses/projection';
 import { mergeTimelineParts } from '../../../lib/harnesses/timeline';
 import { agentLanguageGuidance } from '../../../lib/shared/agent-language';
 import { DEFAULT_HARNESS } from '../../../lib/shared/harness-offer';
+import {
+  agentHarnessReason,
+  type HarnessReason,
+  isHarnessReason,
+} from '../../../lib/shared/harness-reason';
+import {
+  type AllowedModelRef,
+  resolveGatewayRouting,
+} from '../../../lib/shared/providers/gateway_routing';
 import { sanitizeUntrustedField } from '../../../lib/shared/sanitize-untrusted-field';
 import { parseSkillMd } from '../../../lib/skills/parse';
 import { canViewSkill, type SkillViewer } from '../../../lib/skills/visibility';
@@ -54,7 +63,7 @@ import {
   isManagedHarness,
   nextWindowDelayMs,
   removeStagedSubscription,
-  resolveHarnessTurnContextWindow,
+  resolveHarnessTurnModelLimits,
   SKILLS_DIR,
   SPAWNER_OUTAGE_BUDGET_MS,
   spawnerOutageOutlasted,
@@ -67,7 +76,10 @@ import {
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import { orgSlugFromId } from '../lib/helpers/org_slug';
-import { resolveWorkflowAgentServing } from '../lib/providers/agent_serving';
+import {
+  resolveDefaultWorkflowServing,
+  resolveWorkflowAgentServing,
+} from '../lib/providers/agent_serving';
 import { resolveTurnImageGeneration } from '../lib/providers/resolve_image_model';
 import { resolveTurnVisionModel } from '../lib/providers/resolve_vision_model';
 import {
@@ -81,7 +93,7 @@ import {
   settleGatewayKey,
   settlementPending,
 } from '../node_only/sandbox/gateway_key_settlement';
-import { provisionSessionGatewayKey } from '../node_only/sandbox/gateway_provisioning';
+import { issueRelayKey } from '../node_only/sandbox/gateway_provisioning';
 import {
   describeStageSkips,
   renewSessionPlace,
@@ -96,10 +108,10 @@ import { stageUrlForBlobRef } from '../node_only/sandbox/helpers/stage_url';
 import {
   readVirtualKeySpend,
   hashVirtualKey,
-  resolveGatewayRouting,
   revokeVirtualKey,
 } from '../node_only/sandbox/llm_gateway_admin';
 import { stageBlobCacheKey } from '../node_only/sandbox/managed_stage';
+import { isRelayKeyId } from '../node_only/sandbox/relay_keys';
 import { harvestSessionOutput } from '../node_only/sandbox/session_exec';
 import {
   isDestroyPendingRefusal,
@@ -142,6 +154,7 @@ import {
 import { SkillUnavailableError } from '../skills/skill_unavailable_error';
 import { isCredentialRotation } from '../tasks/task_auto_retry';
 import {
+  resumeOnHarness,
   retryResumePrompt,
   SANDBOX_ROOM_RETRY_CEILING_MS,
   type WorkflowAgentFailureCode,
@@ -178,6 +191,10 @@ export interface WorkflowAgentKick {
    * vendor-native catalog id on the subscription lane. */
   gatewayModel: string;
   harness: string;
+  /** Why the turn runs on `harness`, as the kick decided it and recorded on
+   * the op it opened: the cursor keeps it, so a later turn of the same
+   * conversation (an answered question's resume) records the same. */
+  harnessReason?: HarnessReason;
 }
 
 /**
@@ -194,8 +211,10 @@ export interface AutomationAgentHost {
     /** Broker-token hashes burned by prior failed attempts of this node
      * execution — the mint rotates away from them (softly). */
     excludeBrokerTokenHashes?: string[];
-    /** An auto-retry's continuation: the failed turn's conversation handle
-     * and why it ended. Absent, the turn is a fresh conversation. */
+    /** An auto-retry's continuation: the failed turn's conversation handle,
+     * the harness that holds it, and why it ended. Absent — or held by
+     * another harness than the kick resolves ({@link resumeOnHarness}) —
+     * the turn is a fresh conversation. */
     resume?: WorkflowAgentRetryResume;
     /** Hold the turn's start until then, epoch ms — a subscription broker
      * whose every account was cooling down has its first one back. */
@@ -406,25 +425,40 @@ export function automationAgentHost(
       notBefore,
       claimEpoch,
     }) => {
-      const harness = request.harness ?? DEFAULT_HARNESS;
-      if (!isManagedHarness(harness)) {
-        throw new Error(
-          `the harness "${harness}" cannot run a managed automation turn — pick a managed-capable harness (e.g. "claude-code" or "codex")`,
-        );
-      }
-      // An input the start could not stage fails the step here, in the words
-      // its staging would use: before the op row, the scheduled start and the
-      // sandbox session a start spends, and before the retries a refused
-      // start would earn.
-      withStagedInput(request.files, request.input);
-      const serving = await resolveServing(ctx, {
+      const modelPick = {
         organizationId,
         model: request.model,
         ...(request.modelProvider !== undefined
           ? { modelProvider: request.modelProvider }
           : {}),
-        harness,
-      });
+      };
+      // A step that names no runtime runs on the default — or, when only a
+      // subscription serves its model, on the runtime that subscription is
+      // bound to, never refused for being on Default. Resolved at every kick,
+      // so the credentials it has now decide.
+      const onDefault =
+        request.harness === undefined
+          ? await resolveDefaultWorkflowServing(ctx, modelPick, resolveServing)
+          : undefined;
+      const harness = request.harness ?? onDefault?.harness ?? DEFAULT_HARNESS;
+      if (!isManagedHarness(harness)) {
+        throw new Error(
+          `the harness "${harness}" cannot run a managed automation turn — pick a managed-capable harness (e.g. "claude-code" or "codex")`,
+        );
+      }
+      // A retry continues the failed conversation only on the harness that
+      // holds it: one resolved anew to another harness (the default moved
+      // with an upgrade, the model's credentials changed) starts fresh over
+      // the preserved workspace — no CLI resumes another CLI's session.
+      const continued = resumeOnHarness(resume, harness);
+      // An input the start could not stage fails the step here, in the words
+      // its staging would use: before the op row, the scheduled start and the
+      // sandbox session a start spends, and before the retries a refused
+      // start would earn.
+      withStagedInput(request.files, request.input);
+      const serving =
+        onDefault?.serving ??
+        (await resolveServing(ctx, { ...modelPick, harness }));
       // The exec's model string: the gateway ref on the gateway lane, the
       // vendor-native catalog id on the subscription lane (the vendor CLI
       // authenticates directly and knows nothing of gateway refs).
@@ -476,11 +510,20 @@ export function automationAgentHost(
               ),
             );
       const deadlineAt = Date.now() + startDelayMs + agentWorkTurnDeadlineMs();
+      // Why the turn runs on its harness: the step names it, or the serving
+      // put it there — a model only a subscription serves runs on the
+      // runtime that subscription is bound to, any other on the default.
+      // Decided here, where the harness is chosen, and handed to the cursor.
+      const harnessReason = agentHarnessReason(
+        request.harness !== undefined ? 'pinned' : 'automatic',
+        { harness, lane: serving.lane },
+      );
       // The op row exists BEFORE the start action is scheduled (the chat
       // lane's invariant): from this point, every death of the scheduled
       // start leaves a stale-heartbeat op the agent-turn watchdog settles,
       // instead of a turn no sweep can see or claim. The start's own upsert
-      // later merges the minted key onto this row.
+      // later merges the minted key onto this row, which records the reason
+      // beside the harness.
       await ctx.runMutation(
         internal.sandbox.session_mutations.upsertSessionOp,
         {
@@ -491,6 +534,7 @@ export function automationAgentHost(
           status: 'running',
           modelRef: `${serving.providerSlug}/${execModel}`,
           harness,
+          harnessReason,
           deadlineMs: deadlineAt,
           heartbeatAt: Date.now(),
         },
@@ -530,7 +574,7 @@ export function automationAgentHost(
           excludeBrokerTokenHashes.length > 0
             ? { excludeBrokerTokenHashes }
             : {}),
-          ...(resume !== undefined ? { resume } : {}),
+          ...(continued !== undefined ? { resume: continued } : {}),
           // A held start runs long after this kick, when the walker that
           // kicked it may have lost the run: it runs only on that walker's
           // park or claim. A start at once keeps the lenient gate.
@@ -562,6 +606,7 @@ export function automationAgentHost(
         providerSlug: serving.providerSlug,
         gatewayModel: execModel,
         harness,
+        harnessReason,
       };
     },
     poll: async ({ runId, execId }) => {
@@ -672,7 +717,18 @@ export async function releaseTurnKey(
         keyRevoked: op?.keyRevoked === true,
       },
       {
-        readSpend: () => readVirtualKeySpend(mintedKeyId),
+        // A relay key's spend is what the relay booked on the op; a key the
+        // sandbox LLM gateway served is read from the gateway.
+        readSpend: () =>
+          isRelayKeyId(mintedKeyId)
+            ? Promise.resolve({
+                status: 'ok' as const,
+                cents:
+                  typeof op?.relaySpentCents === 'number'
+                    ? op.relaySpentCents
+                    : 0,
+              })
+            : readVirtualKeySpend(mintedKeyId),
         recordSpend: async (cents) => {
           await ctx.runMutation(
             internal.sandbox.session_mutations.recordSessionOpSpend,
@@ -686,7 +742,12 @@ export async function releaseTurnKey(
             },
           );
         },
-        revokeKey: () => revokeVirtualKey(mintedKeyId),
+        // A relay key is revoked by revoking its tokens, which
+        // markKeyRevoked below does; a gateway key is deleted there.
+        revokeKey: () =>
+          isRelayKeyId(mintedKeyId)
+            ? Promise.resolve()
+            : revokeVirtualKey(mintedKeyId),
         markKeyRevoked: async () => {
           await ctx.runMutation(
             internal.sandbox.session_mutations.markSessionTokenRevokedByKeyId,
@@ -1203,6 +1264,11 @@ interface WorkflowTurnAuth {
   tokenHash: string;
   /** The session-token scope's model allowlist (gateway refs). */
   allowedModels: string[];
+  /** What the model relay serves the key: each model with its connector and
+   * lane, and the credential each connector was minted under. Absent on the
+   * subscription lane, which calls no model through the relay. */
+  relayModels?: AllowedModelRef[];
+  servingCredentials?: Record<string, string>;
   /** The scope's budget; 0 on the subscription lane (vendor flat-rate). */
   budgetCents: number;
   /** Opaque broker-scoped account hash this turn was minted on — only the
@@ -1210,13 +1276,30 @@ interface WorkflowTurnAuth {
   brokerTokenHash?: string;
 }
 
+/** The relay's part of a turn's token scope, where the mint gave one. */
+function relayScope(
+  auth: Pick<WorkflowTurnAuth, 'relayModels' | 'servingCredentials'>,
+): {
+  relayModels?: AllowedModelRef[];
+  servingCredentials?: Record<string, string>;
+} {
+  return {
+    ...(auth.relayModels !== undefined
+      ? { relayModels: auth.relayModels }
+      : {}),
+    ...(auth.servingCredentials !== undefined
+      ? { servingCredentials: auth.servingCredentials }
+      : {}),
+  };
+}
+
 /**
  * Mint what the resolved lane authenticates with — called late (after the
  * session ensure and staging) so a parked or failed start never leaks a
- * minted key. GATEWAY: the session virtual key over serving + vision models,
- * exactly the pre-subscription flow. SUBSCRIPTION: redeem the serving
+ * minted key. GATEWAY: the turn's model relay key over serving + vision
+ * models, exactly the pre-subscription flow. SUBSCRIPTION: redeem the serving
  * provider's default subscription credential (broker failures carry their
- * typed, actionable messages into the node error) and mint NO virtual key —
+ * typed, actionable messages into the node error) and mint NO model key —
  * the vendor token serves inference, while a random session token keeps the
  * capability bridge reachable; there is no gateway spend to meter, and
  * nothing to revoke at settle. Shared by the fresh start and the answered-ask
@@ -1272,9 +1355,10 @@ async function mintWorkflowTurnAuth(
       throw new TurnBudgetExceededError(reservation.reason);
     }
     const budgetCents = reservation.budgetCents;
-    const key = await provisionSessionGatewayKey(ctx, {
+    // The turn's key for the model relay (domains/llm_relay), which serves
+    // its calls; the allowance stands on the turn's op.
+    const key = await issueRelayKey(ctx, {
       organizationId: args.organizationId,
-      sessionId: args.sessionId,
       allowedModels: [
         {
           providerSlug: args.providerSlug,
@@ -1287,13 +1371,14 @@ async function mintWorkflowTurnAuth(
       ],
       surface: 'automation',
       actor: { id: args.runId, type: 'workflow' },
-      budgetCents,
     });
     return {
       serving: { kind: 'gateway', token: key.token },
       mintedKeyId: key.keyId,
       tokenHash: key.keyHash,
       allowedModels: [args.gatewayModel],
+      relayModels: key.relayModels,
+      servingCredentials: key.servingCredentials,
       budgetCents,
     };
   }
@@ -1651,6 +1736,7 @@ export async function startWorkflowAgentTurnImpl(
           scope: {
             agentKind: args.harness,
             allowedModels: auth.allowedModels,
+            ...relayScope(auth),
             connectorGrants: [...(args.request.connectors ?? [])],
             budgetCents: auth.budgetCents,
             ...workflowTurnToolScope(
@@ -1776,10 +1862,11 @@ export async function startWorkflowAgentTurnImpl(
               askId: args.resume.askId,
             })
           : undefined;
-      // The serving model's window, so the harness compacts before the
-      // prompt outgrows what the model serves; unknown leaves it to the
+      // The serving model's window and output limit, so the harness
+      // compacts before the prompt outgrows what the model serves and asks
+      // for no longer answer than it gives; unknown leaves each to the
       // harness.
-      const contextWindow = await resolveHarnessTurnContextWindow(ctx, {
+      const modelLimits = await resolveHarnessTurnModelLimits(ctx, {
         organizationId: args.organizationId,
         providerSlug: args.providerSlug,
         modelId: args.modelId,
@@ -1790,7 +1877,7 @@ export async function startWorkflowAgentTurnImpl(
       const exec = buildExternalTurnExec({
         harness: args.harness,
         gatewayModel: args.gatewayModel,
-        ...(contextWindow !== undefined ? { contextWindow } : {}),
+        ...modelLimits,
         serving: auth.serving,
         instructions,
         prompt:
@@ -2397,6 +2484,7 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
           scope: {
             agentKind: agent.harness,
             allowedModels: auth.allowedModels,
+            ...relayScope(auth),
             connectorGrants: [...(request.connectors ?? [])],
             budgetCents: auth.budgetCents,
             // Same grant set as the node's first start.
@@ -2456,6 +2544,14 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
           status: 'running',
           modelRef: `${keys.providerSlug}/${keys.gatewayModel}`,
           harness: agent.harness,
+          // Why the conversation runs on its harness is what the kick that
+          // began it decided, kept on the cursor — never read again now: a
+          // step on the default that began on Claude Code while it was the
+          // default is not on the default once Pi is. A cursor an earlier
+          // image wrote keeps none, and the turn records none.
+          ...(isHarnessReason(agent.harnessReason)
+            ? { harnessReason: agent.harnessReason }
+            : {}),
           deadlineMs: deadlineAt,
           heartbeatAt: Date.now(),
           ...(auth.mintedKeyId !== undefined
@@ -2549,7 +2645,7 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
       });
       // Re-resolved with the serving, like the key: the org's catalog or
       // context limit may have moved while the question waited.
-      const contextWindow = await resolveHarnessTurnContextWindow(ctx, {
+      const modelLimits = await resolveHarnessTurnModelLimits(ctx, {
         organizationId: args.organizationId,
         providerSlug: serving.providerSlug,
         modelId: serving.modelId,
@@ -2560,7 +2656,7 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
       const exec = buildExternalTurnExec({
         harness: agent.harness,
         gatewayModel: keys.gatewayModel,
-        ...(contextWindow !== undefined ? { contextWindow } : {}),
+        ...modelLimits,
         serving: auth.serving,
         instructions,
         prompt,

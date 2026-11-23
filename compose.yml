@@ -125,12 +125,14 @@ services:
       start_period: 120s
 
     # Memory reclaim spares while sandbox sessions press on host memory
-    # (cgroup v2 memory.low). Mirrors the CLI generator (memory-env.ts); it
-    # only holds where Docker's parent cgroup grants protection too (see the
-    # self-hosting docs). On cgroup v1 Docker makes a reservation a soft limit
-    # that reclaim takes from first: set this and the three below to 0 there.
-    # `tale deploy` asks the engine and leaves them out by itself.
-    mem_reservation: ${DB_MEMORY_RESERVATION:-512m}
+    # (cgroup v2 memory.low): each service's share of the host's memory
+    # budget, 476m for the eight that reserve. Mirrors the CLI generator
+    # (memory-env.ts); it only holds where Docker's parent cgroup grants
+    # protection too (see the self-hosting docs). On cgroup v1 Docker makes a
+    # reservation a soft limit that reclaim takes from first: set this and the
+    # seven below to 0 there. `tale deploy` asks the engine and leaves them
+    # out by itself.
+    mem_reservation: ${DB_MEMORY_RESERVATION:-120m}
 
     # Logging configuration
     logging:
@@ -215,14 +217,17 @@ services:
   # ============================================================================
   # bgutil PO-token provider (YouTube ingestion anti-bot)
   # ============================================================================
-  # Serves GVS proof-of-origin tokens to the yt-dlp bgutil plugin baked into
-  # the platform image (layout: /opt/yt-dlp/plugins/bgutil/yt_dlp_plugins/…),
+  # Serves GVS proof-of-origin tokens to the yt-dlp bgutil plugin of a video's
+  # sandbox session, which asks it through the backend (the sandbox runtime
+  # image carries the plugin: /opt/yt-dlp/plugins/bgutil/yt_dlp_plugins/…),
   # so video-link ingestion survives YouTube's "confirm you're not a bot" wall
-  # on datacenter/flagged IPs — with zero operator config. Reached only by the
+  # on datacenter/flagged IPs. This stack starts it always, and its backend
+  # services are told so (VIDEO_INGEST_POT_PROVIDER below); a `tale deploy`
+  # deployment starts it on request. Reached only by the
   # backend over the internal network (no published ports); video ingest
   # degrades gracefully (no token) if it's down, so nothing depends_on it. The
   # image tag MUST match BGUTIL_POT_VERSION in
-  # services/platform/Dockerfile — bump both together.
+  # services/sandbox-runtime/Dockerfile — bump both together.
   bgutil-provider:
     image: brainicism/bgutil-ytdlp-pot-provider:1.3.1
     container_name: tale-bgutil-provider
@@ -321,9 +326,11 @@ services:
       proxy:
         condition: service_healthy
 
-    # Memory reclaim spares while sandbox sessions press on host memory.
-    # Mirrors the CLI generator (memory-env.ts); 0 on cgroup v1 (see db).
-    mem_reservation: ${PLATFORM_MEMORY_RESERVATION:-128m}
+    # Memory reclaim spares while sandbox sessions press on host memory: the
+    # web tier's part of the application's 256m, which the three services of
+    # this file divide. Mirrors the CLI generator (memory-env.ts); 0 on
+    # cgroup v1 (see db).
+    mem_reservation: ${PLATFORM_MEMORY_RESERVATION:-64m}
 
     # Logging configuration
     logging:
@@ -368,9 +375,11 @@ services:
   # one `worker`, and either scales on this file:
   #   docker compose up -d --scale backend-worker=3
   # (no `container_name` on these two services precisely so --scale works).
-  # `tale deploy` runs the same two roles inside a deployment COLOUR and sizes
-  # them with TALE_BACKEND_API_REPLICAS / TALE_BACKEND_WORKER_REPLICAS —
-  # see docs/en/self-hosted/operate/upgrades.md.
+  # `tale deploy` runs both roles and the web tier in ONE `platform` process
+  # per replica of a deployment COLOUR, and the job runner apart only where
+  # it is asked for (TALE_BACKEND_WORKER_REPLICAS, TALE_APP_TIER) — see
+  # docs/en/self-hosted/operate/upgrades.md. This file keeps the three
+  # services, which every release runs.
   # State lives in the `tale_app` database on the `db` service (created
   # idempotently by services/db/init-scripts/04-create-app-database.sql).
   # ============================================================================
@@ -386,52 +395,76 @@ services:
   # Internal-only: blobs reach the browser through presigned URLs the backend
   # signs and the proxy forwards, never by exposing the store itself.
   #
-  # The image is MinIO's own release, rebuilt: MinIO archived its community
-  # edition and withdrew the free images from Docker Hub (2026-09-11) and
-  # quay.io (2026-09-24), so tale-project/ops rebuilds Dockerfile.release
-  # for this release from the GitHub release assets — the same binaries,
-  # verified against MinIO's minisign key — and publishes it under the
-  # upstream tag (ops: .github/images/minio). The tag is never rebuilt in
-  # place; `object-store` in tools/cli THIRD_PARTY_IMAGES is the one pin.
+  # The server is versitygw (Apache-2.0): an S3 gateway over a directory of
+  # files, in its publisher's own image for amd64 and arm64, pinned by digest.
+  # `object-store` in tools/cli THIRD_PARTY_IMAGES is the one pin. It holds
+  # about a tenth of the memory MinIO did at rest (tale-project/tale#4942).
+  #
+  # Earlier releases ran MinIO here, on the volume `object-store-data`, in a
+  # format versitygw does not read. This service never mounts that volume, so
+  # a stack that held blobs under an earlier release starts with an empty
+  # store beside the untouched old one: move the blobs across before you
+  # update (docs: self-hosted/operate/upgrades). `tale deploy` reads which
+  # store a deployment's blobs are in and keeps MinIO until they are moved.
   object-store:
-    image: ghcr.io/tale-project/ops/minio:RELEASE.2025-04-22T22-12-26Z
-    # The ops rebuild (see above) publishes ONLY linux/amd64 — no arm64
-    # manifest exists, so an unpinned pull fails outright on Apple Silicon /
-    # arm64 hosts ("no matching manifest for linux/arm64/v8"). Pin the arch
-    # so compose requests it explicitly. ARM hosts need amd64 emulation;
-    # Docker Desktop and OrbStack provide it, standalone Linux needs setup.
-    platform: linux/amd64
+    image: ghcr.io/versity/versitygw:v1.11.0@sha256:8319a530d08d537426e2f855bae5280709795dc73a3f0c347973ef915d6343c5
     pull_policy: missing
 
     container_name: tale-object-store
 
-    # Flush in-flight multipart writes before SIGKILL.
+    # Let a write in flight reach the disk before SIGKILL.
     stop_grace_period: 30s
 
-    command: server /data --address ':9000' --console-address ':9001'
+    # `--health`: the path the healthcheck asks, one no bucket can be named.
+    # `--quiet`: no line per request, each of which would name an object.
+    # `--fsync`: an object is on the disk before its upload is answered.
+    command: --port :9000 --health /_health --quiet posix --fsync /data
 
+    # No `env_file`: the edge forwards the internet's requests for presigned
+    # URLs to this service, and it gets no secret of the deployment but its
+    # own key. Presigned URLs are signed by the backend, so the store needs
+    # no public origin.
     environment:
-      MINIO_ROOT_USER: ${OBJECT_STORE_ACCESS_KEY:-tale}
-      MINIO_ROOT_PASSWORD: ${OBJECT_STORE_SECRET_KEY:-tale_dev_object_store}
-      # Presigned URLs are signed by the backend against the internal
-      # endpoint; the proxy forwards them, so the store needs no public origin.
-      MINIO_BROWSER: 'off'
+      ROOT_ACCESS_KEY: ${OBJECT_STORE_ACCESS_KEY:-tale}
+      ROOT_SECRET_KEY: ${OBJECT_STORE_SECRET_KEY:-tale_dev_object_store}
+      # The region a request is signed for; the backend reads the same setting.
+      VGW_REGION: ${OBJECT_STORE_REGION:-us-east-1}
+      # versitygw's heap held near the store's share (see mem_reservation
+      # below): 80 % of it. Compose cannot compute that from the variable, so
+      # a changed OBJECT_STORE_MEMORY_RESERVATION wants this changed with it.
+      GOMEMLIMIT: 28MiB
 
-    env_file:
-      - path: .env
-        required: false
+    # The store's share of the host's memory, spared by reclaim while sandbox
+    # sessions press on host memory (cgroup v2 memory.low; 0 on cgroup v1, see
+    # db), and a limit four times as large: a backstop against a runaway, not
+    # the budget, since GOMEMLIMIT bounds garbage and not memory a request
+    # holds. Mirrors the CLI generator (memory-env.ts), which derives both
+    # GOMEMLIMIT and the limit from the reservation; here a reservation above
+    # 140m needs mem_limit raised too, or Docker refuses to create the store.
+    mem_reservation: ${OBJECT_STORE_MEMORY_RESERVATION:-35m}
+    mem_limit: 140m
 
+    # An object is a file under its bucket's directory, and what S3 says of it
+    # (content type, ETag) is in the file's extended attributes. The volume's
+    # filesystem has to support them, and whatever copies or archives the
+    # volume has to keep them: `tale backup` does.
     volumes:
-      - object-store-data:/data
+      - blob-data:/data
 
     restart: unless-stopped
 
     healthcheck:
-      test: ['CMD-SHELL', 'mc ready local || exit 1']
+      # The image's busybox. GET, which is all the health path answers.
+      test:
+        ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:9000/_health']
       interval: 10s
       timeout: 3s
       retries: 5
-      start_period: 20s
+      start_period: 10s
+
+    # It needs no privilege: it serves a port above 1024 from files it owns.
+    cap_drop:
+      - ALL
 
     logging:
       driver: 'json-file'
@@ -461,9 +494,10 @@ services:
       dockerfile: services/platform/Dockerfile
       args:
         VERSION: ${VERSION:-dev}
-    # Memory reclaim spares while sandbox sessions press on host memory.
-    # Mirrors the CLI generator (memory-env.ts); 0 on cgroup v1 (see db).
-    mem_reservation: ${BACKEND_API_MEMORY_RESERVATION:-256m}
+    # Memory reclaim spares while sandbox sessions press on host memory: the
+    # API's part of the application's 256m. Mirrors the CLI generator
+    # (memory-env.ts); 0 on cgroup v1 (see db).
+    mem_reservation: ${BACKEND_API_MEMORY_RESERVATION:-128m}
     environment:
       TALE_ROLE: api
       PORT: '3005'
@@ -478,9 +512,18 @@ services:
       SANDBOX_URL: ${SANDBOX_URL:-http://sandbox:8003}
       SANDBOX_AGENT_PROFILE: ${SANDBOX_AGENT_PROFILE:-agent}
       TALE_SANDBOX_CLAUDE_EFFORT: ${TALE_SANDBOX_CLAUDE_EFFORT:-}
+      # This stack always starts `bgutil-provider` (above), so its backend
+      # asks it for PO tokens unless told not to. A `tale deploy` deployment
+      # starts the provider only where its .env asks for it
+      # (create-bgutil-provider-service.ts), and is off by default.
+      VIDEO_INGEST_POT_PROVIDER: ${VIDEO_INGEST_POT_PROVIDER:-true}
       # Where a sandbox CONTAINER reaches this backend: the in-sandbox
       # connectors bridge and the live-body host-call door are served here.
       SANDBOX_HTTP_API_BASE_URL: ${SANDBOX_HTTP_API_BASE_URL:-http://backend-api:3005}
+      # The sandbox network's subnet: the model relay (port 8080, in place of
+      # the sandbox LLM gateway) binds this container's address in it alone.
+      # Unset, it listens beside the API; `tale deploy` fills it in itself.
+      SANDBOX_NETWORK_SUBNET: ${SANDBOX_NETWORK_SUBNET:-}
       # The bundled blob store the backend seeds the deployment default
       # against at boot. Internal address: presigned URLs are signed here and
       # forwarded by the proxy, so the store is never published directly.
@@ -518,7 +561,7 @@ services:
         condition: service_healthy
     # The entrypoint installs the SSRF egress firewall (REJECT IMDS +
     # link-local + RFC1918) before dropping privileges: this tier opens
-    # sockets outside the pinned-IP fetch path (yt-dlp, ffmpeg, the crawler).
+    # sockets outside the pinned-IP fetch path (ffmpeg, the crawler).
     cap_add:
       - NET_ADMIN
     # The org CONFIG STORE — the backend OWNS it (governance policies, SSO
@@ -563,9 +606,10 @@ services:
       dockerfile: services/platform/Dockerfile
       args:
         VERSION: ${VERSION:-dev}
-    # Memory reclaim spares while sandbox sessions press on host memory.
-    # Mirrors the CLI generator (memory-env.ts); 0 on cgroup v1 (see db).
-    mem_reservation: ${BACKEND_WORKER_MEMORY_RESERVATION:-256m}
+    # Memory reclaim spares while sandbox sessions press on host memory: the
+    # job runner's part of the application's 256m. Mirrors the CLI generator
+    # (memory-env.ts); 0 on cgroup v1 (see db).
+    mem_reservation: ${BACKEND_WORKER_MEMORY_RESERVATION:-64m}
     environment:
       TALE_ROLE: worker
       DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-tale}:${DB_PASSWORD:-tale_dev_password}@db:5432/${APP_DB_NAME:-tale_app}}
@@ -573,6 +617,8 @@ services:
       SANDBOX_URL: ${SANDBOX_URL:-http://sandbox:8003}
       SANDBOX_AGENT_PROFILE: ${SANDBOX_AGENT_PROFILE:-agent}
       TALE_SANDBOX_CLAUDE_EFFORT: ${TALE_SANDBOX_CLAUDE_EFFORT:-}
+      # As for the api: this stack always starts `bgutil-provider`.
+      VIDEO_INGEST_POT_PROVIDER: ${VIDEO_INGEST_POT_PROVIDER:-true}
       # The worker DISPATCHES connector bodies too (automation nodes), so it
       # mints the same in-sandbox host-call URL the api does.
       SANDBOX_HTTP_API_BASE_URL: ${SANDBOX_HTTP_API_BASE_URL:-http://backend-api:3005}
@@ -689,6 +735,21 @@ services:
       # one alone, so a container of another project on the same host cannot
       # claim a route on this edge.
       TALE_PROXY_PROJECTS: ${COMPOSE_PROJECT_NAME:-tale}
+      # Traefik's heap held near the edge's share (see mem_reservation below):
+      # 80 % of it, since it grows with the garbage of a burst of requests.
+      # Compose cannot compute that from the variable, so a changed
+      # PROXY_MEMORY_RESERVATION wants this changed with it.
+      GOMEMLIMIT: 28MiB
+
+    # The edge's share of the host's memory, spared by reclaim while sandbox
+    # sessions press on host memory (cgroup v2 memory.low; 0 on cgroup v1, see
+    # db), and a limit four times as large: a backstop against a runaway, not
+    # the budget, since GOMEMLIMIT bounds garbage and not memory a request
+    # holds. Mirrors the CLI generator (memory-env.ts), which derives both
+    # GOMEMLIMIT and the limit from the reservation; here a reservation above
+    # 140m needs mem_limit raised too, or Docker refuses to create the proxy.
+    mem_reservation: ${PROXY_MEMORY_RESERVATION:-35m}
+    mem_limit: 140m
 
     # Restart policy
     # Automatically restart the container if it crashes
@@ -798,6 +859,10 @@ services:
     # (SANDBOX_EGRESS_MAX_CLIENTS, 2000 by default), and threads count
     # against the pids limit. A raised connection limit needs these raised.
     mem_limit: 512m
+    # Its share of the host's memory, spared by reclaim while sandbox sessions
+    # press on host memory. Mirrors the CLI generator (memory-env.ts); 0 on
+    # cgroup v1 (see db).
+    mem_reservation: ${SANDBOX_EGRESS_MEMORY_RESERVATION:-10m}
     pids_limit: 4096
     ulimits:
       nofile:
@@ -901,8 +966,8 @@ services:
   # A managed deployment that declares `sandbox` (`tale deploy prepare`) gets
   # the Incus shape from the CLI instead: it drops the socket and session-root
   # mounts, mounts the three PEM files (SANDBOX_INCUS_*_FILE) read-only from
-  # `<stateDirectory>/sandbox-incus`, and publishes the backend API and the LLM
-  # gateway on the declared address
+  # `<stateDirectory>/sandbox-incus`, and publishes the backend API and its
+  # model relay on the declared address
   # (tools/cli/src/lib/deployment/runtime-sandbox.ts).
   # ============================================================================
   sandbox:
@@ -931,11 +996,12 @@ services:
         required: false
     environment:
       SANDBOX_RUNTIME: ${SANDBOX_RUNTIME:-runc}
-      # What db, platform, backend-api and backend-worker reserve at their
-      # defaults: the least memory admission leaves free unless
-      # SANDBOX_MIN_FREE_MEMORY is set. The CLI derives it from the
-      # reservations it generates; this file cannot add variables up.
-      SANDBOX_RESERVED_MEMORY: 1152m
+      # What the eight services that reserve memory in this file reserve at
+      # their defaults, this spawner and its egress proxy included: the least
+      # memory admission leaves free unless SANDBOX_MIN_FREE_MEMORY is set. The
+      # CLI derives it from the reservations it generates; this file cannot
+      # add variables up, so a changed reservation wants this changed with it.
+      SANDBOX_RESERVED_MEMORY: 476m
       # The device hub: organizations connect their own machines here to run
       # their sandboxes (Settings → Sandboxes → Devices). 0 turns it off.
       # Mirrors the CLI generator (create-sandbox-service.ts).
@@ -985,6 +1051,10 @@ services:
     # operators running `docker compose up` directly got an uncapped
     # spawner — audit finding R2-B11.
     mem_limit: 1g
+    # Its share of the host's memory, spared by reclaim while the sessions it
+    # starts press on host memory. Mirrors the CLI generator (memory-env.ts);
+    # 0 on cgroup v1 (see db).
+    mem_reservation: ${SANDBOX_MEMORY_RESERVATION:-20m}
     pids_limit: 1024
     ulimits:
       nofile:
@@ -1017,97 +1087,6 @@ services:
       traefik.http.routers.sandbox.priority: '300'
       traefik.http.routers.sandbox.service: 'sandbox'
       traefik.http.services.sandbox.loadbalancer.server.url: 'http://sandbox:${SANDBOX_HUB_PORT:-8004}'
-    networks:
-      - internal
-      - sandbox
-
-  # ============================================================================
-  # Tale LLM Gateway (maximhq/bifrost core, OSS Apache-2.0) for sandbox AGENT SESSIONS
-  # ----------------------------------------------------------------------------
-  # The only path from an in-sandbox coding agent (Claude Code / OpenCode) to an
-  # LLM. Dual-homed onto `internal` (platform provisions providers + mints
-  # session virtual keys via the governance API) and `sandbox` (agents reach it
-  # at http://sandbox-llm-gateway:8080 over the internal bridge — NOT through tinyproxy).
-  #
-  # Raw provider API keys live ONLY here + in the platform; the sandbox holds a
-  # session-scoped `sk-bf-*` virtual key (budget + model allowlist), revoked at
-  # session destroy. The platform is the source of truth for providers/models;
-  # it provisions the gateway via the governance API on session create
-  # (the backend's llm_gateway_admin lane: provisionProviders +
-  # applyGatewayConfig).
-  #
-  # SECURITY: gateway auth is config-store driven (NOT env vars — the upstream
-  # maximhq/bifrost core never read its old management-token / enforce-virtual-keys
-  # env knobs). applyGatewayConfig() pushes, idempotently on session create:
-  #   - client.enforce_auth_on_inference=true → inference rejects anything but a
-  #     minted virtual key (the data-plane gate).
-  #   - auth_config (admin basic-auth over /api/*) from SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD
-  #     — REQUIRED: the backend refuses every management call without it, so the
-  #     management plane is never anonymous on the sandbox network.
-  # No published port (loopback publish lives in compose.sandbox-llm-gateway.dev.yml for
-  # the host bun-dev path). Built as a thin wrapper over the PINNED upstream image
-  # — the project has had VK auth regressions.
-  # ============================================================================
-  sandbox-llm-gateway:
-    image: ghcr.io/tale-project/tale/tale-sandbox-llm-gateway:${VERSION:-latest}
-    build:
-      context: .
-      dockerfile: services/sandbox-llm-gateway/Dockerfile
-      args:
-        VERSION: ${VERSION:-dev}
-    container_name: tale-sandbox-llm-gateway
-    env_file:
-      # Optional: the stack boots without a .env. Present values win; absent
-      # ones fall back to insecure dev defaults in compose.dev.yml. `tale deploy`
-      # always writes a real .env, so production is unaffected.
-      - path: .env
-        required: false
-    # Auth + VK enforcement are config-store fields the platform pushes via
-    # applyGatewayConfig() with its SANDBOX_LLM_GATEWAY_ADMIN_USERNAME /
-    # SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD. The one env value the gateway reads
-    # is that password, from the .env above: its image turns it into the setup
-    # token a fresh gateway demands before it creates the admin account
-    # (services/sandbox-llm-gateway/docker-entrypoint.sh). compose.dev.yml
-    # carries the insecure dev default for both sides.
-    volumes:
-      # SQLite config/log store: the admin account, providers and their keys,
-      # minted virtual keys with their budgets and spend, and the request log. A
-      # newer gateway migrates it forward-only, so CLI snapshots capture it; it
-      # is not a cache to wipe. Volume name predates the service rename (was
-      # `llm-gateway`); kept as-is to avoid a data migration.
-      - llm-gateway-data:/app/data
-    restart: unless-stopped
-    # Graceful shutdown: on SIGTERM the gateway stops taking new calls and
-    # waits for the ones in flight (streamed answers included) to finish. It
-    # writes its in-memory budget counters (the spend the platform books) to
-    # its store only when that drain ends within 30s of the signal, its own
-    # cleanup window. Docker's 10s default would cut every model stream still
-    # running 10s into a deploy's stop.
-    # Mirrors the CLI generator (create-sandbox-llm-gateway-service.ts: 90s).
-    stop_grace_period: 90s
-    # Its memory grows with the agent sessions that run at once (a fixed 512m
-    # was OOM-killed at about 80). The CLI generator derives the limit from
-    # SANDBOX_MAX_SESSIONS (256 MiB and 12 MiB a session, at least 512m);
-    # compose cannot derive one variable from another, so this default is the
-    # CLI's for an unset capacity, which sizes itself to at most 256 sessions.
-    # Set SANDBOX_LLM_GATEWAY_MEMORY for a larger capacity.
-    mem_limit: ${SANDBOX_LLM_GATEWAY_MEMORY:-3328m}
-    healthcheck:
-      # The gateway image ships busybox wget but no curl.
-      test:
-        [
-          'CMD-SHELL',
-          'wget -q -O /dev/null http://127.0.0.1:8080/health || exit 1',
-        ]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 15s
-    logging:
-      driver: 'json-file'
-      options:
-        max-size: '10m'
-        max-file: '3'
     networks:
       - internal
       - sandbox
@@ -1180,7 +1159,11 @@ volumes:
   # generated media). Separate from the config store on purpose: config is
   # small, text, and diffable; blobs are large and opaque, and an operator
   # relocating one should not have to move the other.
-  object-store-data:
+  #
+  # `object-store-data`, the volume of the MinIO that earlier releases ran,
+  # is not declared any more: Compose leaves a volume it does not declare
+  # where it is, `down -v` included.
+  blob-data:
     driver: local
 
   # The proxy's ACME account and certificates, and its self-signed CA
@@ -1194,13 +1177,10 @@ volumes:
   caddy-config:
     driver: local
 
-  # LLM gateway SQLite store (admin account, provisioned providers, minted
-  # session virtual keys with their spend, request log). Survives restarts so
-  # in-flight sessions keep working, and CLI snapshots capture it. Name
-  # predates the `llm-gateway`→`sandbox-llm-gateway` service rename; kept to
-  # avoid a data migration.
-  llm-gateway-data:
-    driver: local
+  # `llm-gateway-data`, the store of the sandbox LLM gateway that earlier
+  # releases ran (the model relay in the backend replaced it), is not
+  # declared any more either: Compose leaves it where it is, `down -v`
+  # included, until its operator removes it.
 
 # ============================================================================
 # Networks

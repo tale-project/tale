@@ -36,7 +36,6 @@ jobs:
             db,
             platform,
             proxy,
-            sandbox-llm-gateway,
             sandbox,
             sandbox-egress,
             sandbox-buildkitd,
@@ -171,7 +170,7 @@ jobs:
               printf 'failed\n' > "$result"
             fi
           }
-          # Eight service jobs share the API: at most three workers per job.
+          # Seven service jobs share the API: at most three workers per job.
           # Every worker owns its diagnostics and is joined even after failures.
           while read -r version_id; do
             clean_version "$version_id" &

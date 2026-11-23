@@ -178,10 +178,22 @@ export interface OdtExtractionOptions {
 export async function extractTextFromOdtBytes(
   odtBytes: Uint8Array,
   filename = 'document.odt',
+  options: OdtExtractionOptions = {},
+): Promise<[string, boolean]> {
+  return extractTextFromOdtZip(
+    await GuardedZip.load(odtBytes),
+    filename,
+    options,
+  );
+}
+
+/** The same, from an archive that is already open: a file on disk, whose
+ * parts are read as they are asked for. */
+export async function extractTextFromOdtZip(
+  zip: GuardedZip,
+  filename = 'document.odt',
   _options: OdtExtractionOptions = {},
 ): Promise<[string, boolean]> {
-  const zip = await GuardedZip.load(odtBytes);
-
   const contentXml = await zip.readString('content.xml');
   if (!contentXml) {
     throw new Error(

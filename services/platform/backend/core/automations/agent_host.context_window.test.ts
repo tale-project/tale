@@ -1,13 +1,14 @@
 // @vitest-environment node
 
 /**
- * The serving model's context window — and the organization's Custom
- * instructions — reach every exec an automation agent node launches (the
- * kick's scheduled start and the answered-ask resume) through the REAL
- * hosts, with only external I/O replaced and the model's catalog entry
- * stubbed. Without it Claude Code assumes a 200,000-token window for a model
- * it does not know, and a turn on a local model serving 32,768 grows far past
- * what that model can prefill in time.
+ * The serving model's context window and output limit — and the
+ * organization's Custom instructions — reach every exec an automation agent
+ * node launches (the kick's scheduled start and the answered-ask resume)
+ * through the REAL hosts, with only external I/O replaced and the model's
+ * catalog entry stubbed. Without the window Claude Code assumes 200,000
+ * tokens for a model it does not know, and a turn on a local model serving
+ * 32,768 grows far past what that model can prefill in time; without the
+ * limit Pi asks every request for at most 16,384 output tokens.
  */
 
 import type { ModelCatalogEntry } from '@tale/shared/schemas/providers';
@@ -19,7 +20,7 @@ import { harnessResumesConversations } from '../chat/external_turn_shared';
 import { ModelEndpointRefusal } from '../governance/model_endpoint_gate';
 import type { ActionCtx } from '../lib/ctx';
 import { resolveModel } from '../lib/providers/resolve_model';
-import { provisionSessionGatewayKey } from '../node_only/sandbox/gateway_provisioning';
+import { issueRelayKey } from '../node_only/sandbox/gateway_provisioning';
 import {
   ROOM_PLACE_RENEW_MS,
   SessionMemoryBusyError,
@@ -52,6 +53,13 @@ const io = vi.hoisted(() => ({
     execId: string;
     argv: string[];
     env: Record<string, string>;
+    stdin?: string;
+  }>,
+  /** The model limits each exec build was handed. */
+  builds: [] as Array<{
+    execId: string;
+    contextWindow?: number;
+    maxOutputTokens?: number;
   }>,
   /** The organization's model-endpoint rule (GOV-R17); open unless a test
    * turns the EU/EEA rule on. */
@@ -68,11 +76,20 @@ vi.mock('../chat/external_turn_shared', async (importActual) => {
     ) => {
       io.instructions.push(args.instructions);
       io.prompts.push(args.prompt);
+      io.builds.push({
+        execId: args.execId,
+        ...(args.contextWindow !== undefined
+          ? { contextWindow: args.contextWindow }
+          : {}),
+        ...(args.maxOutputTokens !== undefined
+          ? { maxOutputTokens: args.maxOutputTokens }
+          : {}),
+      });
       return actual.buildExternalTurnExec(args);
     },
     drainHarnessWindow: async (args: {
       execId: string;
-      start?: { argv: string[]; env: Record<string, string> };
+      start?: { argv: string[]; env: Record<string, string>; stdin?: string };
     }) => {
       if (args.start !== undefined) {
         // A refused start launched nothing.
@@ -81,6 +98,9 @@ vi.mock('../chat/external_turn_shared', async (importActual) => {
           execId: args.execId,
           argv: args.start.argv,
           env: args.start.env,
+          ...(args.start.stdin !== undefined
+            ? { stdin: args.start.stdin }
+            : {}),
         });
       }
       return { kind: 'running', text: '', timeline: [] };
@@ -99,7 +119,11 @@ vi.mock(
     resolveProviderCredential: vi.fn(),
   }),
 );
-vi.mock('../lib/providers/agent_serving', () => ({
+vi.mock('../lib/providers/agent_serving', async (importActual) => ({
+  // The real Default resolution: the host hands it the walk mocked below.
+  resolveDefaultWorkflowServing: (
+    await importActual<typeof import('../lib/providers/agent_serving')>()
+  ).resolveDefaultWorkflowServing,
   resolveWorkflowAgentServing: async () =>
     io.serving ?? {
       lane: 'gateway',
@@ -117,7 +141,7 @@ vi.mock('../node_only/sandbox/agent_session', () => ({
   },
 }));
 vi.mock('../node_only/sandbox/gateway_provisioning', () => ({
-  provisionSessionGatewayKey: vi.fn(async () => ({
+  issueRelayKey: vi.fn(async () => ({
     token: 'test-token',
     keyId: 'key-new',
     keyHash: 'hash-new',
@@ -133,7 +157,18 @@ const {
   startWorkflowAgentTurnImpl,
 } = await import('./agent_host');
 
-function servesWindow(contextWindow: number): void {
+/** The model entries of the models.json Pi's wrapper stages from the first
+ * line of its stdin. */
+function piStagedModels(stdin: string | undefined): unknown {
+  const envelope = JSON.parse((stdin ?? '{}').split('\n')[0] ?? '{}') as {
+    models?: { providers?: Record<string, { models?: unknown }> };
+  };
+  return envelope.models?.providers?.['tale-gateway']?.models;
+}
+
+/** The serving model's catalog entry: its window, and its output limit when
+ * it names one. */
+function servesWindow(contextWindow: number, maxOutputTokens?: number): void {
   const entry: ModelCatalogEntry = {
     id: 'qwen3-32b',
     provider: 'local-inference',
@@ -141,6 +176,7 @@ function servesWindow(contextWindow: number): void {
     supportsTools: true,
     supportsVision: false,
     contextWindow,
+    ...(maxOutputTokens !== undefined ? { maxOutputTokens } : {}),
   };
   vi.mocked(resolveModel).mockResolvedValue({
     entry,
@@ -285,6 +321,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   io.serving = undefined;
   io.starts = [];
+  io.builds = [];
   io.instructions = [];
   io.prompts = [];
   io.systemPrompt = null;
@@ -531,6 +568,44 @@ describe('an automation agent turn', () => {
     ]);
   });
 
+  it('starts Pi with the serving model’s window and output limit', async () => {
+    servesWindow(49_152, 12_288);
+    const { ctx, scheduled } = makeCtx({ status: 'running' });
+
+    await startWorkflowAgentTurnImpl(ctx, {
+      organizationId: 'org-1',
+      runId: 'run-1',
+      nodeId: 'book',
+      execId: 'exec-1',
+      sessionId: 'wf-run-1',
+      harness: 'pi',
+      lane: 'gateway',
+      providerSlug: 'local-inference',
+      modelId: 'qwen3-32b',
+      gatewayModel: 'local-inference-org-1/qwen3-32b',
+      deadlineAt: Date.now() + 60_000,
+      request: { model: 'qwen3-32b', prompt: 'Book the synthetic invoice.' },
+    } as never);
+
+    expect(console.error).not.toHaveBeenCalled();
+    expect(io.starts).toHaveLength(1);
+    // A text-only model with no reasoning knob: Pi keeps it on text and
+    // sends it no reasoning effort.
+    expect(piStagedModels(io.starts[0]?.stdin)).toEqual([
+      {
+        id: 'local-inference-org-1/qwen3-32b',
+        contextWindow: 49_152,
+        maxTokens: 12_288,
+        input: ['text'],
+      },
+    ]);
+    // One catalog read answers both.
+    expect(resolveModel).toHaveBeenCalledOnce();
+    expect(scheduled).toEqual([
+      'automations/agent_host:driveWorkflowAgentTurn',
+    ]);
+  });
+
   it('settles a start the broker refused while every account cooled down with when the first is back', async () => {
     const retryAtMs = Date.now() + 42_000;
     vi.mocked(resolveProviderCredential).mockRejectedValue(
@@ -707,11 +782,13 @@ describe('an automation agent turn', () => {
       typeof workflowAgentRetryResume
     >[0] & { reason: string };
     const resume = workflowAgentRetryResume(result, result.reason, parked, {
+      slug: parked.harness,
       resumable: harnessResumesConversations(parked.harness),
     });
     expect(resume).toEqual({
       agentSessionId: 'claude-session-1',
       reason: result.reason,
+      harness: parked.harness,
       askId: 'ask-1',
     });
     io.execRefusal = undefined;
@@ -1032,8 +1109,8 @@ describe('an automation agent turn', () => {
     }
   });
 
-  it('resumes after an answer with the window re-resolved', async () => {
-    servesWindow(65_536);
+  it('resumes after an answer with the window and output limit re-resolved', async () => {
+    servesWindow(65_536, 16_000);
     const { ctx, queries } = makeCtx(WAITING_CURSOR);
 
     await resumeWorkflowAgentTurnWithAnswerImpl(ctx, {
@@ -1051,6 +1128,13 @@ describe('an automation agent turn', () => {
     const resumed = io.starts[0];
     expect(resumed?.execId).not.toBe('exec-asking');
     expect(resumed?.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW).toBe('65536');
+    expect(io.builds).toEqual([
+      {
+        execId: resumed?.execId,
+        contextWindow: 65_536,
+        maxOutputTokens: 16_000,
+      },
+    ]);
     expect(
       queries.find(
         (q) => q.name === 'sandbox/session_queries:getSessionOpAttribution',
@@ -1271,15 +1355,15 @@ describe('an automation agent turn under the EU/EEA rule [GOV-R17]', () => {
     expectLaunchedAt('https://api.anthropic.com', mutations);
   });
 
-  it('hands the gateway lane’s provisioning the automation surface and the run, and settles its refusal the same way', async () => {
+  it('hands the relay key’s mint the automation surface and the run, and settles its refusal the same way', async () => {
     euRule();
-    const message = `${RULE}, and the model gateway reaches the provider "local-inference" through its built-in connection, which calls the vendor's own endpoint, so the call was not sent.`;
-    vi.mocked(provisionSessionGatewayKey).mockRejectedValueOnce(
+    const message = `${RULE}, and the provider "local-inference" names no endpoint, so the call was not sent.`;
+    vi.mocked(issueRelayKey).mockRejectedValueOnce(
       new ModelEndpointRefusal({
         code: 'MODEL_ENDPOINT_OUTSIDE_EU',
         message,
         provider: 'local-inference',
-        reason: 'gateway-builtin',
+        reason: 'unknown-endpoint',
       }),
     );
 
@@ -1293,7 +1377,7 @@ describe('an automation agent turn under the EU/EEA rule [GOV-R17]', () => {
       'gateway',
     );
 
-    expect(provisionSessionGatewayKey).toHaveBeenCalledWith(
+    expect(issueRelayKey).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
         surface: 'automation',
@@ -1429,5 +1513,73 @@ describe("the organization's Custom instructions", () => {
     expect(io.instructions[0]?.startsWith('You are the invoice desk.')).toBe(
       true,
     );
+  });
+});
+
+describe('the reason an answered question’s resume records', () => {
+  /** The op the resume opens for its own exec. */
+  function resumedOp(
+    mutations: ReturnType<typeof makeCtx>['mutations'],
+  ): Record<string, unknown> | undefined {
+    return mutations.find(
+      (m) =>
+        m.name === 'sandbox/session_mutations:upsertSessionOp' &&
+        m.args.execId !== 'exec-asking',
+    )?.args;
+  }
+
+  it.each([
+    [
+      'what the kick decided for a step that names its runtime',
+      {
+        harnessReason: 'pinned',
+        input: { ...WAITING_CURSOR.cursor.agent.input, harness: 'claude-code' },
+      },
+      'pinned',
+    ],
+    [
+      'what the kick decided, though the model is served directly now',
+      // The kick ran the step on Claude Code because only a subscription
+      // served its model; the resume re-resolves the serving (on the relay
+      // now), and the conversation stays where the kick put it, and why.
+      { harnessReason: 'subscription_bound' },
+      'subscription_bound',
+    ],
+  ] as const)('keeps %s', async (_label, agent, reason) => {
+    servesWindow(200_000);
+    const { ctx, mutations } = makeCtx({
+      ...WAITING_CURSOR,
+      cursor: {
+        ...WAITING_CURSOR.cursor,
+        agent: { ...WAITING_CURSOR.cursor.agent, ...agent },
+      },
+    });
+
+    await resumeWorkflowAgentTurnWithAnswerImpl(ctx, {
+      organizationId: 'org-1',
+      askId: 'ask-1',
+    } as never);
+
+    expect(resumedOp(mutations)).toMatchObject({
+      status: 'running',
+      harness: 'claude-code',
+      harnessReason: reason,
+    });
+  });
+
+  it('records none for a conversation whose kick recorded none, never the default it is not on', async () => {
+    servesWindow(200_000);
+    // A step on Default that began on Claude Code while Claude Code was the
+    // default, under an image that kept no reason on the cursor.
+    const { ctx, mutations } = makeCtx(WAITING_CURSOR);
+
+    await resumeWorkflowAgentTurnWithAnswerImpl(ctx, {
+      organizationId: 'org-1',
+      askId: 'ask-1',
+    } as never);
+
+    const opened = resumedOp(mutations);
+    expect(opened).toMatchObject({ status: 'running', harness: 'claude-code' });
+    expect(opened).not.toHaveProperty('harnessReason');
   });
 });

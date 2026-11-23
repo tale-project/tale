@@ -38,6 +38,7 @@ import {
   modelIdsEquivalent,
 } from '@tale/shared/utils/model-ref';
 
+import { DEFAULT_HARNESS } from '../../../../lib/shared/harness-offer';
 import { answersChatTurns } from '../../../../lib/shared/providers/chat_turn_models';
 import { isStandardGatewayProvider } from '../../../../lib/shared/providers/gateway_standard_providers';
 import {
@@ -93,6 +94,32 @@ export type AgentTurnServing =
        * serving and tell the agent it cannot see otherwise. */
       vision: SubscriptionVision;
     };
+
+/**
+ * The walk's answer that a runtime cannot serve a model with the
+ * organization's credentials: none it may use lists the model and runs it on
+ * that runtime (its tools need a wire the runtime does not speak, or a
+ * subscription serving it works in another runtime alone). `unreachable`
+ * names the connectors whose catalog could not be read on the way: while it
+ * is not empty the refusal may be a passing outage rather than the
+ * credentials' answer. Any other failure of the walk (a read that failed,
+ * a catalog the pinned subscription could not fetch) is a plain error.
+ */
+export class AgentServingRefusal extends Error {
+  readonly unreachable: readonly string[];
+
+  constructor(message: string, unreachable: readonly string[] = []) {
+    super(message);
+    this.name = 'AgentServingRefusal';
+    this.unreachable = unreachable;
+  }
+}
+
+/** A refusal read in full: the runtime cannot serve the model with these
+ * credentials, and no catalog that might have served it went unread. */
+function refusedInFull(error: unknown): error is AgentServingRefusal {
+  return error instanceof AgentServingRefusal && error.unreachable.length === 0;
+}
 
 export const AGENT_CREDENTIAL_AUTH_METHODS = [
   'api-key',
@@ -497,17 +524,24 @@ export async function resolvePinnedAgentServing(
       };
     }
     if (walk.wireRefused.length > 0) {
-      throw new Error(responsesToolsRefusal(args.model, args.harness));
+      throw new AgentServingRefusal(
+        responsesToolsRefusal(args.model, args.harness),
+        walk.unreachable,
+      );
     }
     if (walk.anthropicRefused.length > 0) {
-      throw new Error(anthropicModelsRefusal(args.model, args.harness));
+      throw new AgentServingRefusal(
+        anthropicModelsRefusal(args.model, args.harness),
+        walk.unreachable,
+      );
     }
     const detail =
       walk.unreachable.length > 0
         ? ` (the catalog for ${walk.unreachable.map((name) => `"${name}"`).join(', ')} was unreachable)`
         : '';
-    throw new Error(
+    throw new AgentServingRefusal(
       `provider "${pinned}" cannot serve model "${args.model}" — it needs an active default api-key/env credential whose catalog lists the model and whose allowlist permits it${detail}`,
+      walk.unreachable,
     );
   }
 
@@ -520,7 +554,9 @@ export async function resolvePinnedAgentServing(
     harness: args.harness,
   });
   if (!sanction.ok) {
-    throw new Error(sanction.reason);
+    // The subscription works in another runtime alone: decided by policy,
+    // with no catalog read.
+    throw new AgentServingRefusal(sanction.reason);
   }
 
   if (!modelAllowlistPermits(row.modelAllowlist, args.model)) {
@@ -698,16 +734,79 @@ export async function resolveWorkflowAgentServing(
       ? `; subscription credentials that could not serve it: ${refusals.join('; ')}`
       : '';
   if (direct.wireRefused.length > 0) {
-    throw new Error(
+    throw new AgentServingRefusal(
       `${responsesToolsRefusal(args.model, args.harness)}${unreachableDetail}${refusalDetail}`,
+      unreachable,
     );
   }
   if (direct.anthropicRefused.length > 0) {
-    throw new Error(
+    throw new AgentServingRefusal(
       `${anthropicModelsRefusal(args.model, args.harness)}${unreachableDetail}${refusalDetail}`,
+      unreachable,
     );
   }
-  throw new Error(
+  throw new AgentServingRefusal(
     `no configured provider serves model "${args.model}" for this agent turn — the model must be listed in a connected provider's catalog and permitted by its credential: a direct api-key/env credential, or a subscription credential whose forced harness is the turn's ("${args.harness}")${unreachableDetail}${refusalDetail}`,
+    unreachable,
   );
+}
+
+/** The managed runtimes a subscription credential can be bound to and
+ * drive (their YAML declares a `subscription` delivery), other than the
+ * default — where a step on "Default" goes when only a subscription serves
+ * its model. In the order the system catalog lists them. */
+function subscriptionBoundHarnesses(): string[] {
+  return loadHarnesses()
+    .filter(
+      (harness) =>
+        harness.credentialPolicy.managed &&
+        harness.subscription !== undefined &&
+        harness.slug !== DEFAULT_HARNESS,
+    )
+    .map((harness) => harness.slug);
+}
+
+/**
+ * The runtime and serving of an automation agent step that names no runtime
+ * ("Default"): the default runtime ({@link DEFAULT_HARNESS}) when a
+ * credential it can use serves the model; otherwise, when only a
+ * subscription serves it, the runtime that subscription is bound to — a
+ * Claude subscription keeps a step on Default in Claude Code instead of
+ * refusing it (tale-project/tale#4942). Every other refusal stays the
+ * default's own: a directly served model the default cannot run (its tools
+ * need the Responses API) is not moved to a runtime that can, since a person
+ * picked no runtime for it. Only the walk's refusal read in full
+ * ({@link AgentServingRefusal} with no unreachable catalog) moves a step: a
+ * catalog that did not answer, or a read that failed, says nothing about the
+ * credentials — moving the step then would run a model the default serves
+ * on a subscription's runtime, billed to it, for as long as the outage
+ * lasted. Such a failure fails the step as it did. `resolve` is the serving
+ * walk (the host's injectable one); the editor's preview asks the same
+ * question.
+ */
+export async function resolveDefaultWorkflowServing(
+  ctx: ActionCtx,
+  args: { organizationId: string; model: string; modelProvider?: string },
+  resolve: typeof resolveWorkflowAgentServing = resolveWorkflowAgentServing,
+): Promise<{ harness: string; serving: AgentTurnServing }> {
+  try {
+    const serving = await resolve(ctx, { ...args, harness: DEFAULT_HARNESS });
+    return { harness: DEFAULT_HARNESS, serving };
+  } catch (defaultRefusal) {
+    if (!refusedInFull(defaultRefusal)) throw defaultRefusal;
+    const refusals: string[] = [];
+    for (const harness of subscriptionBoundHarnesses()) {
+      try {
+        const serving = await resolve(ctx, { ...args, harness });
+        if (serving.lane === 'subscription') return { harness, serving };
+        refusals.push(`"${harness}": served directly, not by a subscription`);
+      } catch (error) {
+        refusals.push(`"${harness}": ${describe(error)}`);
+      }
+    }
+    console.warn(
+      `[agent-serving] no subscription-bound runtime serves model "${args.model}" for a step on the default runtime either — the default's refusal stands (${refusals.join('; ')})`,
+    );
+    throw defaultRefusal;
+  }
 }

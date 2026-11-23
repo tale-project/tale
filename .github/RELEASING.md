@@ -110,7 +110,7 @@ comes from default-branch commit **H**, which may differ from C. Both full commi
 on `main` when the release gate reads them; later merges do not invalidate an older H.
 
 Build forces the complete image and container-test graph regardless of path filters. It builds
-eight `candidate-sha-<sha>` images, records each pushed digest, and tests those digests after
+seven `candidate-sha-<sha>` images, records each pushed digest, and tests those digests after
 checking their revision labels. It also runs the web, docs, ui-docs and session-manager
 container tests and Storybook. Candidate images remain in GHCR. Build's advisory image Trivy job stays skipped;
 SAST's Opengrep and Security's high/critical dependency and filesystem checks remain blocking.
@@ -126,7 +126,7 @@ fails if any is missing, failed, skipped or cancelled. Build's gate is a normal 
 six call **Candidate gate / Record receipt**. The artifact name is
 `release-candidate-<workflow-stem>-<sha>-attempt-<attempt>`. Its sole file,
 `release-candidate.json`, records schema version 1, the workflow path, C, verdict, run id/URL/event,
-attempt, H, main ref and the exact dependency job results. Build also records all eight image
+attempt, H, main ref and the exact dependency job results. Build also records all seven image
 identities and digests; the other receipts have an empty image list.
 
 The upload requests 90 days of retention, but GitHub can expire the artifact sooner. Every receipt

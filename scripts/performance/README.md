@@ -79,7 +79,7 @@ send authorization headers, measure browser rendering, or inspect server RSS.
 | E2E package | Shared Playwright configuration construction | Actual browser execution |
 | Link/manual tools | 1000-link extraction with positions; parsing the real performance suite | Full-repository scans |
 | Visual analyzer | 1080p RGBA frame comparison and cropping | Browser capture and model analysis |
-| Database, Caddy, Tinyproxy, Bifrost, BuildKit | Explicit environment requirements in the inventory | Disposable infrastructure and representative datasets/traffic |
+| Database, Caddy, Tinyproxy, BuildKit | Explicit environment requirements in the inventory | Disposable infrastructure and representative datasets/traffic |
 | Plop | Fresh CLI scaffolds and verifies one TypeScript package in a disposable destination | Other generators and dependency installation |
 | Opengrep (explicit selection only) | Cached pinned scanner, local rules, ten synthetic TypeScript files with one verified finding | Full repository/registry scan; binary setup via `bun run lint:sast` |
 
@@ -155,6 +155,6 @@ RSS over repeated work and an idle recovery period with the load harness
 realistic virtual users against a realistic mock model provider, and reports the
 server's metrics and the database's statement statistics beside the client's. Integration/unit
 test duration is never substituted for load-test coverage. Exercise proxy,
-egress, gateway and BuildKit through their real container boundaries, including
+egress and BuildKit through their real container boundaries, including
 slow upstreams and disconnects. Use controlled model responses to avoid spending
 live model credits and to make comparisons repeatable.

@@ -69,5 +69,8 @@ Pour des questions récurrentes sur un brief ou une politique, ajoute le fichier
 | La réponse invente des détails d’un enregistrement | Compare la transcription à l’enregistrement et fournis le passage corrigé avant de continuer. |
 | Un message reste en attente | Vérifie chaque pièce jointe, y compris les liens vidéo. Retire les éléments en échec ou relance leur traitement. |
 | Un lien vidéo retiré réapparaît | Tale n’a pas pu le retirer, et le message affiché en donne la raison. Le lien reste joint. Retire-le de nouveau une fois la cause réglée, par exemple quand ta connexion est rétablie ou après t’être reconnecté. |
+| Un lien YouTube indique que le serveur doit prouver qu’il n’est pas un robot | YouTube a mis à l’épreuve l’adresse de votre déploiement, qui n’a pas de fournisseur de jetons pour répondre. Demande à un admin d’[activer le fournisseur de jetons](/fr/self-hosted/configuration/video-ingestion#token-provider). En attendant, joins l’enregistrement lui-même ou sa transcription. |
+| Un lien vidéo indique que la vidéo est trop volumineuse pour être traitée | L’audio de la vidéo dépasse ce que Tale lit depuis un lien. Joins plutôt l’enregistrement lui-même, ou sa transcription. |
+| Un lien vidéo reste **En file d'attente** plusieurs minutes | Il attend une sandbox libre sur votre déploiement et démarre de lui-même dès qu’une se libère. S’il échoue comme problème temporaire, réessaie plus tard ou demande à un admin de vérifier la [capacité des sandboxes](/fr/platform/admin/sandboxes). |
 
 Reviens à [Poser des questions dans le chat](/fr/platform/chat/basics) pour vérifier les sources et poursuivre l’échange.

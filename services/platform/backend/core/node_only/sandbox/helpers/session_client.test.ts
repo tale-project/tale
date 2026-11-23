@@ -31,11 +31,13 @@ import {
   sessionAcquire,
   sessionCancelExec,
   sessionCreate,
+  SessionFileLengthUnknownError,
   SessionFileTooLargeError,
   sessionGetExecCheckpoint,
   sessionIsAlive,
   SessionNotFoundError,
   sessionDestroyWorkspace,
+  sessionOpenFile,
   sessionReadFile,
   sessionStopIfIdle,
   sessionStageFiles,
@@ -2760,5 +2762,180 @@ describe('sessionReadFile with a byte cap', () => {
       sessionReadFile('ses-1', '/agent/workspace/a.png', { maxBytes: 100 }),
     ).rejects.toBeInstanceOf(SessionFileTooLargeError);
     expect(file.pulled()).toBeLessThan(240);
+  });
+});
+
+describe('sessionOpenFile — a session file passed on as it arrives', () => {
+  /** A file answer of `pieces` kibibytes, a piece at a time, saying how much
+   * of it was asked for and whether it was let go. */
+  function fileAnswer(
+    pieces: number,
+    headers: Record<string, string>,
+    status = 200,
+  ): { response: Response; pulled: () => number; cancelled: () => boolean } {
+    let pulled = 0;
+    let cancelled = false;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (pulled === pieces) {
+          controller.close();
+          return;
+        }
+        pulled += 1;
+        controller.enqueue(new Uint8Array(1024).fill(7));
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    return {
+      response: new Response(body, { status, headers }),
+      pulled: () => pulled,
+      cancelled: () => cancelled,
+    };
+  }
+
+  /** Answer every call with `response`, and say what was asked. */
+  function answer(response: Response): string[] {
+    const asked: string[] = [];
+    const stub = async (input: unknown): Promise<Response> => {
+      asked.push(String(input));
+      return response;
+    };
+    // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    globalThis.fetch = stub as any;
+    return asked;
+  }
+
+  test('asks for what its caller takes, and answers the bytes with their count', async () => {
+    const file = fileAnswer(300, { 'x-tale-file-size': String(300 * 1024) });
+    const asked = answer(file.response);
+
+    const opened = await sessionOpenFile('ses-1', 'output/a b.opus', {
+      maxBytes: 104_857_600,
+    });
+
+    expect(asked[0]).toContain(
+      '/v1/sessions/ses-1/files/content?path=output%2Fa%20b.opus&maxBytes=104857600',
+    );
+    expect(opened?.size).toBe(300 * 1024);
+    // Nothing of the file is held: it is the answer's own body, of which
+    // only what a stream queues ahead has been asked for.
+    expect(file.pulled()).toBeLessThanOrEqual(2);
+    let read = 0;
+    if (opened) for await (const chunk of opened.body) read += chunk.byteLength;
+    expect(read).toBe(300 * 1024);
+  });
+
+  test('takes the length from the transfer where the spawner names none of its own', async () => {
+    answer(fileAnswer(2, { 'content-length': '2048' }).response);
+
+    const opened = await sessionOpenFile('ses-1', 'output/a.opus', {
+      maxBytes: 4096,
+    });
+
+    expect(opened?.size).toBe(2048);
+    await opened?.body.cancel();
+  });
+
+  test('answers an empty file as one', async () => {
+    answer(new Response(null, { headers: { 'x-tale-file-size': '0' } }));
+
+    const opened = await sessionOpenFile('ses-1', 'output/empty', {
+      maxBytes: 1,
+    });
+
+    expect(opened?.size).toBe(0);
+    let read = 0;
+    if (opened) for await (const chunk of opened.body) read += chunk.byteLength;
+    expect(read).toBe(0);
+  });
+
+  test('answers null for a file the session does not hand out', async () => {
+    const refused = fileAnswer(1, {}, 404);
+    answer(refused.response);
+
+    expect(
+      await sessionOpenFile('ses-1', 'output/gone', { maxBytes: 100 }),
+    ).toBeNull();
+    expect(refused.cancelled()).toBe(true);
+  });
+
+  test.each([
+    ['none at all', {}],
+    ['one that is no number', { 'x-tale-file-size': 'many' }],
+    ['one that is negative', { 'x-tale-file-size': '-5' }],
+  ])(
+    'refuses a file whose length is %s, and lets it go',
+    async (_name, headers: Record<string, string>) => {
+      const file = fileAnswer(8, headers);
+      answer(file.response);
+
+      const error = await sessionOpenFile('ses-1', 'output/a.opus', {
+        maxBytes: 104_857_600,
+      }).catch((caught: unknown) => caught);
+
+      expect(error).toBeInstanceOf(SessionFileLengthUnknownError);
+      expect((error as Error).message).toBe(
+        'the sandbox runtime sent output/a.opus without its length; a runtime image that carries this release declares it',
+      );
+      expect(file.cancelled()).toBe(true);
+      expect(file.pulled()).toBeLessThanOrEqual(2);
+    },
+  );
+
+  test('refuses a file declared larger than was asked for, unread', async () => {
+    const file = fileAnswer(8, { 'x-tale-file-size': '8192' });
+    answer(file.response);
+
+    const error = await sessionOpenFile('ses-1', 'output/a.opus', {
+      maxBytes: 8191,
+    }).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(SessionFileTooLargeError);
+    expect((error as SessionFileTooLargeError).maxBytes).toBe(8191);
+    expect(file.cancelled()).toBe(true);
+    expect(file.pulled()).toBeLessThanOrEqual(2);
+  });
+
+  test('takes a file of exactly what was asked for', async () => {
+    answer(fileAnswer(8, { 'x-tale-file-size': '8192' }).response);
+
+    const opened = await sessionOpenFile('ses-1', 'output/a.opus', {
+      maxBytes: 8192,
+    });
+
+    expect(opened?.size).toBe(8192);
+    await opened?.body.cancel();
+  });
+
+  test('tells a read the spawner failed as one, and lets it go', async () => {
+    const failed = fileAnswer(1, {}, 502);
+    answer(failed.response);
+
+    await expect(
+      sessionOpenFile('ses-1', 'output/a.opus', { maxBytes: 100 }),
+    ).rejects.toThrow('sandbox session file read failed (502)');
+    expect(failed.cancelled()).toBe(true);
+  });
+
+  test('gives the transfer up when its caller does', async () => {
+    const caller = new AbortController();
+    // A spawner that never answers: only the caller ends this.
+    const stub = (_input: unknown, init: RequestInit): Promise<Response> =>
+      new Promise((_resolve, reject) => {
+        init.signal?.addEventListener('abort', () =>
+          reject(init.signal?.reason),
+        );
+      });
+    // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    globalThis.fetch = stub as any;
+    const opening = sessionOpenFile('ses-1', 'output/a.opus', {
+      maxBytes: 100,
+      signal: caller.signal,
+    });
+    caller.abort(new Error('the job was cancelled'));
+
+    await expect(opening).rejects.toThrow('the job was cancelled');
   });
 });

@@ -92,5 +92,6 @@ at least for what was sent and received until then.
   `MODEL_API_UNAVAILABLE`).
 - **How long records of calls are kept**, and their handling in an erasure: see the erasure
   spec.
-- **A call cut short is booked at a local estimate**, not the provider's own figure; the
-  contract debt ledger in [`.agents/repo.md`](../../../../../.agents/repo.md) records it.
+- **A call cut short is booked partly at an estimate**: what the provider had not reported by
+  then is counted by the platform, not taken from the provider. An OpenAI-style stream reports
+  its usage only when it ends.

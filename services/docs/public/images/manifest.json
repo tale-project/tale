@@ -1264,6 +1264,21 @@
       "sha256": "09d622b8f3704aa58949f5b2ee591918ae6b9de02f88e50f4ddb893ddc99198a"
     },
     {
+      "file": "images/platform/governance-standard-agent.phone.webp",
+      "shot": "governance-standard-agent",
+      "route": "/dashboard/:orgId/settings/governance/content-models",
+      "viewport": {
+        "width": 390,
+        "height": 1400
+      },
+      "dpr": 2,
+      "width": 716,
+      "height": 1470,
+      "locale": "en",
+      "device": "phone",
+      "sha256": "0dffd8335698284bf90f74def3b79c1f400220aa703d7cf74b893b388c9afcf1"
+    },
+    {
       "file": "images/platform/governance-standard-agent.webp",
       "shot": "governance-standard-agent",
       "route": "/dashboard/:orgId/settings/governance/content-models",
@@ -1273,9 +1288,9 @@
       },
       "dpr": 2,
       "width": 1538,
-      "height": 1032,
+      "height": 994,
       "locale": "en",
-      "sha256": "60f7126cfaf7beb95e2dd0d57ef4672974547e4390971f31c55434e3541d85c9"
+      "sha256": "78b17eb4043ca5293e1f6481d3c7aefb9091899ccf376eca658c318ff60b92aa"
     },
     {
       "file": "images/platform/home-inbox.webp",
@@ -1372,6 +1387,21 @@
       "sha256": "4245fddb1301e9641738843fc1dab58bb0e50a0098fc84305e92d9223f9ee748"
     },
     {
+      "file": "images/platform/project-agents-standard.phone.webp",
+      "shot": "project-agents-standard",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "dpr": 2,
+      "width": 780,
+      "height": 1688,
+      "locale": "en",
+      "device": "phone",
+      "sha256": "5f483b0f70bc552207f82ca8bb5e696b337bd074e7568d68797b8876a38c2ab9"
+    },
+    {
       "file": "images/platform/project-agents-standard.webp",
       "shot": "project-agents-standard",
       "route": "/dashboard/:orgId/projects",
@@ -1383,7 +1413,7 @@
       "width": 2880,
       "height": 1800,
       "locale": "en",
-      "sha256": "3edae322194217c9355c91cb94dee81147fe53aa5602770ebae1bd242a7a256d"
+      "sha256": "6bc79bb51a702dbb5b2a6f271716dd0b560f493ca07ddfaae9a87d0e0ab7cbcd"
     },
     {
       "file": "images/platform/project-dispatch.webp",

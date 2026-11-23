@@ -6,6 +6,7 @@ import {
   isAgentRunWaitingReason,
   type AgentRunWaitingReason,
 } from '../../../lib/shared/agent-run-waiting.ts';
+import type { AllowedModelRef } from '../../../lib/shared/providers/gateway_routing.ts';
 import { readCheckpoints } from '../../core/automations/checkpoints.ts';
 import type { TurnConnectorCaller } from '../../core/node_only/sandbox/connectors_bridge.ts';
 import {
@@ -52,6 +53,7 @@ import {
   type IdleReleaseSession,
   type IdleReleaseTicketReader,
 } from './idle-release.ts';
+import { opRuntimeView } from './op-runtime.ts';
 
 /**
  * The sandbox session substrate over PG — the 0.5 twin of
@@ -680,7 +682,18 @@ export async function markSessionStopped(
  * expiry), and a turn may then open a fresh incarnation under the same id.
  * That one, and the tokens its turns mint, are not this Destroy's: a token
  * names no row, so the session's tokens go only while the named row is
- * still the newest under the id (`revokeSessionGatewayKeys`). */
+ * still the newest under the id (`revokeSessionGatewayKeys`).
+ *
+ * Settling by the id alone leaves a collected failure what it is: a create
+ * the sandbox host refused for want of room, `failed` and stamped, made
+ * nothing that a destroy could end, and its status is the fact of that
+ * incarnation (`stampFailedSessionCollected`). Work that waits for room
+ * asks under one id each time, so such rows share the id of the session it
+ * gets in the end, by the hundred for a long wait. Settled anew as
+ * `destroyed` they were rows that no sweep deletes: `wait-retention.ts`
+ * knows them as `failed`. The one collected failure a destroy does settle
+ * is the one that sweep keeps, a project agent's newest row, which names a
+ * workspace the collect kept and this destroy took. */
 export async function markSessionDestroyed(
   sql: Sql,
   args: { organizationId: string; sessionId: string; rowId?: string },
@@ -705,6 +718,19 @@ export async function markSessionDestroyed(
       WHERE session_id = ${args.sessionId} AND org_id = ${args.organizationId}
         AND status <> 'destroyed'
         AND (${rowId}::text IS NULL OR id = ${rowId})
+        AND (
+          ${rowId}::text IS NOT NULL
+          OR NOT (status = 'failed' AND destroyed_at_ms IS NOT NULL)
+          OR (
+            owner_type = 'project_agent'
+            AND NOT EXISTS (
+              SELECT 1 FROM app.sandbox_sessions newer
+              WHERE newer.session_id = sandbox_sessions.session_id
+                AND (newer.created_at_ms, newer.id)
+                  > (sandbox_sessions.created_at_ms, sandbox_sessions.id)
+            )
+          )
+        )
       RETURNING id
     `;
       if (rows.length === 0) return false;
@@ -739,6 +765,13 @@ export async function markSessionDestroyed(
 export interface SessionTokenScope {
   agentKind: string;
   allowedModels: string[];
+  /** What the model relay serves the key (`domains/llm_relay`): each model
+   * with its connector and lane. A key the sandbox LLM gateway served, and
+   * a bridge-only one, carry none. */
+  relayModels?: AllowedModelRef[];
+  /** The credential each connector was minted under, by connector name, so
+   * the relay serves the turn with it. Ids, never secrets. */
+  servingCredentials?: Record<string, string>;
   connectorGrants: string[];
   budgetCents: number;
   toolGrants?: string[];
@@ -1273,6 +1306,8 @@ export async function getAgentNodeSandboxOp(
       liveTimeline: unknown;
       modelRef: string | null;
       visionModelRef: string | null;
+      harness: string | null;
+      harnessReason: string | null;
       startedAt: number;
       finishedAt: number | null;
       lastEventAt: number | null;
@@ -1280,7 +1315,8 @@ export async function getAgentNodeSandboxOp(
   >`
     SELECT exec_id AS "execId", status, progress_text AS "progressText",
            live_timeline AS "liveTimeline", model_ref AS "modelRef",
-           vision_model_ref AS "visionModelRef",
+           vision_model_ref AS "visionModelRef", harness,
+           harness_reason AS "harnessReason",
            started_at_ms::float8 AS "startedAt",
            finished_at_ms::float8 AS "finishedAt",
            last_event_at_ms::float8 AS "lastEventAt"
@@ -1302,6 +1338,9 @@ export async function getAgentNodeSandboxOp(
     ...(op.visionModelRef !== null
       ? { visionModelRef: op.visionModelRef }
       : {}),
+    // Where the turn ran, and why there: the step on the default runs where
+    // the kick resolved it, which the details say in one sentence.
+    ...opRuntimeView(op),
     startedAt: op.startedAt,
     ...(op.finishedAt !== null ? { finishedAt: op.finishedAt } : {}),
     ...(op.lastEventAt !== null ? { lastEventAt: op.lastEventAt } : {}),

@@ -2,7 +2,7 @@ import { PgBoss } from 'pg-boss';
 import type { Sql } from 'postgres';
 
 import type { BootDatabaseWait } from '../db/boot-wait.ts';
-import { appPoolMax } from '../db/sql.ts';
+import { appPoolMax, jobsPoolMax } from '../db/sql.ts';
 import { resolvePostgresConnection } from '../db/ssl.ts';
 import {
   describeDatabaseError,
@@ -16,7 +16,10 @@ import { physicalTaskQueue, TASK_QUEUE_OPTIONS } from './tasks.ts';
  * `useListenNotify` + per-queue `notify: true` gives millisecond wake-ups on
  * job creation over a dedicated LISTEN connection, with polling kept as the
  * at-least-once recovery backstop — a lost notification delays a job, it
- * never loses one. `start()` installs/migrates the `pgboss` schema itself
+ * never loses one. The notification is part of the statement that inserts a
+ * job, whoever sends it, so only a process that works queues listens: the
+ * api role passes `listen: false` and holds no such connection. `start()`
+ * installs/migrates the `pgboss` schema itself
  * (advisory-lock guarded), so concurrently booting containers are safe; the
  * api role starts with `supervise: false` so maintenance runs on workers.
  * Every role runs the cron clock unless it passes `schedule: false`, as the
@@ -24,10 +27,35 @@ import { physicalTaskQueue, TASK_QUEUE_OPTIONS } from './tasks.ts';
  * themselves: the schedules are still registered and read (`schedule`,
  * `getSchedules`), and none of them ticks.
  */
-export function createBoss(
-  databaseUrl: string,
-  options: { supervise: boolean; schedule?: boolean },
-): PgBoss {
+export interface BossOptions {
+  supervise: boolean;
+  schedule?: boolean;
+  /** Connections in pg-boss's pool (`jobsPoolMax`); unset, the application
+   * pool's size. */
+  poolMax?: number;
+  /** Whether to hold the LISTEN connection that wakes this process's
+   * workers; unset, yes. A process that works no queue has nothing to wake. */
+  listen?: boolean;
+}
+
+/**
+ * What a role's pg-boss does beside sending jobs, which every role does. A
+ * role that works queues maintains them and is woken by a notification; the
+ * api role does neither, and keeps the small pool a sender needs.
+ */
+export function bossOptionsForRole(
+  role: 'api' | 'worker' | 'all',
+  env: Record<string, string | undefined> = process.env,
+): Required<Pick<BossOptions, 'supervise' | 'listen' | 'poolMax'>> {
+  const worksQueues = role !== 'api';
+  return {
+    supervise: worksQueues,
+    listen: worksQueues,
+    poolMax: jobsPoolMax(role, env),
+  };
+}
+
+export function createBoss(databaseUrl: string, options: BossOptions): PgBoss {
   // pg-boss hands its whole config to `new pg.Pool`, and node-postgres lets a
   // connection string's `sslmode` override an `ssl` option — so it gets the
   // URL with the TLS parameters stripped plus the resolved options, exactly
@@ -36,12 +64,12 @@ export function createBoss(
   const boss = new PgBoss({
     connectionString: url,
     ssl,
-    // A second pool of the same size as the app's — see `appPoolMax` for why
-    // that arithmetic is the operator's to control against an external
-    // database.
-    max: appPoolMax(),
+    // A second pool beside the app's — see `appPoolMax` and `jobsPoolMax`
+    // for why that arithmetic is the operator's to control against an
+    // external database.
+    max: options.poolMax ?? appPoolMax(),
     application_name: 'tale-backend',
-    useListenNotify: true,
+    useListenNotify: options.listen ?? true,
     supervise: options.supervise,
     // A `schedule` key pg-boss is handed wins over its default even when it
     // is `undefined`, which stops the clock: so the default is spelled out.
@@ -136,12 +164,14 @@ function withoutWorkerSuffix(error: unknown): unknown {
  */
 export async function startBoss(
   databaseUrl: string,
-  options: { supervise: boolean; schedule?: boolean; wait: BootDatabaseWait },
+  options: BossOptions & { wait: BootDatabaseWait },
 ): Promise<PgBoss> {
   const boss = await options.wait(async () => {
     const attempt = createBoss(databaseUrl, {
       supervise: options.supervise,
       schedule: options.schedule,
+      poolMax: options.poolMax,
+      listen: options.listen,
     });
     try {
       await attempt.start();

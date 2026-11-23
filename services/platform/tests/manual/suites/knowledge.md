@@ -1,6 +1,6 @@
 # Knowledge
 
-> **Prefix** `KNOW-` · **Reset** none · **Cost** 81 boxes
+> **Prefix** `KNOW-` · **Reset** none · **Cost** 82 boxes
 
 Exercise the knowledge surfaces — documents (upload + RAG indexing + preview +
 controlled revisions), manual knowledge entries, and the structured catalogs
@@ -924,6 +924,28 @@ records and delete them after.
   answering again after …s`, and the upload reads **Indexed** after its next
   try. In German and French the toast's sentence reads in the page's
   language.
+
+- [ ] `KNOW-B31` · **A file needs more memory than one file is given** — On a
+  stack whose `.env` sets `HEAVY_SLOT_MEMORY_MB=64` (`docker compose up -d
+  backend-worker` after setting it), with `docker compose logs -f
+  backend-worker` followed, make a text of 60 MB (`yes
+  "2025-01-01,order,42,open" | head -c 60000000 > too-big.csv`) and upload it
+  (`KNOW-F1`) → within a minute its badge reads **Failed**
+  (`documents.rag.status.failed`), never **Not supported**, and the log has
+  one line `[heavy-slot] reading a .csv file needs more than the 64 MiB one
+  file is given and was not attempted…` that names `HEAVY_SLOT_MEMORY_MB` and
+  not the file, with no stack trace and no further try after it. Click the badge → the dialog
+  reads **This file needs more memory than the 64 MiB this server gives one
+  file. An administrator can raise the limit with HEAVY_SLOT_MEMORY_MB.** and,
+  beside it, the hint that this server gives one file 64 MiB and that an
+  admin of the server can raise the limit with `HEAVY_SLOT_MEMORY_MB`
+  (`documents.rag.dialog.failed.memoryLimit.hint`). The app works on: a small
+  TXT uploaded meanwhile reads **Indexed**. Remove the variable, bring the
+  worker up again, and choose **Retry indexing**
+  (`documents.rag.retryIndexing`) on the file's row → it reads **Indexed**.
+  In German and French the badge and the hint read in the page's language,
+  with the limit and the variable unchanged; the first sentence stays as the
+  server stored it.
 
 ## Accessibility (WCAG 2.1 AA)
 

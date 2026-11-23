@@ -282,6 +282,33 @@ describe('Docker runtime access readback', () => {
     expect(await judged(undefined)).toBeUndefined();
   });
 
+  test('role is decided in the access too: the one TALE_ROLE the environment names, when that is a role', async () => {
+    const named = async (env: string[] | undefined) => {
+      const { runtime } = recorded(() =>
+        ok(
+          JSON.stringify([
+            { ...container, Config: { ...container.Config, Env: env } },
+          ]),
+        ),
+      );
+      const [instance] = await runtime.inspect([ID]);
+      // Never the environment itself, whatever it names.
+      expect(JSON.stringify(instance)).not.toContain('TALE_ROLE');
+      return instance.role;
+    };
+    for (const role of ['web', 'api', 'worker', 'all'] as const)
+      expect(await named([`TALE_ROLE=${role}`, 'OTHER=1'])).toBe(role);
+    // The web tier of a colour of three services names none.
+    expect(await named(['OTHER=1'])).toBeUndefined();
+    expect(await named([])).toBeUndefined();
+    expect(await named(undefined)).toBeUndefined();
+    // A word that is no role, and a role named twice, name nothing.
+    for (const value of ['', 'ALL', 'api ', 'backend', 'all,api'])
+      expect(await named([`TALE_ROLE=${value}`])).toBeUndefined();
+    expect(await named(['TALE_ROLE=api', 'TALE_ROLE=all'])).toBeUndefined();
+    expect(await named(['XTALE_ROLE=all', 'TALE_ROLE_X=all'])).toBeUndefined();
+  });
+
   test('copyOut refuses a copy larger than its cap with the fixed sentence', async () => {
     const receive = mkdtempSync(join(tmpdir(), 'tale-access-cap-'));
     try {

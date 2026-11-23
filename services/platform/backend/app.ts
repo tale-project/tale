@@ -115,7 +115,7 @@ import {
 } from './domains/webdav/routes.ts';
 import { createWebsiteRoutes } from './domains/websites/routes.ts';
 import { appErrorHandler, outageInsteadOf } from './error-reporting.ts';
-import { appJsonBody } from './lib/app-json-body.ts';
+import { appBodyLimit, appJsonBody } from './lib/app-json-body.ts';
 import { conditionalGet } from './lib/conditional-get.ts';
 import {
   apiKeyHeaderGuard,
@@ -317,6 +317,10 @@ export function createApp(deps: AppDeps): Hono<AuthEnv> {
   // validated-read directive replaces there.
   app.use('/api/app/*', conditionalGet());
   app.use('/api/v1/*', conditionalGet({ replaceDoorDefault: 'no-store' }));
+  // No body on the app door is read past 16 MiB, the file door's apart:
+  // one that declares more is refused before a byte of it is read
+  // (lib/app-json-body.ts). Ahead of every `/api/app` route.
+  app.use('/api/app/*', appBodyLimit());
   // The app door's JSON bodies read through one reader: an empty or
   // truncated body answers 400 `INVALID_JSON` instead of a reported 500
   // (lib/app-json-body.ts). Ahead of every `/api/app` route.

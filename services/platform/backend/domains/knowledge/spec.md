@@ -149,6 +149,7 @@ its indexing status says what happened, with a code (`indexing.errorCode` on the
 | A credential was recognised in the file | Failed | `secret_detected` |
 | PII protection blocks the file | Failed | `pii_blocked` |
 | PII protection could not scan the file | Failed | `pii_scan_failed` |
+| Reading the file needs more memory than one file is given | Failed | `memory_limit` |
 
 ### KNOW-R7 · A file whose text cannot be read is marked Not supported and is not retried
 
@@ -209,6 +210,21 @@ same text and policy. Every save of the PII policy, also one that changes nothin
   → the CV is queued again on its own and indexed with its addresses masked, without anyone
   saving the PII policy.
 
+### KNOW-R22 · A file that needs more memory than one file is given fails, naming the limit
+
+A file is read, checked and cut into passages with a set amount of memory, apart from the rest
+of the platform: 512 MiB unless the deployment sets `HEAVY_SLOT_MEMORY_MB`, and 96 MiB where
+`tale deploy` runs the platform as one process. A file that needs more is stopped, and the
+platform keeps running. Its status is Failed with the code `memory_limit`, and the reason names
+the limit and the setting that raises it. Nothing of it is indexed. It is not tried again on
+its own, because the same file would meet the same limit: once the deployment's administrator
+has raised the limit, **Retry indexing** reads the file again.
+
+- **Example**: A deployment gives one file 96 MiB. Mia uploads `orders-2019-2025.csv`, 80 MB of
+  order lines → it shows **Failed** with the message that the file needs more memory than the
+  96 MiB this server gives one file, and that `HEAVY_SLOT_MEMORY_MB` raises the limit. The
+  administrator sets it to 512 and Mia chooses **Retry indexing** → the file is indexed.
+
 ## In what order files are read and indexed
 
 Files wait for indexing in one line per deployment, and a worker indexes several at once. A
@@ -218,8 +234,8 @@ file attached to a message or a task is read for the assistant first, in a line 
 ### KNOW-R21 · A message's attachments are read first, and a slow file never holds the next
 
 A file attached to a chat message or a task that a person is writing is read first, in a line
-that only reads files and never waits for an embedding server: a worker reads a few at once,
-and at most two of one organization's at a time. The read hands the file on to be indexed. Its
+that only reads files and never waits for an embedding server: a worker works on a few at
+once, and on at most two of one organization's at a time. The read hands the file on to be indexed. Its
 index goes first when a message waits for that index, because the file is too large to read
 before it. Otherwise the index waits with the files a person uploads to Knowledge, replaces or
 retries. After those come the files the platform indexes on its own: a synced drive, an emailed
@@ -230,6 +246,21 @@ starts, whatever the others are still doing.
 - **Example**: Noah uploads 200 files to Knowledge; Mia then attaches a PDF to a chat message →
   Mia's PDF is read at once, beside Noah's files, and her message goes out. Its index then waits
   its turn with Noah's files.
+
+### KNOW-R23 · One file is read at a time, and a file someone waits for is read first
+
+Reading a file's text is the part of indexing that needs the most memory, so each process of
+the platform reads one file at a time; a deployment can allow more with `HEAVY_SLOTS`. A file
+read for someone who is waiting, such as an attachment read for the assistant or a file the
+assistant fetches from the web, goes before the files that wait to be indexed and the
+recordings that wait to be converted. Those are not held back for good: while both kinds
+wait, every fifth turn is theirs. Each of the two kinds is read in the order it came. A file that is being read is finished first.
+Embedding a file's passages and storing them is not part of the turn: several files are
+embedded at once (`KNOW-R21`).
+
+- **Example**: A synced drive brought 40 spreadsheets, and the first is being read. Mia
+  attaches a PDF to a chat message → her PDF is read as soon as that spreadsheet is done,
+  before the other 39.
 
 ## When the embedding model is missing or fails
 

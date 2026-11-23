@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 185 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 187 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -219,6 +219,24 @@ the task's description: `e2e:make-file`, `e2e:make-spreadsheet` and
   the past tense once nothing moves; **Open the full run**
   (`tasks.run.openFull`) navigates to the run page under
   `…/projects/{projectId}/automations/…`
+- [ ] `TASK-F101` · **Why a run ran on its agent runtime** — Open the
+  execution log (TASK-F13) of a finished run of a project agent, and of a
+  run of the standard agent → Under the log, after the line that names the
+  model (`automations.runs.agentLog.servedBy`), one sentence says which agent
+  runtime ran the turn and why: the project agent's run ran on the runtime
+  the agent names (`automations.runs.agentLog.harnessReason.pinned`); the
+  standard agent's ran on the default agent runtime
+  (`automations.runs.agentLog.harnessReason.default`), on the runtime a
+  subscription works in when only that subscription serves its model
+  (`automations.runs.agentLog.harnessReason.subscriptionBound`), on the
+  runtime its policy sets under Governance
+  (`automations.runs.agentLog.harnessReason.policy`), or — with a model whose
+  tools need the Responses API pinned under Governance and the runtime left
+  automatic — on Codex, because the default agent runtime cannot run its
+  model (`automations.runs.agentLog.harnessReason.modelBound`). A comment
+  that restarts the run's turn says the same as the run's first turn, even
+  after an Admin changed the policy. A run from before this release shows no
+  such sentence.
 - [ ] `TASK-F14` · **Outputs & settle** — Let a run finish → The Run row flips
   to **Finished** (`tasks.agentRun.status.settled`); the result is posted as
   an agent comment and the task parks at **In review** (agents never complete
@@ -242,6 +260,16 @@ the task's description: `e2e:make-file`, `e2e:make-spreadsheet` and
   reaches **Done** after reload, and any project **editor** can decide — the
   gate is not locked to one reviewer; pending review notifications clear
   ([notifications.md](notifications.md) NOTIF-F7b/NOTIF-F7c)
+- [ ] `TASK-F100` · **A Pi agent takes a comment in its running turn** — Mode B
+  with a project agent on **Pi**: start it on a task whose description asks it
+  to run a slow shell command first (`sleep 60`, then summarise the
+  workspace), and while the Run row reads **Working…**
+  (`tasks.agentRun.status.running`) comment with an **@-mention** of the agent
+  asking for one more thing (a line count of the README) → The run is not
+  cancelled and no new run starts: the Run row keeps reading **Working…**, the
+  agent answers the comment once the shell command has finished, before it
+  writes its report, and the report includes the line count. A comment after
+  the run finished starts a new run instead (TASK-F15).
 - [ ] `TASK-F16` · **History & archive** — Read the task's conversation; then
   **Archive** (`tasks.actions.archive`) → confirm
   (`tasks.archive.confirmTitle`); restore via list + **Show archived** →
@@ -778,7 +806,11 @@ the task's description: `e2e:make-file`, `e2e:make-spreadsheet` and
   **Start agent** (`tasks.agentRun.start`) runs it to **In review**
   (`tasks.status.in_review`), with a requested Word, PowerPoint, Excel or PDF
   file under the task's deliverables — env-gated: mark the run
-  **ENVIRONMENT** without a runnable harness.
+  **ENVIRONMENT** without a runnable harness. A run that works in a worker
+  runs on Pi, and its execution log says so
+  (`automations.runs.agentLog.harnessReason.default`), or on Claude Code
+  when the organization's only credentials are a Claude subscription
+  (`automations.runs.agentLog.harnessReason.subscriptionBound`).
 
 - [ ] `TASK-F62` · **Let a manager triage without starting work** — As an editor, enable **Change task priority and agent assignment** (`projects.agents.tool.task_update_metadata`) on a project agent, using the keyboard in **Skills, connectors & tools**; save and reopen it → the named option remains checked with its **Writes data** badge and visible focus, fits at desktop and phone widths in EN/DE/FR, and an automation agent node never offers it. Let that manager change an idle task’s priority and agent assignment, then watch the task from a second browser session → both values refresh, the activity names the manager, status and run history stay unchanged, and a reload keeps the values.
 
@@ -1829,9 +1861,9 @@ TASK-F86 is a Member of the project's team.
 
 - [ ] `TASK-F86` · **The standard agent makes a file without a worker** — Create a task whose description asks for the inner planets as a CSV (Mode A: add `e2e:make-file`), choose **Standard agent** as assignee, then **Start agent** (`tasks.agentRun.start`) → The Run row (`tasks.agentRun.label`) reads **Working…** (`tasks.agentRun.status.running`) straight away and never **Waiting for a worker**, then **Finished** (`tasks.agentRun.status.settled`). The task parks at **In review**; the agent's report is a comment, a second comment lists **Deliverables:** with the CSV, and the CSV is under **Deliverables** (`tasks.outputs.label`) and opens. **Details** (`tasks.run.details`) lists the run's tool calls, each with its result, and ends on the report. `/dashboard/{org}/settings/sandboxes` lists no worker for the agent.
 - [ ] `TASK-F87` · **A workbook is made in a light sandbox that goes back with the run** — Start the standard agent on a task asking for a spreadsheet of the inner planets (Mode A with the sandbox service: add `e2e:make-spreadsheet`) → **planets.xlsx** is under **Deliverables** and opens with the Planets sheet. Once the Run row reads **Finished**, reload `/dashboard/{org}/settings/sandboxes` → no **Light sandbox** row (`sandboxes.lightSandbox`) remains for your name: the sandbox left with the run, not after its idle minutes.
-- [ ] `TASK-F88` · **A run that needs the full workspace hands itself over** — Start the standard agent on a task that needs a repository checked out (Mode A: add `e2e:use-workspace`) → The Run row leaves **Working…** and reads **Waiting for a worker** or **Working…** again as the agent's full workspace takes over; the agent shows over **Worker 1** on Sandboxes; the task stays **In progress** and the first pass posts no report. A file the first pass made is under **Deliverables** before the workspace finishes. Without a runnable harness the second pass fails at its start (**ENVIRONMENT**); its automatic retry then starts in the full workspace again, never as a run without one.
+- [ ] `TASK-F88` · **A run that needs the full workspace hands itself over** — Start the standard agent on a task that needs a repository checked out (Mode A: add `e2e:use-workspace`) → The Run row leaves **Working…** and reads **Waiting for a worker** or **Working…** again as the agent's full workspace takes over; the agent shows over **Worker 1** on Sandboxes; the task stays **In progress** and the first pass posts no report. A file the first pass made is under **Deliverables** before the workspace finishes. The second pass runs on Pi, and its execution log says it ran on the default agent runtime (`automations.runs.agentLog.harnessReason.default`). Without a runnable harness the second pass fails at its start (**ENVIRONMENT**); its automatic retry then starts in the full workspace again, never as a run without one.
 - [ ] `TASK-F89` · **A comment stops the run and starts the next from it** — While the run of `TASK-F86` works on a model slow enough to catch, comment `@Standard agent also add the moons column` → the first run reads **Cancelled** (`tasks.agentRun.status.cancelled`), a new run starts at once, its **Details** shows the comment among what it works from, and the task stays **In progress**. Press **Cancel run** (`tasks.agentRun.cancel`) on a working run instead → it reads **Cancelled** and nothing starts.
-- [ ] `TASK-F90` · **A start by an automation works in a worker** — Deploy an automation whose step starts the agent on a task (as in AUTO-F32) and run it on a task assigned to the standard agent → the run works in a worker of the agent (**Worker 1** on Sandboxes) and **Details** shows a live harness transcript, as before; a person pressing **Start agent** on the same agent works without one (`TASK-F86`).
+- [ ] `TASK-F90` · **A start by an automation works in a worker** — Deploy an automation whose step starts the agent on a task (as in AUTO-F32) and run it on a task assigned to the standard agent → the run works in a worker of the agent (**Worker 1** on Sandboxes) and **Details** shows a live harness transcript, as before, ending on the line that it ran on Pi, the default agent runtime (`automations.runs.agentLog.harnessReason.default`); a person pressing **Start agent** on the same agent works without one (`TASK-F86`).
 - [ ] `TASK-F91` · **An organization works four such runs at a time** — With a model slow enough to catch (Mode A: `TALE_MOCK_STREAM_PACE_MS=1500` on the mock gateway), start the standard agent on five tasks within a few seconds → four Run rows read **Working…** (`tasks.agentRun.status.running`) and the fifth reads **Queued** (`tasks.agentRun.status.queued`), never **Waiting for a worker**; when one of the four reads **Finished**, the fifth starts by itself. A start in another organization at the same time reads **Working…** at once. Press **Cancel run** on the queued one instead → it reads **Cancelled** and never starts.
 - [ ] `TASK-B53` · **A policy that blocks the task's text stops the run for good** — Under **Governance**, add a guardrail that blocks a word; put that word in a task's description and start the standard agent → The Run row reads **Failed** and the failure sentence is `tasks.agentRun.failure.policy`; no **Auto-retry** caption appears and no new run starts; the starter's notifications show a row with `inbox.agentRunFailedPolicyBody`. Remove the guardrail, press **Retry** (`tasks.agentRun.retry`) → the run works.
 - [ ] `TASK-B54` · **Native receipts stay bound to the current task run** — With a runnable native task, request the task's exact run metadata and comment row IDs, then read **workspace status** in the same session → the returned run and execution IDs match the database-backed task, organization, session and exec; a foreign, superseded, expired or ended run returns no current execution, and the ordinary grants and admission controls are unchanged. Omit the optional fields → the legacy response shape remains. A model-written identity in a comment or status body is ignored.

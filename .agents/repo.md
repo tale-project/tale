@@ -815,18 +815,15 @@ default means deleting the override and fixing what surfaces:
   and hand them to the same predicate), or at least reporting `truncated` when a cap stopped a
   pre-pass and the answer came back short of its limit, with a case in
   `search-chat.privacy.test.ts` where 50 unreadable body matches sit ahead of the member's own.
-- **The pinned model gateway books nothing for a call cut short** — Bifrost
-  (`services/sandbox-llm-gateway/Dockerfile`) cancels the vendor call when its caller hangs up,
-  whole answer or stream, but keeps none of the usage the call had reached unless the vendor
-  reported it before the cut (an Anthropic stream's input tokens; an OpenAI-wire stream reports
-  usage only in its closing frame). It also ends an OpenAI-wire stream on two keepalive comments
-  after the finish reason, so an upstream that sends them before its usage frame is booked at
-  nothing. So the model endpoints for API keys (`services/platform/backend/domains/model_api/`)
-  book an answer that ended early at a local floor (the prompt and the relayed output at the
-  catalog price) instead of the vendor's own figure, and a sandbox turn's call cut mid-answer
-  books only what the gateway kept (2026-09). Paying it down means a gateway release that keeps
-  the usage a cancelled call had reached, then booking the gateway's figure alone in
-  `metering.ts`.
+- **A model call cut short is booked at the relay's own count** — the model relay
+  (`services/platform/backend/domains/llm_relay/`) cancels the vendor call when its caller hangs
+  up or the call outlives its budget, and books what the vendor had reported by then plus its
+  own count of what it had not: the prompt it sent (each image or document as one image,
+  `estimate.ts`) and the output it relayed. A vendor reports no usage for a call cancelled before
+  its end (an OpenAI-wire stream reports it only in its closing frame), so a sandbox turn's or a
+  model endpoint's call cut short is booked at that estimate, not the vendor's own figure
+  (2026-11, tale-project/tale#4942). Paying it down needs a vendor that reports a cancelled
+  call's usage, read by `usage.ts` like any other report.
 - **Gemini CLI never continues a conversation** — the pinned CLI's `--resume` replays every tool
   result of the recorded session twice (its `toolCalls[].result` and the user record it also
   writes for the same response — google-gemini/gemini-cli#29365, fix PRs open), so the first
@@ -897,3 +894,36 @@ default means deleting the override and fixing what surfaces:
   inserts during a roll. Paying it down means a migration, a release after every image reads the
   principal, that drops the trigger, its function and the `conversation_api_bindings_owner`
   index. `owner_user_id` stays as the audit trail.
+- **The platform image still ships its sources, `node_modules` and Bun** — no role reads them:
+  every role starts from the built backend (`backend-dist/`), the web tier included (2026-11,
+  #4942). `tale deploy --bundle` does. Its provisioning and client-export phases run the CLI's
+  interpreted bundle under the container's `bun` and import `/app/backend/auth/auth.ts`,
+  `/app/backend/db/sql.ts` and `better-auth` out of `/app/node_modules`
+  (`tools/cli/src/lib/deployment/native-client.ts`, `apply.ts`, `client-export.ts`,
+  `email-attestation.ts`, `operator-address.ts`), and `acceptance-health.ts` and
+  `runtime-configuration.ts` start `bun --eval` there for a local probe and a configuration
+  read. Paying it down means a built entry for those phases in
+  `services/platform/scripts/build-backend.ts` (a program beside `image-check.js` that takes the
+  phase's input on stdin), the two probes on `node`, and then one change that removes the
+  `pruner` stage, the sources, `packages/`, `node_modules` and the Bun binary from the runner
+  stage of `services/platform/Dockerfile`, with the pruner cases of
+  `tests/guards/dockerfile-fail-closed.guard.test.ts`. A tree that holds only `backend-dist/`,
+  `dist/`, `dist-seo/`, `messages/` and the config catalogs already boots every role, serves
+  the app, answers chat turns and indexes a PDF and a spreadsheet.
+- **Three deploy paths still run the application as three services** — `tale deploy` on Docker
+  starts a colour as one `platform` process (`TALE_ROLE=all`; `tools/cli/src/lib/compose/app-tier.ts`,
+  2026-11, #4942). The root `compose.yml`, `deploy --bundle` and the Incus runtime do not: they
+  run `platform` as the web tier alone beside `backend-api` and `backend-worker`: three
+  processes where one rests at about 90 MiB, the web tier alone at about 38 and a worker at
+  about 72. Each path is held by something of its own. `deploy --bundle` requires
+  `RUNTIME_SERVICES` to equal the keys of `compose.yml` and its writer custody to be exactly two
+  backend containers (`deployment/runtime-model.ts`, `runtime-apply.ts`), and it refuses a
+  revision with the Traefik edge until it learns that edge. The Incus compiler refuses the
+  `labels` key the edge routes by (#5282) and plans three roles (`SLOT_ROLES`, `SWITCHED_ROLES`).
+  The generators therefore build three services for a caller that names no shape
+  (`ServiceConfig.appTier`), which keeps both unchanged. Paying it down means, per path and
+  after its edge port: `compose.yml` with the one service `createPlatformBackendService`
+  describes (its parity tests then compare the generated colour of one process), the bundle's
+  custody and acceptance reading a `platform` that is a backend by its role, as
+  `bundledBackendIdentity` already does for a workspace, and the Incus address plan with one
+  switched role. Until then `docs/*/self-hosted` says which path runs which shape.

@@ -22,7 +22,7 @@ Wähle Incus, wenn ein Host Incus bereits für andere Workloads betreibt oder we
 | Ein Linux-Host mit Incus 7.2 oder neuer, der kein Cluster-Mitglied ist | Die CLI braucht die API-Erweiterungen `instance_oci`, `instance_oci_entrypoint`, `oci_network_config`, `storage_shifted`, `storage_initial_owner`, `file_storage_volume`, `projects_restricted_backups_and_snapshots`, `projects_restricted_image_servers` und `instance_auto_restart` und lehnt einen Server ab, dem eine fehlt oder der in einem Cluster läuft. |
 | Linux 5.12 oder neuer mit idmapped Mounts | Jedes Volume des Stacks wird verschoben eingehängt (`security.shifted`), und das braucht idmapped Mounts. |
 | Ein Storage-Pool mit `zfs`, `btrfs` oder `lvm` | Diese Treiber setzen die Größe eines Volumes durch. Ein ZFS-Pool braucht OpenZFS 2.2 oder neuer, dessen Datasets idmapped Mounts können. Der Bootstrap nutzt den Pool, den du bei der Installation von Incus angelegt hast, und legt keinen an. |
-| Ein `x86_64`-Host | Verwaltete Bundles brauchen native Images für ihre festgelegte Plattform, und den mitgelieferten Objektspeicher gibt es nur als `linux/amd64`-Image. |
+| Ein `x86_64`-Host für ein Deployment, dessen Dateien noch in MinIO liegen | Verwaltete Bundles brauchen native Images für ihre festgelegte Plattform. Das Image von MinIO gibt es nur für `linux/amd64`; versitygw, der Objektspeicher einer neuen Installation, hat auch eines für `linux/arm64`. |
 | Die Incus-API auf einer Adresse, die das Bridge-Netz des Stacks erreicht | Die CLI und der Sandbox-Spawner wählen sie an (`runtime.incus.endpoint`, standardmäßig das Gateway der Bridge auf Port 8443), etwa nach `incus config set core.https_address <gateway>:8443`. Ihr Serverzertifikat muss sich pinnen lassen: ein eigener Vertrauensanker (`CA:TRUE`), der die Adresse des Endpunkts nennt. |
 | Zugriff vom Host auf die Image-Registries | Incus lädt jedes Image per Digest von `ghcr.io` und Docker Hub oder von den Spiegeln, die die Festlegung nennt. |
 | Einmal root oder Mitglied von `incus-admin` | Nur `tale incus bootstrap` nutzt den lokalen Administrator-Socket. Jeder spätere Befehl nutzt das eingeschränkte Zertifikat. |
@@ -139,10 +139,10 @@ Beide Bridges verwerfen in beide Richtungen, was keine Regel erlaubt, sodass ein
 | `names-to-gateway-udp`, `names-to-gateway-tcp` | Der Resolver des Stacks leitet jeden Namen, den er nicht kennt, an das eigene DNS der Bridge auf Port 53 weiter | Er passiert ebenfalls ohne Regel: `check` fragt nach einem öffentlichen Namen und beurteilt die Antwort |
 | `spawner-to-incus` | Der Spawner erreicht die Incus-API unter `runtime.incus.endpoint` | Geprüft |
 | `spawner-to-sessions` | Der Spawner ruft den Runner jeder Session auf Port 8200 auf | Geprüft |
-| `public-egress` | Backend, Plattform, der Egress-Proxy der Sessions, das Modell-Gateway, der Proxy (für ACME) und der bgutil-Provider erreichen das Internet | Geprüft |
+| `public-egress` | Backend samt Modell-Relay, Plattform, der Egress-Proxy der Sessions, der Proxy (für ACME) und der bgutil-Provider erreichen das Internet | Geprüft |
 | `operator-reach-1`, … | Jedes Ziel, das die Festlegung in `runtime.incus.operatorReach` nennt, etwa ein Inferenz-Router | Für TCP geprüft, für UDP aufgeführt |
 | `public-to-proxy` | Die Öffentlichkeit erreicht den Proxy über den gewählten Eingang | Aufgeführt |
-| `sessions-to-*`, `stack-from-sessions-*`, `sessions-from-spawner` | Eine Session erreicht die Backend-API über den Switch, das Modell-Gateway, den Egress-Proxy und ihren Resolver und sonst nichts; der Spawner erreicht die Sessions | Aufgeführt: Von der Seite des Stacks lässt sich kein Verkehr aus den Sessions senden |
+| `sessions-to-*`, `stack-from-sessions-*`, `sessions-from-spawner` | Eine Session erreicht die Backend-API und ihr Modell-Relay über den Switch, dazu den Egress-Proxy und ihren Resolver und sonst nichts; der Spawner erreicht die Sessions | Aufgeführt: Von der Seite des Stacks lässt sich kein Verkehr aus den Sessions senden |
 
 ## Den Eingang wählen {#ingress}
 
@@ -216,7 +216,7 @@ Fährt der Host herunter, stoppt Incus eine `boot.stop.priority`-Gruppe nach der
 | Priorität | Dienste | Gestoppt |
 | --- | --- | --- |
 | 90 | `proxy`, `switch`, `platform`, `backend-api`, `backend-worker` | Zuerst |
-| 50 | `sandbox`, `sandbox-egress`, `sandbox-llm-gateway`, `bgutil-provider` | Als Zweites |
+| 50 | `sandbox`, `sandbox-egress`, `bgutil-provider` | Als Zweites |
 | 10 | `db`, `knowledge-db`, `object-store`, `names`, `names-sessions` | Zuletzt |
 
 Auf einem Host, der nur Tale betreibt, erhalten die Datenbanken ihr Stoppsignal innerhalb von etwa 60 Sekunden. Die Prioritäten 10 bis 90 sind Tales reservierter Bereich: Jede andere Instanz auf dem Host, die darin stoppt, kostet bis zu 30 Sekunden pro Gruppe, und die Datenbanken können beendet werden, bevor ihr Signal kommt. Der Bootstrap warnt, wenn ein anderes Projekt eine Priorität in diesem Bereich nutzt. Die Grenze von 30 Sekunden verkürzt auch das Abarbeiten eines Workers (`SHUTDOWN_DRAIN_MS`, standardmäßig 90 Sekunden).
@@ -309,12 +309,13 @@ Die Smoke-Checks erreichen den neuen Edge unter `SITE_URL`. NAT-Proxy-Geräte ne
 - `tale stop`, `tale start` und `tale logs` funktionieren in einem Workspace; ein verwaltetes Deployment hat auf Incus keinen davon.
 - Ein Stack läuft auf einem Incus-Server; Incus-Cluster werden abgelehnt.
 - `tale dev` und verbundene Sandbox-Geräte laufen nur auf Docker.
+- Der Umzug der Dateien von MinIO zu versitygw läuft nur auf Docker.
 
 ## Verifizierter Umfang {#verified-scope}
 
 Die End-to-End-Suites der CLI für Incus führen die kompilierte CLI, aus der Änderung gebaut, gegen einen echten Incus-7.6-Knoten mit ZFS-Pool, dem Eingang `routed` und `tlsMode: "external"` aus, mit den Images des Stacks aus demselben Checkout.
 
-Für ein verwaltetes Deployment decken sie ab: den Bootstrap, einen zweiten Bootstrap, der nichts ändert, und die Prüfung mit ihren Proben; `deploy prepare` ohne Docker, den Plan des ersten Deployments und das Deployment selbst, wobei der Stack über seinen Edge antwortet; einen leeren Plan und ein zweites Deployment, das nichts ändert; die Ablehnung eines Upgrades ohne Wiederherstellungs-Snapshot; Logs, die einmal gelesen werden, Absturzschleifen, die mit ihrer Konsole gemeldet werden, einen sauberen Stopp von Postgres und einen abarbeitenden Stopp des Workers; eine Session, die die Backend-API und das Modell-Gateway erreicht und sonst nichts; und kein Geheimnis in irgendeiner Ausgabe.
+Für ein verwaltetes Deployment decken sie ab: den Bootstrap, einen zweiten Bootstrap, der nichts ändert, und die Prüfung mit ihren Proben; `deploy prepare` ohne Docker, den Plan des ersten Deployments und das Deployment selbst, wobei der Stack über seinen Edge antwortet; einen leeren Plan und ein zweites Deployment, das nichts ändert; die Ablehnung eines Upgrades ohne Wiederherstellungs-Snapshot; Logs, die einmal gelesen werden, Absturzschleifen, die mit ihrer Konsole gemeldet werden, einen sauberen Stopp von Postgres und einen abarbeitenden Stopp des Workers; eine Session, die die Backend-API und ihr Modell-Relay erreicht und sonst nichts; und kein Geheimnis in irgendeiner Ausgabe.
 
 Für einen Workspace mit zwei Repliken von `platform` und `backend-api` decken sie ab: 20 Farbwechsel zwischen zwei Releases unter stetigem Verkehr über den Edge, ohne eine fehlgeschlagene Anfrage; offene Event-Streams, die durch das Zurückziehen offen bleiben und sich mit der neuen Farbe neu verbinden; Switch und Resolver des älteren Releases, die weiterlaufen, bis `--stop` sie ersetzt; ein rollierendes Ersetzen mit `--services` und ein Rollback; einen unterbrochenen Farbwechsel, den das nächste Deployment abschließt; einen nativen Snapshot, sein Archiv, Export und Import, eine Wiederherstellung und ihre Historie; eine an jedem Schritt unterbrochene Wiederherstellung, die `tale deploy` und `tale start` ablehnen, bis `--resume` oder `--abort` sie abschließt; ein `reset --all`, das die Snapshots behält; und eine Replik, die neu startet, während sie zurückgezogen ist.
 

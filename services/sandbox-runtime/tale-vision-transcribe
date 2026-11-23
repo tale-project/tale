@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Vision transcriber CLI. Reads an image file and returns its text/contents by
-// delegating to a vision model THROUGH THE PLATFORM GATEWAY — so no raw model
+// delegating to a vision model THROUGH THE PLATFORM'S MODEL RELAY — so no raw model
 // key ever enters the container. Invoked by `tale-vision-read-hook` (the
 // PreToolUse Read hook) to polyfill image reading for a TEXT-ONLY managed agent.
 //
@@ -8,8 +8,8 @@
 //     → prints the extracted text to stdout, exit 0
 //     → on any failure prints a diagnostic to stderr, exit 1
 //
-// It calls the SAME gateway the agent uses, with the session virtual key (which
-// the platform scopes to also allow the vision model). Holds no provider key.
+// It calls the SAME relay the agent uses, with the turn's model key (which the
+// platform scopes to also allow the vision model). Holds no provider key.
 // Dependency-free (Node built-ins only); mirrors the retired tale-vision-mcp.
 
 'use strict';
@@ -17,8 +17,8 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-// The platform LLM gateway root (no trailing slash) + the session virtual key.
-// Both are injected on the exec env by the adapter; the VK is scoped to allow
+// The platform's model relay root (no trailing slash) + the turn's model key.
+// Both are injected on the exec env by the adapter; the key is scoped to allow
 // TALE_VISION_MODEL. Absent ⇒ the vision polyfill is not active for this run.
 const GATEWAY_URL = (process.env.TALE_GATEWAY_URL || '').replace(/\/$/, '');
 const GATEWAY_TOKEN = process.env.TALE_GATEWAY_TOKEN || '';

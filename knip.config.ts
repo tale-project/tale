@@ -70,9 +70,11 @@ export default {
         // entries hides orphan files and unused exports.
         'app/routes/**/*.tsx',
         'scripts/**/*.ts',
-        // Bun production server — invoked by docker-entrypoint.sh, not from
-        // package.json scripts, so knip can't auto-detect it via the npm plugin.
-        'server.ts',
+        // The web role's entry — started by docker-entrypoint.sh, not from
+        // package.json scripts, so knip can't auto-detect it via the npm
+        // plugin. It anchors `server.ts`, which `backend/main.ts` also serves
+        // beside the API.
+        'backend/web-main.ts',
         // Mock gateway (folded in from @tale/mocks): the `start` entry is
         // launched by playwright's webServer (`bun lib/mocks/start.ts`), not
         // imported, so knip can't auto-detect it. It anchors gateway/registry.
@@ -81,6 +83,12 @@ export default {
         // it as a child process (a heap-capped fault boundary), so nothing
         // imports it.
         'lib/engine/runners/node-vm-child.ts',
+        'backend/lib/heavy-slot/heavy-child.ts',
+        // Programs the backend build writes beside the backend
+        // (`scripts/build-backend.ts`), run by path from the image: the check
+        // of what the image holds, and the stack-trace mapper.
+        'backend/image-check.ts',
+        'backend/symbolicate-trace.ts',
         // Data migrations: the boot migrator imports each numbered `.ts` file
         // by the name it reads from the directory (`backend/db/migrate.ts`),
         // so nothing imports them statically.

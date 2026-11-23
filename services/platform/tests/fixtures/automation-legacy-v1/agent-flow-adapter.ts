@@ -3,9 +3,10 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 
 import type * as Harness from '../../../backend/core/chat/external_turn_shared.ts';
-import type * as Provisioning from '../../../backend/core/node_only/sandbox/gateway_provisioning.ts';
+import type { ActionCtx } from '../../../backend/core/lib/ctx.ts';
 import type * as Session from '../../../backend/core/node_only/sandbox/helpers/session_client.ts';
 import type * as Gateway from '../../../backend/core/node_only/sandbox/llm_gateway_admin.ts';
+import type * as Routing from '../../../lib/shared/providers/gateway_routing.ts';
 
 export interface LegacyAgentPorts {
   events: string[];
@@ -53,8 +54,23 @@ export const harnessResumesConversations: typeof Harness.harnessResumesConversat
   () => true;
 export const harnessRequiresSubscriptionAccountId: typeof Harness.harnessRequiresSubscriptionAccountId =
   () => false;
-export const resolveHarnessTurnContextWindow: typeof Harness.resolveHarnessTurnContextWindow =
-  async () => undefined;
+/** The released window resolver's arguments. */
+interface ReleasedContextWindowArgs {
+  organizationId: string;
+  providerSlug: string;
+  modelId: string;
+  sessionId: string;
+  execId: string;
+  kind: 'task-agent' | 'workflow-agent';
+}
+/** The released window resolver: the model's window in tokens, or nothing.
+ * The live one answers the window and the output limit together
+ * (`resolveHarnessTurnModelLimits`); the released flow still calls this port
+ * by its name. */
+export const resolveHarnessTurnContextWindow = async (
+  _ctx: ActionCtx,
+  _args: ReleasedContextWindowArgs,
+): Promise<number | undefined> => undefined;
 export const readMandatoryInstructions: typeof import('../../../backend/core/chat/guardrails.ts').readMandatoryInstructions =
   async () => undefined;
 export const orgSlugFromId: typeof import('../../../backend/core/lib/helpers/org_slug.ts').orgSlugFromId =
@@ -70,12 +86,21 @@ export const ensureAgentSession: typeof import('../../../backend/core/node_only/
     await legacyAgentEvent('session');
     return { liveCreatedAt: undefined };
   };
-/** Takes the released call: the provisioner's arguments before the EU/EEA
- * rule (GOV-R17) named the surface and actor its refusals audit. */
+/** The released provisioner's arguments, before the EU/EEA rule (GOV-R17)
+ * named the surface and actor its refusals audit. The sandbox LLM gateway's
+ * provisioner itself is gone (tale-project/tale#4942); the released flow
+ * still calls this port by its name. */
+interface ReleasedGatewayKeyArgs {
+  organizationId: string;
+  sessionId: string;
+  allowedModels: Routing.AllowedModelRef[];
+  budgetCents: number;
+}
+/** Takes the released call. */
 export const provisionSessionGatewayKey = async (
-  _ctx: Parameters<typeof Provisioning.provisionSessionGatewayKey>[0],
-  _args: Omit<Provisioning.SessionGatewayArgs, 'surface' | 'actor'>,
-): ReturnType<typeof Provisioning.provisionSessionGatewayKey> => {
+  _ctx: ActionCtx,
+  _args: ReleasedGatewayKeyArgs,
+): Promise<{ token: string; keyId: string; keyHash: string }> => {
   await legacyAgentEvent('gateway');
   return {
     token: 'synthetic-only',
@@ -95,7 +120,7 @@ export const revokeVirtualKey: typeof Gateway.revokeVirtualKey = async (
   ports.getStore()?.revokedKeys?.push(keyId);
   await legacyAgentEvent('key-revoked');
 };
-export const resolveGatewayRouting: typeof Gateway.resolveGatewayRouting =
+export const resolveGatewayRouting: typeof Routing.resolveGatewayRouting =
   () => ({
     gatewayProvider: 'fixture',
     gatewayModel: 'fixture/model',

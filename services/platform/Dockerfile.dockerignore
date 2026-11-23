@@ -66,6 +66,7 @@ yarn-error.log*
 # =============================================================================
 *.tsbuildinfo
 **/dist/
+**/backend-dist*/
 **/build/
 **/.output/
 **/.vinxi/

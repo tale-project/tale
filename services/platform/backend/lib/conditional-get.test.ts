@@ -128,7 +128,7 @@ describe('a matching If-None-Match', () => {
   it.each([
     ['the weak form', (t: string) => `W/${t}`],
     [
-      'the gzip-suffixed form the compressing edge hands out',
+      'the gzip-suffixed form a compressing proxy hands out',
       (t: string) => t.replace(/"$/, '-gzip"'),
     ],
     [

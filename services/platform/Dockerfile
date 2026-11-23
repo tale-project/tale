@@ -14,8 +14,9 @@ ARG AUTOMATION_WRITER_PROTOCOL=2
 # Bun binary for all stages
 FROM oven/bun:1.4.2@sha256:9114c058aeae42162ee16dd5084b95fe9473970bb6bcb5b232ab1630f0546895 AS bun-bin
 
-# Node binary for the 0.5 backend roles (api/worker). The backend runs its .ts
-# sources directly via Node's type stripping (>= 22.18); only the binary is
+# Node binary for the backend roles (api/worker). The production image runs
+# the built backend (the backend-build stage) with plain `node`; the dev image
+# runs the .ts sources through Node's type transforming. Only the binary is
 # needed — no npm, no corepack.
 FROM node:22.21.1-bookworm-slim@sha256:25b3eb23a00590b7499f2a2ce939322727fcce1b15fdd69754fcd09536a3ae2c AS node-bin
 
@@ -118,11 +119,17 @@ ENV NODE_ENV=production
 # Build the SPA, then precompile the SEO + LLM artifact set into
 # `dist-seo/`. The runtime stage serves these via @tale/ui's precompiled
 # SEO server, so no source markdown is needed at request time.
+#
+# precompress-dist.ts runs once everything has written into `dist/`: it
+# leaves `app.js.br` and `app.js.gz` beside each bundle, which the web tier
+# sends as they are, so the edge compresses none of the app's files per
+# request (backend-dist/image-check.js fails an image without them).
 WORKDIR /app/services/platform
 RUN bun --bun ../../packages/ui/bin/build-client.ts \
     && bun scripts/check-sw-manifest.ts \
     && bun scripts/check-entry-budget.ts \
     && bun scripts/prerender-boot-shell.tsx \
+    && bun scripts/precompress-dist.ts \
     && bun --bun /app/packages/ui/bin/seo-compile.ts ./scripts/seo.config.ts --out dist-seo
 WORKDIR /app
 
@@ -135,6 +142,21 @@ COPY services/platform/server.ts \
 # 0.5 backend (Hono API + pg-boss worker on Postgres) — server-side only, so
 # copied after the vite build for the same cache reason as server.ts above.
 COPY services/platform/backend ./services/platform/backend
+
+# ============================================================================
+# Stage 2a: Backend build
+# ----------------------------------------------------------------------------
+# The backend as one flat directory of JavaScript, every dependency inlined
+# (scripts/build-backend.ts says what it writes and why): the process holds
+# its code once, minified, instead of every source module as its own script
+# with an inline source map. A stage of its own, so the dev image below, which
+# runs the sources, does not carry it.
+# ============================================================================
+FROM builder AS backend-build
+
+WORKDIR /app/services/platform
+RUN bun scripts/build-backend.ts
+WORKDIR /app
 
 # ============================================================================
 # Stage 2b: Dev (local hot-reload image — NOT used by prod/CI)
@@ -185,7 +207,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 ARG VERSION=dev
 ENV NODE_ENV=development \
     TALE_VERSION=${VERSION} \
-    PORT=3000 \
     HOSTNAME="0.0.0.0" \
     DO_NOT_TRACK=1 \
     TALE_CONFIG_DIR=/app/data \
@@ -272,16 +293,21 @@ RUN HUSKY=0 bun install --production \
 # ============================================================================
 # Stage 4: Runtime
 # ----------------------------------------------------------------------------
-# One image, three roles (TALE_ROLE): the web tier (Vite + TanStack Start) and
-# the backend's api/worker. It therefore carries BOTH toolchains — the SPA
-# server and the media pipeline the ingest lanes shell out to (ffmpeg, yt-dlp
-# + its Deno JS runtime, the bgutil PO-token plugin), which used to live in
-# the retired Convex image.
+# One image, four roles (TALE_ROLE): the web tier alone (`web`), the API with
+# the web tier beside it (`api`), the job queues (`worker`), and the last two
+# in one process (`all`). Each is one node process running the built backend.
+# The image also carries ffmpeg, which the transcription lane shells out to.
+# yt-dlp, its JavaScript runtime and the PO-token plugin are not here: a video
+# link's yt-dlp runs in a sandbox session, and the sandbox runtime image
+# carries them (services/sandbox-runtime/Dockerfile).
 # ============================================================================
 FROM debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587 AS runner
 
 COPY --from=bun-bin /usr/local/bin/bun /usr/local/bin/bun
-# Node runs the 0.5 backend roles (api/worker); Bun keeps running server.ts.
+# Node runs every role. Bun stays for what `tale deploy --bundle` runs inside
+# this container (tools/cli/src/lib/deployment): its provisioning and
+# client-export phases, the local serving probe and the configuration read
+# all start `bun` here. The protocol check below uses it too.
 COPY --from=node-bin /usr/local/bin/node /usr/local/bin/node
 RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx
 
@@ -304,89 +330,27 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && rm -rf /usr/share/doc/* /usr/share/man/* /usr/share/info/*
 
 # ----------------------------------------------------------------------------
-# Media toolchain (video ingest + transcription)
+# Media toolchain (transcription)
 # ----------------------------------------------------------------------------
-# The ingest lanes shell out to these, so they ship WITH the process that runs
-# them — they moved here from the retired Convex image, pins and checksum
-# verification unchanged:
-#   * ffmpeg      — audio extract/compress for the transcription pipeline.
-#   * yt-dlp      — metadata + caption + audio fetch. Pinned so two builds an
-#                   hour apart are byte-identical; ops rebuild ~monthly for
-#                   upstream player fixes. An empty ARG falls back to
-#                   `releases/latest` (handy in dev, discouraged in prod).
-#   * deno        — yt-dlp's JS runtime for the n-challenge solver (>= 2025.11).
-#   * bgutil      — PO-token provider plugin; dissolves YouTube's bot wall on
-#                   datacenter IPs. MUST match the `bgutil-provider` sidecar
-#                   image tag in compose.yml — bump both together.
-# Resolved versions land in /etc/yt-dlp-version + /etc/deno-version.
-ARG YTDLP_VERSION=2026.10.26
-ARG DENO_VERSION=v2.5.4
-ARG BGUTIL_POT_VERSION=1.3.1
+# ffmpeg cuts and compresses what the transcription lane hands a model: an
+# uploaded recording, and a video link's sound, which arrives as the platform
+# served it.
+#
+# A video link's yt-dlp does not run here. It fetches pages and streams from
+# whatever a member pastes and runs a platform's JavaScript to get at them, so
+# it runs in a sandbox session (tale-project/tale#4942). The pinned yt-dlp, its
+# JavaScript runtime and the PO-token plugin are in the sandbox runtime image
+# (services/sandbox-runtime/Dockerfile), which is where to bump them.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get -o Acquire::Retries=3 update \
-    && apt-get install -y --no-install-recommends unzip jq ffmpeg \
-    # yt-dlp: per-arch asset selection + SHA256 verification against the
-    # release's official SHA2-256SUMS. Asset names are yt-dlp's own, NOT
-    # dpkg arch names.
-    && YTDLP_DPKG_ARCH="$(dpkg --print-architecture)" \
-    && case "$YTDLP_DPKG_ARCH" in \
-        amd64) YTDLP_ASSET="yt-dlp_linux" ;; \
-        arm64) YTDLP_ASSET="yt-dlp_linux_aarch64" ;; \
-        *) echo "Unsupported arch for yt-dlp: $YTDLP_DPKG_ARCH" >&2; exit 1 ;; \
-       esac \
-    # Resolve the `latest` redirect to a concrete tag ONCE, then build asset +
-    # checksum URLs from it, so a release cut between curls cannot land a
-    # mismatched binary/sums pair.
-    && if [ -z "$YTDLP_VERSION" ]; then \
-        YTDLP_TAG=$(curl -fsSLI -o /dev/null -w '%{url_effective}' https://github.com/yt-dlp/yt-dlp/releases/latest | awk -F/ '{print $NF}'); \
-       else \
-        YTDLP_TAG="$YTDLP_VERSION"; \
-       fi \
-    && curl -fsSL "https://github.com/yt-dlp/yt-dlp/releases/download/${YTDLP_TAG}/${YTDLP_ASSET}" -o /usr/local/bin/yt-dlp \
-    && curl -fsSL "https://github.com/yt-dlp/yt-dlp/releases/download/${YTDLP_TAG}/SHA2-256SUMS" -o /tmp/yt-dlp.sums \
-    && (cd /usr/local/bin && grep "  ${YTDLP_ASSET}$" /tmp/yt-dlp.sums | sed "s|  ${YTDLP_ASSET}$|  yt-dlp|" | sha256sum -c -) \
-    && chmod 0755 /usr/local/bin/yt-dlp \
-    && echo "$YTDLP_TAG" > /etc/yt-dlp-version \
-    && rm -f /tmp/yt-dlp.sums \
-    # Deno: per-arch zip + checksum verify against a single resolved tag. The
-    # upstream `.sha256sum` references the original asset filename, so keep it.
-    && DENO_DPKG_ARCH="$(dpkg --print-architecture)" \
-    && case "$DENO_DPKG_ARCH" in \
-        amd64) DENO_ASSET="deno-x86_64-unknown-linux-gnu.zip" ;; \
-        arm64) DENO_ASSET="deno-aarch64-unknown-linux-gnu.zip" ;; \
-        *) echo "Unsupported arch for deno: $DENO_DPKG_ARCH" >&2; exit 1 ;; \
-       esac \
-    && if [ -z "$DENO_VERSION" ]; then \
-        DENO_TAG=$(curl -fsSLI -o /dev/null -w '%{url_effective}' https://github.com/denoland/deno/releases/latest | awk -F/ '{print $NF}'); \
-       else \
-        DENO_TAG="$DENO_VERSION"; \
-       fi \
-    && curl -fsSL "https://github.com/denoland/deno/releases/download/${DENO_TAG}/${DENO_ASSET}" -o "/tmp/${DENO_ASSET}" \
-    && curl -fsSL "https://github.com/denoland/deno/releases/download/${DENO_TAG}/${DENO_ASSET}.sha256sum" -o /tmp/deno.sums \
-    && (cd /tmp && sha256sum -c deno.sums) \
-    && unzip -q "/tmp/${DENO_ASSET}" -d /usr/local/bin \
-    && chmod 0755 /usr/local/bin/deno \
-    && echo "$DENO_TAG" > /etc/deno-version \
-    && rm -f "/tmp/${DENO_ASSET}" /tmp/deno.sums \
-    # bgutil plugin: unzipped under a NAMED child of the `--plugin-dirs` root.
-    # yt-dlp iterdir()s that root and looks for `yt_dlp_plugins/` under each
-    # child, so unzipping straight into the root loads ZERO providers.
-    # Presence of `/opt/yt-dlp/plugins` also flips the zero-config default in
-    # the ingest lane (HAS_BAKED_YTDLP_PLUGIN).
-    && mkdir -p /opt/yt-dlp/plugins/bgutil \
-    && curl -fsSL "https://github.com/Brainicism/bgutil-ytdlp-pot-provider/releases/download/${BGUTIL_POT_VERSION}/bgutil-ytdlp-pot-provider.zip" -o /tmp/bgutil-pot.zip \
-    && echo "b8ceec7f76143da172aaf5ebeec0c2d218e5680c063b931586bca48567069b38  /tmp/bgutil-pot.zip" | sha256sum -c - \
-    && unzip -q /tmp/bgutil-pot.zip -d /opt/yt-dlp/plugins/bgutil \
-    && rm -f /tmp/bgutil-pot.zip \
-    && echo "${BGUTIL_POT_VERSION}" > /etc/bgutil-pot-version \
-    # unzip was only needed for the Deno + bgutil archives.
-    && apt-get purge -y unzip \
-    && apt-get autoremove -y \
+    && apt-get install -y --no-install-recommends jq ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
+# No PORT: it names the API's port (3005 unless set), and the web tier's own
+# is APP_PORT (3000 unless set). Baked, one value would reach both listeners
+# of a process that serves the two.
 ENV NODE_ENV=production \
-    PORT=3000 \
     HOSTNAME="0.0.0.0" \
     # Origin the in-sandbox daemons use to fetch staged blobs — the
     # sandbox-net alias, read via process.env in toSandboxStorageUrl()
@@ -422,15 +386,24 @@ COPY --from=builder --chown=app:app \
      /app/services/platform/status-probe.ts \
      ./
 COPY --from=builder --chown=app:app /app/services/platform/lib ./lib
-# 0.5 backend sources (run unbundled by Node via type stripping; role dispatch
-# in docker-entrypoint.sh execs `node /app/backend/main.ts`).
+# The built backend: docker-entrypoint.sh execs `node /app/backend-dist/main.js`
+# for the api, worker and all roles and `web-main.js` for the web role. It
+# sits beside `messages/`, `dist/` and `dist-seo/`, which it reads from one
+# level up (backend/lib/layout.ts).
+COPY --from=backend-build --chown=app:app /app/services/platform/backend-dist ./backend-dist
+# No role reads these sources any more: the web tier, the last one that ran
+# unbundled, starts from the build above. `tale deploy --bundle` still does.
+# Its provisioning and client-export phases run the CLI's interpreted bundle
+# under this image's bun and import the backend's own auth and database
+# modules from here, with `better-auth` and `postgres` out of node_modules
+# (tools/cli/src/lib/deployment/native-client.ts names the paths). The
+# sources, node_modules and bun leave the image together, once those phases
+# start from a built entry.
 COPY --from=builder --chown=app:app /app/services/platform/backend ./backend
 COPY --from=builder --chown=app:app /app/services/platform/messages ./messages
 COPY --from=pruner --chown=app:app /app/node_modules ./node_modules
-# Workspace packages backing the `@tale/*` symlinks in node_modules. The
-# platform runs `bun server.ts` unbundled, so server-side imports of
-# `@tale/ui/seo/*` resolve at runtime through these directories — the
-# docs + web Dockerfiles bundle their server.ts and don't need this.
+# Workspace packages backing the `@tale/*` symlinks in node_modules: the
+# backend's sources import `@tale/shared/*` through them.
 COPY --from=builder --chown=app:app /app/packages ./packages
 COPY --from=builder --chown=app:app /app/services/platform/package.json ./
 # Knowledge-corpus DDL. Preparing a NEW corpus (the deployment default on
@@ -465,9 +438,16 @@ RUN test "$(bun -e 'import { ENGINE_PROTOCOL } from "./lib/engine/core/protocol.
 
 # Keep version metadata after filesystem work so new releases reuse its layers.
 # Re-declare VERSION arg (ARGs don't persist after FROM)
+#
+# io.tale.app-in-backend says the `api` and `all` roles serve the built app
+# beside the API. `tale deploy` reads it to start a colour as one `platform`
+# process, where an image without it gets the three services it needs
+# (tools/cli/src/lib/compose/app-tier.ts). The dev stage does not carry it:
+# there the app is the `web` role's own dev server.
 ARG VERSION=dev
 LABEL org.opencontainers.image.version="${VERSION}" \
       io.tale.automation-writer-protocol="${AUTOMATION_WRITER_PROTOCOL}" \
+      io.tale.app-in-backend="1" \
       org.opencontainers.image.title="tale-platform" \
       org.opencontainers.image.description="Tale Platform — Vite SPA and Postgres backend (web, API and worker roles)" \
       org.opencontainers.image.source="https://github.com/tale-project/tale" \
@@ -488,8 +468,8 @@ CMD ["/app/docker-entrypoint.sh"]
 # Incus runs /init as PID 1 and halts a container with SIGPWR, or SIGRTMIN+3
 # when PID 1 blocks it; the runtime rewrites both to the stop signal. Docker
 # never runs it: the ENTRYPOINT below is unchanged. patches/README.md says why
-# and when it goes. Byte-identical in the six stack images (db, platform,
-# proxy, sandbox, sandbox-egress, sandbox-llm-gateway), held by
+# and when it goes. Byte-identical in the five stack images (db, platform,
+# proxy, sandbox, sandbox-egress), held by
 # tools/cli/scripts/oci-image-metadata.test.ts.
 # =============================================================================
 FROM alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc AS tale-init
@@ -521,6 +501,7 @@ ARG VERSION=dev
 ARG AUTOMATION_WRITER_PROTOCOL
 LABEL org.opencontainers.image.version="${VERSION}" \
       io.tale.automation-writer-protocol="${AUTOMATION_WRITER_PROTOCOL}" \
+      io.tale.app-in-backend="1" \
       org.opencontainers.image.title="tale-platform" \
       org.opencontainers.image.description="Tale Platform — Vite SPA and Postgres backend (web, API and worker roles)" \
       org.opencontainers.image.source="https://github.com/tale-project/tale" \
@@ -544,7 +525,6 @@ USER root
 # blocks equal.
 ENV NODE_ENV=production \
     TALE_VERSION=${VERSION} \
-    PORT=3000 \
     HOSTNAME="0.0.0.0" \
     DO_NOT_TRACK=1 \
     TALE_CONFIG_DIR=/app/data \

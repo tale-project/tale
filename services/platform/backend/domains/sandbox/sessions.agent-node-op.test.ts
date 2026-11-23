@@ -12,6 +12,8 @@ const operations = [
     liveTimeline: [{ type: 'text', text: 'SECOND_TRANSCRIPT' }],
     modelRef: null,
     visionModelRef: null,
+    harness: 'pi',
+    harnessReason: 'default',
     startedAt: 2,
     finishedAt: 3,
     lastEventAt: 3,
@@ -23,6 +25,8 @@ const operations = [
     liveTimeline: [{ type: 'text', text: 'FIRST_TRANSCRIPT' }],
     modelRef: null,
     visionModelRef: null,
+    harness: null,
+    harnessReason: null,
     startedAt: 1,
     finishedAt: 2,
     lastEventAt: 2,
@@ -166,6 +170,31 @@ describe('agent-node sandbox operation selection', () => {
         runId: 'run-1',
       }),
     ).toMatchObject({ execId: 'review-exec' });
+  });
+
+  it('names the runtime the step ran on and why, as its op recorded them', async () => {
+    const { sql, statements } = database(completedRun);
+    expect(
+      await getAgentNodeSandboxOp(sql, {
+        organizationId: 'org-1',
+        runId: 'run-1',
+        nodeId: 'review_report',
+      }),
+    ).toMatchObject({
+      execId: 'review-exec',
+      harness: 'pi',
+      harnessLabel: 'Pi',
+      harnessReason: 'default',
+    });
+    expect(statements[1]?.text).toContain('harness_reason');
+    // An op written before ops recorded either says nothing of them.
+    const draft = await getAgentNodeSandboxOp(database(completedRun).sql, {
+      organizationId: 'org-1',
+      runId: 'run-1',
+      nodeId: 'draft_report',
+    });
+    expect(draft).not.toHaveProperty('harness');
+    expect(draft).not.toHaveProperty('harnessReason');
   });
 
   it('does not query operations for a missing or foreign-organization run [SBX-R4]', async () => {

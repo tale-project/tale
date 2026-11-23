@@ -22,7 +22,7 @@ Choose Incus when a host already runs Incus for other workloads, or when you wan
 | A Linux host with Incus 7.2 or later, not a cluster member | The CLI needs the API extensions `instance_oci`, `instance_oci_entrypoint`, `oci_network_config`, `storage_shifted`, `storage_initial_owner`, `file_storage_volume`, `projects_restricted_backups_and_snapshots`, `projects_restricted_image_servers` and `instance_auto_restart`, and refuses a server that lacks one or is clustered. |
 | Linux 5.12 or later with idmapped mounts | Every volume of the stack is mounted shifted (`security.shifted`), which needs idmapped mounts. |
 | A storage pool on `zfs`, `btrfs` or `lvm` | These drivers enforce a volume's size. A ZFS pool needs OpenZFS 2.2 or later, whose datasets support idmapped mounts. Bootstrap uses the pool you made when you installed Incus and makes none. |
-| An `x86_64` host | Managed bundles need native images for their declared platform, and the bundled object store ships only a `linux/amd64` image. |
+| An `x86_64` host for a deployment whose files are still in MinIO | Managed bundles need native images for their declared platform. MinIO's image exists only for `linux/amd64`; versitygw, the store of a new install, has one for `linux/arm64` too. |
 | The Incus API on an address the stack's bridge reaches | The CLI and the sandbox spawner dial it (`runtime.incus.endpoint`, by default the bridge gateway on port 8443), for example after `incus config set core.https_address <gateway>:8443`. Its server certificate must be pinnable: its own trust anchor (`CA:TRUE`) that names the endpoint's address. |
 | Pull access from the host to the image registries | Incus pulls each image by digest from `ghcr.io` and Docker Hub, or from the mirrors the declaration names. |
 | Root or membership of `incus-admin`, once | Only `tale incus bootstrap` uses the local administrator socket. Every later command uses the restricted certificate. |
@@ -139,10 +139,10 @@ Both bridges drop what no rule allows, in both directions, so a missing rule tim
 | `names-to-gateway-udp`, `names-to-gateway-tcp` | The stack's resolver forwards every name it does not hold to the bridge's own DNS on port 53 | It passes without a rule too: check asks it a public name and judges the answer |
 | `spawner-to-incus` | The spawner reaches the Incus API at `runtime.incus.endpoint` | Probed |
 | `spawner-to-sessions` | The spawner calls each session's runner on port 8200 | Probed |
-| `public-egress` | The backend, the platform, the sessions' egress proxy, the model gateway, the proxy (for ACME) and the bgutil provider reach the internet | Probed |
+| `public-egress` | The backend with its model relay, the platform, the sessions' egress proxy, the proxy (for ACME) and the bgutil provider reach the internet | Probed |
 | `operator-reach-1`, … | Each destination the declaration names in `runtime.incus.operatorReach`, such as an inference router | Probed for TCP, listed for UDP |
 | `public-to-proxy` | The public reaches the proxy, through the ingress you chose | Listed |
-| `sessions-to-*`, `stack-from-sessions-*`, `sessions-from-spawner` | A session reaches the backend API through the switch, the model gateway, the egress proxy and its resolver, and nothing else; the spawner reaches the sessions | Listed: the stack's side cannot send traffic from the sessions |
+| `sessions-to-*`, `stack-from-sessions-*`, `sessions-from-spawner` | A session reaches the backend API and its model relay through the switch, the egress proxy and its resolver, and nothing else; the spawner reaches the sessions | Listed: the stack's side cannot send traffic from the sessions |
 
 ## Choose the ingress {#ingress}
 
@@ -216,7 +216,7 @@ When the host shuts down, Incus stops one `boot.stop.priority` group at a time, 
 | Priority | Services | Stopped |
 | --- | --- | --- |
 | 90 | `proxy`, `switch`, `platform`, `backend-api`, `backend-worker` | First |
-| 50 | `sandbox`, `sandbox-egress`, `sandbox-llm-gateway`, `bgutil-provider` | Second |
+| 50 | `sandbox`, `sandbox-egress`, `bgutil-provider` | Second |
 | 10 | `db`, `knowledge-db`, `object-store`, `names`, `names-sessions` | Last |
 
 On a host that runs only Tale, the databases get their stop signal within about 60 seconds. Priorities 10 to 90 are Tale's reserved band: every other instance on the host that stops inside it adds up to 30 seconds per group, and the databases can be killed before their signal. Bootstrap warns when another project uses a priority in that band. The 30-second limit also cuts a worker's drain (`SHUTDOWN_DRAIN_MS`, 90 seconds by default) short.
@@ -309,12 +309,13 @@ The smoke checks reach the new edge at `SITE_URL`. NAT proxy devices take no tra
 - `tale stop`, `tale start` and `tale logs` work in a workspace; a managed deployment has none of them on Incus.
 - One stack runs on one Incus server; Incus clusters are refused.
 - `tale dev` and connected sandbox devices run on Docker only.
+- Files move from MinIO to versitygw on Docker only.
 
 ## Verified scope {#verified-scope}
 
 The CLI's Incus end-to-end suites run the compiled CLI, built from the change, against a real Incus 7.6 node with a ZFS pool, the `routed` ingress and `tlsMode: "external"`, with the stack's images built from the same checkout.
 
-For a managed deployment they cover the bootstrap, a second bootstrap that changes nothing, and the check with its probes; `deploy prepare` without Docker, the first deploy's plan and the deploy itself, with the stack answering through its edge; an empty plan and a second deploy that changes nothing; the refusal of an upgrade without a recovery snapshot; logs read once, crash loops reported with their console, a clean stop of Postgres and a draining stop of the worker; a session that reaches the backend API and the model gateway and nothing else; and no secret in any output.
+For a managed deployment they cover the bootstrap, a second bootstrap that changes nothing, and the check with its probes; `deploy prepare` without Docker, the first deploy's plan and the deploy itself, with the stack answering through its edge; an empty plan and a second deploy that changes nothing; the refusal of an upgrade without a recovery snapshot; logs read once, crash loops reported with their console, a clean stop of Postgres and a draining stop of the worker; a session that reaches the backend API and its model relay and nothing else; and no secret in any output.
 
 For a workspace with two replicas of `platform` and `backend-api` they cover 20 colour flips between two releases under steady traffic through the edge, with no failed request; open event streams that stay open through the withdrawal and reconnect to the new colour; a switch and resolvers of the older release kept running until `--stop` replaces them; a rolling `--services` replacement and a rollback; an interrupted flip that the next deploy finishes; a native snapshot, its archive, an export and import, a restore and its history; a restore interrupted at each step, refused by `tale deploy` and `tale start` until `--resume` or `--abort` finishes it; a `reset --all` that keeps the snapshots; and a replica restarted while it is withdrawn.
 

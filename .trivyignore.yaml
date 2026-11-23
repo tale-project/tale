@@ -39,6 +39,16 @@ misconfigurations:
       services/sandbox-egress/Dockerfile.
   - id: AVD-DS-0002
     paths:
+      - 'services/proxy/Dockerfile'
+    statement: |
+      One image, two roles chosen by the command (services/proxy/tale-proxy),
+      so one USER would hold for both. In its docker-api role nginx's workers
+      must open the mounted /var/run/docker.sock, so they run as root
+      (services/proxy/docker-api/nginx.conf); that service publishes no port,
+      shares its network only with the edge, and answers only the reads
+      Traefik's Docker provider makes.
+  - id: AVD-DS-0002
+    paths:
       - 'services/sandbox-buildkitd/Dockerfile'
     statement: |
       Shared buildkitd needs root + --privileged for the mount/namespace ops a

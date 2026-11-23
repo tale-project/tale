@@ -34,7 +34,6 @@ import {
   vendorEuEndpoint,
 } from '../../../lib/chat/serving.ts';
 import { AppError } from '../../../lib/shared/errors/app-error.ts';
-import { isStandardGatewayProvider } from '../../../lib/shared/providers/gateway_standard_providers.ts';
 import type { ActionCtx } from '../lib/ctx.ts';
 import { internal } from '../lib/handler_names.ts';
 
@@ -128,13 +127,8 @@ export function isModelEndpointRefusalCode(
   );
 }
 
-/** Why the rule refused a call: its endpoint's verdict, or `gateway-builtin`
- * for a call through the model gateway's built-in connection to a vendor,
- * which goes to the vendor's own endpoint whatever endpoint the provider
- * names. */
-export type ModelEndpointRefusalReason =
-  | EuProcessingRefusal
-  | 'gateway-builtin';
+/** Why the rule refused a call: its endpoint's verdict. */
+export type ModelEndpointRefusalReason = EuProcessingRefusal;
 
 export interface ModelEndpointRefusalData {
   readonly code: ModelEndpointRefusalCode;
@@ -266,25 +260,6 @@ export function moderationEndpointRefusal(
   });
 }
 
-/** {@link modelEndpointRefusal} for a call through the model gateway's
- * built-in connection to a vendor (a standard gateway provider). The gateway
- * owns that connection's endpoint — the vendor's own, never the one the
- * provider names — so the rule cannot tell where it processes and refuses
- * it. */
-export function gatewayBuiltinRefusal(
-  policy: ModelEndpointPolicy,
-  providerName: string,
-): ModelEndpointRefusalData | undefined {
-  if (policy.kind === 'open') return undefined;
-  if (policy.kind === 'unreadable') return unreadableRefusal(providerName);
-  return {
-    code: 'MODEL_ENDPOINT_OUTSIDE_EU',
-    message: `${EU_RULE}, and the model gateway reaches the provider "${providerName}" through its built-in connection, which calls the vendor's own endpoint rather than the one the provider names, so the call was not sent. An admin can serve the model through a custom provider whose endpoint processes in the EU/EEA.`,
-    provider: providerName,
-    reason: 'gateway-builtin',
-  };
-}
-
 /** Why a list of models a person picks from left some out (GOV-R22): their
  * endpoints may process outside the EU/EEA (`eu`), or the policy cannot be
  * read, so every model is left out (`unreadable`). The chooser says which. */
@@ -295,8 +270,8 @@ export type HiddenModelsRule = 'eu' | 'unreadable';
  * model chooser offers, so no one picks a model only to have the call
  * refused (GOV-R22) — and, when it left any out, why. `refusalOf` asks the
  * gate for one candidate: {@link modelEndpointRefusal} on the endpoint the
- * call would go to, or {@link gatewayBuiltinRefusal} for the model gateway's
- * built-in connection. Open, the list is returned as it was.
+ * call would go to, or {@link relayModelRefusal} for a model the model relay
+ * serves. Open, the list is returned as it was.
  */
 export function withoutRefusedModels<T>(
   policy: ModelEndpointPolicy,
@@ -312,22 +287,18 @@ export function withoutRefusedModels<T>(
     : { kept, hiddenBy: policy.kind };
 }
 
-/** {@link modelEndpointRefusal} for a model the sandbox's model gateway
- * serves, judged by the record the gateway calls it through
- * (`resolveGatewayRouting`): a standard gateway provider's shared record
- * rides the built-in connection ({@link gatewayBuiltinRefusal}), but on the
- * Anthropic harness lane; every other record calls the connector's own
- * endpoint, on that lane its native Anthropic endpoint when it declares one,
- * else its base URL. So OpenRouter passes only on a record pointed at
- * eu.openrouter.ai. */
-export function gatewayModelRefusal(
+/** {@link modelEndpointRefusal} for a model the model relay serves (a
+ * coding agent's turn, a model endpoint's request), judged by the endpoint
+ * the relay calls it at (`domains/llm_relay/endpoint.ts`): on the Anthropic
+ * harness lane the connector's native Anthropic endpoint when it declares
+ * one, else its base URL — a standard provider's as much as a custom one's,
+ * since the relay calls each at the endpoint it names. So OpenRouter passes
+ * where it is pointed at eu.openrouter.ai. */
+export function relayModelRefusal(
   policy: ModelEndpointPolicy,
   connector: Pick<ProviderDefinition, 'name' | 'baseUrl' | 'harnessEndpoint'>,
   anthropicHarnessLane = false,
 ): ModelEndpointRefusalData | undefined {
-  if (isStandardGatewayProvider(connector.name) && !anthropicHarnessLane) {
-    return gatewayBuiltinRefusal(policy, connector.name);
-  }
   return modelEndpointRefusal(policy, {
     providerName: connector.name,
     baseUrl:

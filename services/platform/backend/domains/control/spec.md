@@ -4,8 +4,9 @@
 
 The control endpoint is what `tale deploy`, `tale migrate` and `tale auth reset-owner` call on a
 running deployment. Nobody signs in to it: a call is let in by the deployment's control token
-alone. These rules cover who can call it and how a drain before a deploy behaves. Owner
-recovery and re-seeding organizations are not covered; see Not yet.
+alone. These rules cover who can call it, how a drain before a deploy behaves, and what a
+deploy reads before it retires the model gateway an earlier release ran. Owner recovery and
+re-seeding organizations are not covered; see Not yet.
 
 ## Who can call the control endpoint
 
@@ -56,6 +57,30 @@ drain active, nothing of either is counted.
 - **Example**: A deploy drains blue while Noah's nightly import is on its third step on a blue
   worker → the drain counts the run until blue hands it on after that step, and green continues
   it with the fourth.
+
+## Retiring the model gateway
+
+The model relay in the backend serves every agent turn and every call of an API key. Before it,
+an earlier release ran a model gateway of its own, and the keys that gateway minted still settle
+there: a key's spend is read at the gateway, then the key is revoked there. A deploy removes the
+gateway once none of its keys is open, and keeps its data either way. A key stays open while
+something will still read or revoke it at the gateway:
+
+| What holds the key open                                       | Why it counts                                                                                                      |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| A turn whose spend is not booked, or whose key is not revoked | its own settle, its retry and the sandbox's sweep read the spend at the gateway, then revoke the key there         |
+| A key a session still holds while the session is live         | the session's end (it expires, stops, is destroyed or deleted) revokes every key it holds                          |
+| A key a deleted organization's teardown still has to revoke   | the organization's records are gone, and its teardown revokes the key at the gateway until it succeeds or gives up |
+
+### CTRL-R6 · A deploy can ask how many keys the model gateway still has open
+
+The answer counts each key once, whatever holds it. A key the model relay minted never counts,
+and neither does a key a session left behind once it ended: only its turn, counted on its own,
+still tries to revoke it.
+
+- **Example**: Ada deploys while Noah's agent turn, started on a gateway key before the
+  upgrade, still runs → the answer is 1, and the gateway stays. Once the turn's spend is booked
+  and its key revoked, Ada's next deploy reads 0 and removes the gateway.
 
 ## Not yet
 

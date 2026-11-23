@@ -40,11 +40,40 @@ export const DEFAULT_SESSION_PROFILE: SessionAgentProfileConfig = {
   gid: 65534,
 };
 
+/**
+ * The most a `default` session's creator may ask one file to weigh: 2 GiB,
+ * the platform's largest media upload. The profile's own 100 MiB is the cap
+ * of a session that runs someone's code or renders a page; a session the
+ * platform runs a download in (a video's sound, which platforms serve in
+ * fragments of no declared size) asks for what the download may come to.
+ */
+export const SESSION_MAX_FILE_BYTES_CEILING = 2 * 1024 * 1024 * 1024;
+
+/**
+ * A session's resource limits: its profile's, and for a `default` session
+ * the per-file size its creator asked for (`maxFileBytes`, validated at the
+ * route). An agent session keeps the deployment's configured cap. The Docker
+ * and Incus launchers both ask here, so a limit cannot differ between them;
+ * Kubernetes sets no per-file limit, and bounds a session's files by the size
+ * of its workspace alone.
+ */
+export function sessionLimits(
+  cfg: Pick<SpawnerConfig, 'session'>,
+  profile: SandboxSessionProfile,
+  docker: boolean,
+  maxFileBytes?: number,
+): SessionAgentProfileConfig {
+  if (isAgentSessionProfile(profile)) return sessionAgentProfile(cfg, docker);
+  return maxFileBytes === undefined
+    ? DEFAULT_SESSION_PROFILE
+    : { ...DEFAULT_SESSION_PROFILE, fsizeBytes: maxFileBytes };
+}
+
 /** What a session reaches directly instead of through the egress proxy: the
- * loopback, the LLM gateway and the backend origin (the connector bridge and
- * the staging callback). The Docker and Incus launchers set it as NO_PROXY. */
-export const SESSION_NO_PROXY =
-  '127.0.0.1,localhost,sandbox-llm-gateway,backend-api,backend-relay';
+ * loopback and the backend origin — the model relay, the connector bridge
+ * and the staging callback. The Docker and Incus launchers set it as
+ * NO_PROXY. */
+export const SESSION_NO_PROXY = '127.0.0.1,localhost,backend-api,backend-relay';
 
 /**
  * Does a session resolve the egress proxy's address once at boot and keep

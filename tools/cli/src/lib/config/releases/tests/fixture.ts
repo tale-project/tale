@@ -1,4 +1,4 @@
-import { afterEach } from 'bun:test';
+import { onTestFinished } from 'bun:test';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -10,14 +10,17 @@ import { repoPath } from '../identity';
 import { buildRelease, type BuildOptions } from '../release';
 import { fixtureGit } from './fixture-git';
 
-const roots: string[] = [];
-afterEach(() => {
-  for (const root of roots.splice(0))
-    rmSync(root, { recursive: true, force: true });
-});
+/**
+ * A directory of its own for the test that asks, removed when that test
+ * finishes, failed or not. Per test, not per file: bun evaluates this module
+ * once per run, so an `afterEach` registered here belonged to the first test
+ * file that imported it, and the directories of every later file's tests
+ * outlived the run, thousands per run of the suite, until /tmp ran out of
+ * inodes. Bun's test runner fires no `exit` listener either.
+ */
 export function temporary(): string {
   const root = mkdtempSync(path.join(tmpdir(), 'tale-config-test-'));
-  roots.push(root);
+  onTestFinished(() => rmSync(root, { recursive: true, force: true }));
   return root;
 }
 export function fixture(

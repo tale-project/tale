@@ -13,11 +13,12 @@ name: Load
 #
 # The agent-burst profile asks what such a host holds instead: a hosted
 # runner is the 4 vCPU / 16 GB host of #3977. It adds the sandbox control
-# plane built from this checkout (the spawner, its egress proxy and the LLM
-# gateway, beside the host's api as `bun dev` runs them), starts 12 agent runs
-# across 7 agents within 30 s whose turns each hold 2 GiB and a CPU, and fails
-# when the host or the platform did not hold the burst (tools/load/README.md,
-# "Agent burst"). The users, ramp, hold and think inputs do not apply to it.
+# plane built from this checkout (the spawner and its egress proxy, beside
+# the host's api, whose model relay answers the sessions' model calls, as
+# `bun dev` runs them), starts 12 agent runs across 7 agents within 30 s
+# whose turns each hold 2 GiB and a CPU, and fails when the host or the
+# platform did not hold the burst (tools/load/README.md, "Agent burst").
+# The users, ramp, hold and think inputs do not apply to it.
 
 on:
   workflow_dispatch:
@@ -87,7 +88,8 @@ jobs:
       THINK_SCALE: ${{ inputs.think_scale }}
       # The agent-burst profile's first api listens where the sandbox relay
       # forwards (compose.dev.yml's backend-relay), on every interface so the
-      # relay and the LLM gateway reach it and the mock from their bridges.
+      # relay reaches it and its model relay from its bridge; the mock, which
+      # the api calls at the bridge's address, listens on every one too.
       BASE_PORT: ${{ inputs.profile == 'agent-burst' && '3005' || '4105' }}
       LISTEN_HOST: ${{ inputs.profile == 'agent-burst' && '0.0.0.0' || '127.0.0.1' }}
 
@@ -226,22 +228,6 @@ jobs:
             type=registry,ref=ghcr.io/tale-project/tale/tale-sandbox-egress-buildcache:amd64
           provenance: false
 
-      - name: Build the sandbox LLM gateway
-        if: env.PROFILE == 'agent-burst'
-        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
-        with:
-          context: .
-          file: services/sandbox-llm-gateway/Dockerfile
-          platforms: linux/amd64
-          push: false
-          load: true
-          tags: ghcr.io/tale-project/tale/tale-sandbox-llm-gateway:load
-          build-args: VERSION=load
-          cache-from: |
-            type=gha,scope=sandbox-llm-gateway
-            type=registry,ref=ghcr.io/tale-project/tale/tale-sandbox-llm-gateway-buildcache:amd64
-          provenance: false
-
       - name: Build the sandbox runtime
         if: env.PROFILE == 'agent-burst'
         uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
@@ -276,16 +262,19 @@ jobs:
           docker run -d --name tale-load-db --shm-size 1g -p 127.0.0.1:5432:5432 \
             -e DB_PASSWORD="$LOAD_DB_PASSWORD" -e DB_MAX_CONNECTIONS=400 \
             -e DB_SHARED_BUFFERS=1GB -e DB_EFFECTIVE_CACHE_SIZE=4GB tale-db:load
-          docker run -d --name tale-load-object-store -p 127.0.0.1:9000:9000 \
-            -e MINIO_ROOT_USER="$LOAD_S3_ACCESS_KEY" -e MINIO_ROOT_PASSWORD="$LOAD_S3_SECRET_KEY" \
-            -e MINIO_BROWSER=off "$OBJECT_STORE_IMAGE" server /data --address ':9000'
+          # versitygw, as compose starts it: on a volume (it refuses a
+          # directory that is not there, and keeps an object's metadata in
+          # extended attributes), answering its health path.
+          docker run -d --name tale-load-object-store -p 127.0.0.1:9000:9000 -v /data \
+            -e ROOT_ACCESS_KEY="$LOAD_S3_ACCESS_KEY" -e ROOT_SECRET_KEY="$LOAD_S3_SECRET_KEY" \
+            "$OBJECT_STORE_IMAGE" --port :9000 --health /_health --quiet posix --fsync /data
           for _ in $(seq 1 90); do
             if docker exec tale-load-db test -f /tmp/.db_ready; then break; fi
             sleep 2
           done
           docker exec tale-load-db test -f /tmp/.db_ready || { echo '::error::tale-db never became ready'; exit 1; }
           for _ in $(seq 1 60); do
-            if curl --connect-timeout 2 --max-time 5 -sf -o /dev/null http://127.0.0.1:9000/minio/health/ready; then break; fi
+            if curl --connect-timeout 2 --max-time 5 -sf -o /dev/null http://127.0.0.1:9000/_health; then break; fi
             sleep 1
           done
 
@@ -293,9 +282,9 @@ jobs:
       # prepare one. Swap goes off: the burst judges whether the host's memory
       # held, and the runner's swap file would turn a shortage into slowness.
       # The kernel log, which names any OOM kill, is opened to the job's user.
-      # The runner's own interface drops what reaches the api's ports and the
-      # mock's two (its door and its metrics), so only the runner and its
-      # containers reach them.
+      # The runner's own interface drops what reaches the api's ports (its
+      # model relay's among them) and the mock's two (its door and its
+      # metrics), so only the runner and its containers reach them.
       - name: Prepare the host for the agent burst
         if: env.PROFILE == 'agent-burst'
         run: |
@@ -312,7 +301,7 @@ jobs:
           echo "BRIDGE_IP=$bridge_ip" >> "$GITHUB_ENV"
           iface="$(ip -o route show default | awk '{ print $5; exit }')"
           sudo iptables -I INPUT -i "$iface" -p tcp -m multiport \
-            --dports "${BASE_PORT}:$(( BASE_PORT + API_PROCESSES - 1 )),4199:4200" -j DROP
+            --dports "${BASE_PORT}:$(( BASE_PORT + API_PROCESSES - 1 )),3008,4199:4200" -j DROP
           echo "cpus: $(nproc)"
           free -m
 
@@ -355,29 +344,26 @@ jobs:
           ENV
           sed -i 's/^ *//' "$LOAD_DIR/stack.env"
           # The sandbox control plane, as `bun dev` reaches it from the host:
-          # the spawner and the LLM gateway on loopback, and sessions call
-          # back through the relay's `backend-api` alias.
+          # the spawner on loopback, and sessions call back through the
+          # relay's `backend-api` alias. The api's model relay must listen
+          # where compose.dev.yml's backend-relay forwards a session's
+          # `backend-api:8080`, as `bun dev`'s does (DEV_MODEL_RELAY_PORT in
+          # services/platform/scripts/dev-secrets.ts).
           if [ "$PROFILE" = agent-burst ]; then
             sandbox_token="$(openssl rand -hex 32)"
-            gateway_password="Load-$(openssl rand -hex 24)-A1"
             echo "::add-mask::$sandbox_token"
-            echo "::add-mask::$gateway_password"
-            {
-              echo "SANDBOX_TOKEN=$sandbox_token"
-              echo "SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD=$gateway_password"
-            } >> "$GITHUB_ENV"
+            echo "SANDBOX_TOKEN=$sandbox_token" >> "$GITHUB_ENV"
             printf '%s\n' \
               'SANDBOX_URL=http://127.0.0.1:8003' \
               "SANDBOX_TOKEN=${sandbox_token}" \
-              'SANDBOX_LLM_GATEWAY_URL=http://127.0.0.1:8080' \
-              "SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD=${gateway_password}" \
-              'SANDBOX_HTTP_API_BASE_URL=http://backend-api:3005' >> "$LOAD_DIR/stack.env"
+              'SANDBOX_HTTP_API_BASE_URL=http://backend-api:3005' \
+              'SANDBOX_RELAY_PORT=3008' >> "$LOAD_DIR/stack.env"
           fi
 
       # The sandbox control plane as `bun dev` runs it beside a host backend
       # (services/platform/scripts/dev-engine.ts): the spawner, its egress
-      # proxy, the LLM gateway published on loopback, and the relay that
-      # carries the `backend-api` alias to the host's api.
+      # proxy, and the relay that carries the `backend-api` alias to the
+      # host's api and its model relay.
       - name: Start the sandbox control plane
         if: env.PROFILE == 'agent-burst'
         timeout-minutes: 10
@@ -386,10 +372,9 @@ jobs:
           PULL_POLICY: never
         run: |
           set -euo pipefail
-          compose=(docker compose -f compose.yml -f compose.dev.yml -f compose.docs.yml
-            -f compose.sandbox-llm-gateway.dev.yml)
+          compose=(docker compose -f compose.yml -f compose.dev.yml -f compose.docs.yml)
           "${compose[@]}" up -d --no-build --wait --wait-timeout 300 \
-            sandbox-llm-gateway sandbox sandbox-egress backend-relay
+            sandbox sandbox-egress backend-relay
           "${compose[@]}" ps
 
       - name: Start the platform stack
@@ -407,9 +392,9 @@ jobs:
         run: |
           set -euo pipefail
           if [ "$PROFILE" = agent-burst ]; then
-            # One organization, whose owner sets up the burst. The LLM gateway
-            # reaches the mock across its bridge and passes Claude Code's
-            # Anthropic wire through to it as it is.
+            # One organization, whose owner sets up the burst. The model
+            # relay in the host's api calls the mock itself and passes Claude
+            # Code's Anthropic wire through to it as it is.
             node tools/load/src/cli.ts seed --target "http://127.0.0.1:$BASE_PORT" \
               --users 1 --org-size 1 --provider-base-url "http://$BRIDGE_IP:4199" \
               --provider-api-format anthropic --output "$LOAD_DIR/plan.json"
@@ -456,8 +441,7 @@ jobs:
         run: |
           mkdir -p "$LOAD_DIR/logs"
           docker compose -f compose.yml -f compose.dev.yml -f compose.docs.yml \
-            -f compose.sandbox-llm-gateway.dev.yml logs --no-color --timestamps \
-            > "$LOAD_DIR/logs/sandbox.log" 2>&1 || true
+            logs --no-color --timestamps > "$LOAD_DIR/logs/sandbox.log" 2>&1 || true
           docker ps -a > "$LOAD_DIR/logs/containers.txt" 2>&1 || true
           sudo dmesg > "$LOAD_DIR/logs/dmesg.log" 2>&1 || true
 

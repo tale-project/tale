@@ -1,53 +1,38 @@
 'use node';
 
 /**
- * Session gateway provisioning — the bridge from org provider credentials to
- * the sandbox LLM gateway. Session-create paths call ONE entry point
- * (`provisionSessionGatewayKey`) which:
+ * A turn's model key — the bridge from an organization's provider
+ * credentials to the in-process model relay (tale-project/tale#4942).
+ * Session-create paths and the model endpoints for API keys call ONE entry
+ * point (`issueRelayKey`), which:
  *
- *  1. resolves each involved provider's credential (explicit id, else the
- *     org default) and pushes its secret + model catalog into the gateway as
- *     the org's upstream key (fail-CLOSED: a push that did not land refuses
- *     the session — the gateway still holds the previous key by the same
- *     name, and a mint would silently bind to that stale secret),
- *  2. hardens the gateway auth posture (fail-CLOSED: a gateway that cannot
- *     enforce virtual keys must not serve the session),
- *  3. mints one session-scoped virtual key bound to this org's upstream
- *     keys, capped by the caller's budget and model allowlist.
+ *  1. holds every model the key may call to the organization's EU/EEA
+ *     processing rule (GOV-R17), judged by the upstream the relay really
+ *     calls, before any credential resolves — a refused one throws the
+ *     gate's audited `ModelEndpointRefusal`;
+ *  2. resolves each involved provider's credential (explicit id, else the
+ *     org default) to one the relay can serve — fail-CLOSED: a credential
+ *     that does not resolve refuses the turn;
+ *  3. mints a key the relay serves, naming those credentials, so the key
+ *     serves its turn with the credential it was minted under.
  *
- * Only `api-key` and `env` credentials ride the gateway. A
- * `subscription-broker` credential never does: its execution constraint
- * forces a specific harness which authenticates with the brokered
- * subscription token directly, so there is no upstream API key to provision.
+ * Only `api-key` and `env` credentials ride the relay. A subscription
+ * credential never does: its execution constraint forces a specific harness,
+ * which authenticates with the subscription directly.
  *
- * The gateway holds ONE upstream key per (org, provider) — concurrent
- * sessions of one org that select different credentials of the SAME provider
- * rotate that key last-writer-wins. Isolation between organizations is the
- * invariant the key naming + VK binding enforce; credential choice within an
- * org is a routing preference.
- *
- * The model endpoints for API keys call the same entry point once per
- * request (`requestScoped`): the credential still resolves every time, so a
- * disabled or deleted one refuses at once, but the gateway round trips a
- * session create repeats are taken from what this process verified moments
- * ago (GatewayReuseOptions). A refusal says which side it came from —
- * `gatewayProvisioningFailureStage` — so the caller can tell the person
- * whether the credential or the gateway needs attention.
- *
- * The organization's EU/EEA processing rule (GOV-R17) is the one governance
- * this module adds: with it on, every record the key would bind to is judged
- * by the upstream it really calls before any credential resolves or anything
- * reaches the gateway, and a refused one throws the gate's audited
- * `ModelEndpointRefusal`.
+ * A refusal says which side it came from — `gatewayProvisioningFailureStage`
+ * — so the caller can tell the person whether the credential needs an
+ * admin's attention or a later retry is the remedy.
  */
 
-import type { ModelCatalogEntry } from '@tale/shared/schemas/providers';
+import { randomBytes, randomUUID } from 'node:crypto';
 
 import { AppError } from '../../../../lib/shared/errors/app-error';
+import type { AllowedModelRef } from '../../../../lib/shared/providers/gateway_routing';
 import { isRecord } from '../../../../lib/utils/type-utils';
 import { traceSandboxPhase } from '../../../tracing';
 import {
-  gatewayModelRefusal,
+  relayModelRefusal,
   readModelEndpointPolicy,
   refuseModelEndpoint,
   type ModelEndpointActor,
@@ -55,43 +40,43 @@ import {
   type ModelEndpointSurface,
 } from '../../governance/model_endpoint_gate';
 import type { ActionCtx } from '../../lib/ctx';
-import { internal } from '../../lib/handler_names';
-import { getProviderCatalog } from '../../lib/providers/catalog_fetch';
 import { resolveProvidersForOrgId } from '../../lib/providers/org_providers';
 import type { Id } from '../../lib/rows';
 import { resolveProviderCredential } from '../../provider_credentials/resolve_credential';
-import {
-  applyGatewayConfig,
-  ensureModelPricingOverride,
-  hashVirtualKey,
-  isStandardGatewayProvider,
-  mintVirtualKey,
-  provisionProviders,
-  requireGatewayAdminPassword,
-  resolveGatewayRouting,
-  scheduleProviderPoolShrink,
-  type AllowedModelRef,
-  type GatewayReuseOptions,
-  type ProviderProvision,
-} from './llm_gateway_admin';
+import { hashVirtualKey } from './llm_gateway_admin';
+import { RELAY_KEY_PREFIX } from './relay_keys';
 
-/** The credential-row fields this module reads back (the internal query
- * returns the full row as `v.any()`). */
-interface CredentialRowFacts {
-  modelAllowlist?: string[];
+/**
+ * One connector with the credential it was resolved with: what a relay key
+ * names its credential from (`issueRelayKey`), and what the relay serves a
+ * call to that connector with (`domains/llm_relay/deps.ts`).
+ */
+export interface ProviderProvision {
+  /** The connector's name. */
+  name: string;
+  baseUrl?: string;
+  /** The connector's wire format. Absent ⇒ 'openai'. */
+  apiFormat?: 'openai' | 'anthropic';
+  apiKey: string;
+  /** The connector's native Anthropic harness endpoint, which an
+   * anthropic-wire harness rides (see `GatewayRoutingOpts.anthropicHarnessLane`
+   * in `lib/shared/providers/gateway_routing.ts`). */
+  harnessEndpoint?: { baseUrl: string; apiFormat: 'openai' | 'anthropic' };
+  /** The credential the provision resolved, which a model relay key serves
+   * its turn with (`issueRelayKey`). */
+  credentialId?: string;
 }
 
 /**
- * Which side of the provisioning a refusal came from — what the person who
+ * Which side of the key's mint a refusal came from — what the person who
  * hit it can do about it:
  *
  *  - `credential`: the provider's credential could not be resolved or used —
  *    an unknown provider, a disabled or deleted credential, a secret that
- *    could not be read, a credential the gateway cannot serve. An admin
- *    fixes it in the provider's settings.
- *  - `gateway`: everything after the credential resolved — pushing it into
- *    the sandbox LLM gateway, the auth posture, a custom record's price, the
- *    mint. The gateway is down or refusing; a later retry is the remedy.
+ *    could not be read, a credential the relay cannot serve. An admin fixes
+ *    it in the provider's settings.
+ *  - `gateway`: anything else, after the credential resolved or around it.
+ *    A later retry is the remedy.
  */
 export type GatewayProvisioningFailureStage = 'credential' | 'gateway';
 
@@ -113,9 +98,9 @@ class GatewayProvisioningError extends Error {
 }
 
 /**
- * The stage of whatever `provisionSessionGatewayKey` threw. Its own refusals
- * carry theirs; anything else — the admin-password precondition, the
- * auth-posture apply, the mint — failed on the gateway's side.
+ * The stage of whatever `issueRelayKey` threw. Its own refusals carry
+ * theirs; anything else counts as `gateway`, for which a retry is the
+ * remedy.
  */
 export function gatewayProvisioningFailureStage(
   error: unknown,
@@ -124,12 +109,10 @@ export function gatewayProvisioningFailureStage(
 }
 
 /**
- * Build the gateway provision for one provider from its resolved credential.
- * Returns null for a subscription-broker credential (never gateway-served).
+ * Build the provision for one provider from its resolved credential.
+ * Returns null for a subscription credential, which only its vendor's own
+ * harness may use, and for a connector whose endpoint is the credential's.
  *
- * The key's model list is the credential's own allowlist when one is set —
- * the operator's word is authoritative even where the fetched catalog lags —
- * else the connector's full catalog.
  */
 export async function buildProviderProvision(
   ctx: ActionCtx,
@@ -157,133 +140,35 @@ export async function buildProviderProvision(
     }),
   });
   // Every subscription flavor authenticates its forced harness directly —
-  // there is no upstream API key to install in the gateway.
+  // there is no upstream API key to serve a call with.
   if (
     resolved.authMethod === 'subscription-broker' ||
     resolved.authMethod === 'subscription-key'
   ) {
     return null;
   }
-  // Per-credential-endpoint providers (Azure) need gateway key-level
-  // endpoint config that the minimal provisioner doesn't push yet — their
-  // credentials serve direct calls; managed sandbox runs fail closed at the
-  // mint until that support lands.
+  // Per-credential-endpoint providers (Azure) keep their endpoint on the
+  // credential, which the relay does not serve yet — their credentials serve
+  // direct calls; a managed sandbox run on one is refused at its mint.
   if (connector.endpointMode === 'per-credential') {
     console.warn(
-      `[gateway-provisioning] provider '${connector.name}' uses per-credential endpoints; skipping gateway provisioning (direct execution unaffected)`,
+      `[gateway-provisioning] provider '${connector.name}' uses per-credential endpoints; the model relay does not serve it (direct execution unaffected)`,
     );
     return null;
   }
-
-  const row: CredentialRowFacts | null = await ctx.runQuery(
-    internal.provider_credentials.queries.getCredentialInternal,
-    { credentialId: resolved.credentialId },
-  );
-  const allowlist = row?.modelAllowlist;
-
-  const models =
-    allowlist !== undefined && allowlist.length > 0
-      ? allowlist
-      : (await getProviderCatalog(connector)).map((entry) => entry.id);
 
   return {
     name: connector.name,
     baseUrl: connector.baseUrl,
     apiFormat: connector.apiFormat,
     apiKey: resolved.secret,
-    models,
-    // Carried as metadata so the per-model expansion can route an anthropic-
-    // wire harness (Claude Code) to the connector's native Anthropic endpoint.
+    // Carried so an anthropic-wire harness (Claude Code) rides the
+    // connector's native Anthropic endpoint.
     ...(connector.harnessEndpoint
       ? { harnessEndpoint: connector.harnessEndpoint }
       : {}),
+    credentialId: resolved.credentialId,
   };
-}
-
-/**
- * Tell the gateway what each allowed model costs. The gateway meters a
- * virtual key's budget from the cost it computes per request, and its own
- * datasheet knows nothing about an org's custom upstream records — so without
- * this every request under such a record costs 0, the key's cap never trips,
- * and the Sandboxes page never shows a spend. The price is the connector
- * catalog's (the same figure the usage metrics estimate with); an entry
- * without one is left to the gateway's datasheet. Accounting, not access
- * control: a push that fails is logged and the session still serves, so a
- * pricing-plane hiccup cannot refuse work — it only leaves that model's turns
- * unmetered.
- */
-async function pushModelPricing(
-  ctx: ActionCtx,
-  args: SessionGatewayArgs,
-): Promise<void> {
-  const connectors = await resolveProvidersForOrgId(ctx, args.organizationId);
-  const catalogs = new Map<string, readonly ModelCatalogEntry[]>();
-  for (const ref of args.allowedModels) {
-    // The record the session routes to: custom for a custom connector, and
-    // for a standard connector's Anthropic-wire lane (`…__anthropic`) —
-    // neither has a price on the gateway's own datasheet.
-    const customRecord =
-      !isStandardGatewayProvider(ref.providerSlug) ||
-      ref.anthropicHarnessLane === true;
-    try {
-      const connector = connectors.find(
-        (entry) => entry.name === ref.providerSlug,
-      );
-      if (!connector) continue;
-      let catalog = catalogs.get(ref.providerSlug);
-      if (catalog === undefined) {
-        catalog = await getProviderCatalog(connector);
-        catalogs.set(ref.providerSlug, catalog);
-      }
-      const pricing = catalog.find(
-        (entry) => entry.id === ref.modelId,
-      )?.pricing;
-      if (pricing === undefined) continue;
-      await ensureModelPricingOverride({
-        // Key the override to the SAME record the session routes to — the
-        // anthropic-harness variant (`…__anthropic`) is its own record, so
-        // without this its turns bill at the gateway's price (0 for a custom
-        // upstream) and the key's cap never trips.
-        gatewayProvider: resolveGatewayRouting(
-          args.organizationId,
-          ref.providerSlug,
-          ref.modelId,
-          { anthropicHarnessLane: ref.anthropicHarnessLane },
-        ).gatewayProvider,
-        modelId: ref.modelId,
-        inputCentsPerMillion: pricing.inputCentsPerMillion,
-        outputCentsPerMillion: pricing.outputCentsPerMillion,
-        // The cache pair rides along where the catalog prices it: without
-        // it the gateway bills every cache HIT at the input rate — a
-        // Claude Code turn is mostly cache hits, so that overstated a
-        // DeepSeek turn ~7× against the vendor's own invoice.
-        ...(pricing.cacheReadCentsPerMillion !== undefined
-          ? { cacheReadCentsPerMillion: pricing.cacheReadCentsPerMillion }
-          : {}),
-        ...(pricing.cacheWriteCentsPerMillion !== undefined
-          ? { cacheWriteCentsPerMillion: pricing.cacheWriteCentsPerMillion }
-          : {}),
-      });
-    } catch (err) {
-      if (customRecord) {
-        // A custom upstream has NO price on the gateway's own datasheet:
-        // without the override every request bills at 0, the key's cap
-        // never trips, and the org's spend ledger stays empty for the whole
-        // turn — the exact metering the cap promises. Refuse the session
-        // rather than run it unmetered; a standard provider (priced by the
-        // datasheet, the override only corrects drift) still runs.
-        throw new GatewayProvisioningError(
-          'gateway',
-          `Provider "${ref.providerSlug}" cannot serve this session: the price of ${ref.modelId} could not be pushed to the sandbox LLM gateway, and a custom upstream bills at 0 without it (${describeFailure(err)})`,
-          { cause: err },
-        );
-      }
-      console.warn(
-        `[gateway-provisioning] pricing for ${ref.providerSlug}/${ref.modelId} could not be pushed to the sandbox LLM gateway; its turns bill at the gateway's own datasheet price until the next push:`,
-        err,
-      );
-    }
-  }
 }
 
 /** The human sentence behind a failure — a structured refusal's
@@ -299,12 +184,11 @@ function describeFailure(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-export interface SessionGatewayArgs {
+export interface RelayKeyArgs {
   organizationId: string;
-  sessionId: string;
-  /** Models the session may call; their union defines which providers get
-   * provisioned. Already filtered by org availability — the only rule this
-   * module applies to them is the EU/EEA one. */
+  /** Models the key may call; their union defines which connectors'
+   * credentials resolve. Already filtered by org availability — the only
+   * rule this module applies to them is the EU/EEA one. */
   allowedModels: AllowedModelRef[];
   /** What the key serves, and for whom — the audit entry of a call the
    * EU/EEA rule refuses names both. */
@@ -313,43 +197,18 @@ export interface SessionGatewayArgs {
   /** Explicit credential per provider slug; absent slugs use the org
    * default. */
   credentialIds?: Partial<Record<string, Id<'providerCredentials'>>>;
-  /** Hard spend cap for the minted key. */
-  budgetCents: number;
-  /**
-   * The key serves one request the platform relays itself (the model
-   * endpoints for API keys mint one per request), not a sandbox session: the
-   * gateway round trips reuse what this process verified moments ago
-   * (GatewayReuseOptions), and a provider whose credential the gateway
-   * cannot serve refuses at once. A sandbox session leaves it unset — every
-   * create lists the org's keys and re-asserts the gateway's auth posture.
-   */
-  requestScoped?: boolean;
-  /** The request a request-scoped key serves; it ends the key's name, so
-   * two requests of one API key minting in the same millisecond do not
-   * collide on the gateway's unique key name. */
-  requestId?: string;
-}
-
-export interface SessionGatewayKey {
-  /** Plaintext `sk-bf-*` — inject into the sandbox, never persist. */
-  token: string;
-  /** Gateway-side id for revoke + spend reads. */
-  keyId: string;
-  /** sha256 of the token — the only form that may be stored. */
-  keyHash: string;
 }
 
 /**
  * The EU/EEA rule (GOV-R17) on every model the key may call, judged by the
- * record the mint binds it to ({@link gatewayModelRefusal}) — whether or not
- * this call provisions that record, since the mint falls back to the org's
- * record of an earlier provision. The first refused model is audited and
- * thrown; a connector nobody defines is left to the provision, which refuses
- * it.
+ * endpoint the model relay calls it at ({@link relayModelRefusal}) — whether
+ * or not this call resolves the model's connector. The first refused model is audited and
+ * thrown; a connector nobody defines is left to the credential's
+ * resolution, which refuses it.
  */
 async function assertRecordsAllowed(
   ctx: ActionCtx,
-  args: SessionGatewayArgs,
+  args: RelayKeyArgs,
   policy: ModelEndpointPolicy,
 ): Promise<void> {
   const connectors = await resolveProvidersForOrgId(ctx, args.organizationId);
@@ -358,7 +217,7 @@ async function assertRecordsAllowed(
       (entry) => entry.name === ref.providerSlug,
     );
     if (!connector) continue;
-    const refusal = gatewayModelRefusal(
+    const refusal = relayModelRefusal(
       policy,
       connector,
       ref.anthropicHarnessLane === true,
@@ -378,55 +237,45 @@ async function assertRecordsAllowed(
   }
 }
 
-/**
- * Provision + mint for one sandbox session, or for one request-scoped key
- * (`requestScoped`). FAIL-CLOSED end to end: every provider the session's
- * models need must resolve to a live credential NOW, or nothing is minted.
- * The gateway keeps the org's upstream key from the last successful
- * provision, so a mint that shrugged off a failed credential resolve
- * (disabled, deleted, rotated away) would bind a fresh virtual key to that
- * stale secret and keep serving a credential the admin revoked. The
- * auth-posture apply is fail-closed for the same reason — swallowing its
- * failure could leave the gateway accepting un-keyed or model-unrestricted
- * inference, defeating the whole per-session key model. What it throws
- * tells its stage through `gatewayProvisioningFailureStage` — except a
- * record the EU/EEA rule refuses, which throws the gate's audited
- * `ModelEndpointRefusal` before any credential resolves.
- */
-export function provisionSessionGatewayKey(
-  ctx: ActionCtx,
-  args: SessionGatewayArgs,
-): Promise<SessionGatewayKey> {
-  return traceSandboxPhase('gateway', () =>
-    provisionSessionGatewayKeyInner(ctx, args),
-  );
+/** A turn's key for the in-process model relay (`domains/llm_relay`): the
+ * plaintext the harness presents, the id its op and token rows carry, its
+ * hash — the only form stored — and what the relay serves the turn: its
+ * models with their connectors and lanes, and the credential each
+ * connector was resolved with. */
+export interface SessionRelayKey {
+  /** Plaintext `tale-rt-*` — handed to the harness, never persisted. */
+  token: string;
+  /** `tr_<uuid>`: the id the turn's op and token rows carry. */
+  keyId: string;
+  /** sha256 of the token — the only form that may be stored. */
+  keyHash: string;
+  relayModels: AllowedModelRef[];
+  servingCredentials: Record<string, string>;
 }
 
-async function provisionSessionGatewayKeyInner(
+/**
+ * Mint a key for the model relay. FAIL-CLOSED: the EU/EEA rule judges every
+ * model the key may call, and every connector's credential must resolve NOW
+ * to one the relay can serve, or nothing is minted. Nothing is pushed
+ * anywhere: the relay resolves a model's connector at each call, with the
+ * credential named here, so a key serves its turn with the credential it
+ * was minted under.
+ */
+export function issueRelayKey(
   ctx: ActionCtx,
-  args: SessionGatewayArgs,
-): Promise<SessionGatewayKey> {
-  // Fail closed BEFORE any credential resolve or gateway call: without the
-  // admin password the management plane would be anonymous on the sandbox
-  // network, and every management call below would otherwise fail one by one
-  // with the same root cause. Surface it once, clearly.
-  requireGatewayAdminPassword();
-  const reuse: GatewayReuseOptions = {
-    reuseRecent: args.requestScoped === true,
-  };
+  args: RelayKeyArgs,
+): Promise<SessionRelayKey> {
+  return traceSandboxPhase('gateway', () => issueRelayKeyInner(ctx, args));
+}
+
+async function issueRelayKeyInner(
+  ctx: ActionCtx,
+  args: RelayKeyArgs,
+): Promise<SessionRelayKey> {
   const policy = await readModelEndpointPolicy(ctx, args.organizationId);
   if (policy.kind !== 'open') await assertRecordsAllowed(ctx, args, policy);
 
-  // One provision-build per unique connector (one credential resolve each),
-  // then expand into the EXACT gateway records the mint will bind to. A
-  // standard gateway provider routes to one shared record (`<slug>/<model>`),
-  // so its raw-slug provision matches as-is. A CUSTOM connector routes per
-  // (org, model) (`<orgId>__<slug>__<model>/<model>`, resolveGatewayRouting),
-  // so each of its models needs its own record carrying that name and just
-  // that model — otherwise the record the key lands under (`deepseek`) and
-  // the one the mint looks up (`org_1__deepseek__deepseek-v4-flash`) disagree
-  // and the mint fails closed.
-  const baseBySlug = new Map<string, ProviderProvision>();
+  const servingCredentials: Record<string, string> = {};
   for (const providerSlug of new Set(
     args.allowedModels.map((ref) => ref.providerSlug),
   )) {
@@ -438,130 +287,32 @@ async function provisionSessionGatewayKeyInner(
         credentialId: args.credentialIds?.[providerSlug],
       });
     } catch (err) {
-      // No stale-key fallback: the org's upstream key from an earlier
-      // provision may still sit in the gateway, and continuing here is what
-      // let a disabled or deleted credential keep serving sandbox turns. An
-      // Error, never an AppError (whose message is its serialized payload):
-      // the hosts post `message` on the run as the reason the turn could not
-      // start, so it carries the credential's own words.
+      // An Error, never an AppError (whose message is its serialized
+      // payload): the hosts post `message` on the run as the reason the turn
+      // could not start, so it carries the credential's own words.
       throw new GatewayProvisioningError(
         'credential',
         `Provider "${providerSlug}" cannot serve this session: ${describeFailure(err)}`,
         { cause: err },
       );
     }
-    if (base) {
-      baseBySlug.set(providerSlug, base);
-    } else if (args.requestScoped === true || policy.kind !== 'open') {
-      // A request-scoped key binds only records this call provisioned. The
-      // gateway may still hold the org's key from an api-key credential this
-      // provider no longer uses — and this process may still remember its
-      // id — so minting on regardless would serve the request on a
-      // credential the admin replaced. The model endpoints offer only
-      // credentials the gateway serves: this one changed under the request.
-      // Under the EU/EEA rule a session key does the same: the rule judged
-      // the upstream the connector names now, and a record kept from an
-      // earlier provision calls the one it named then.
+    if (base === null) {
       throw new GatewayProvisioningError(
         'credential',
-        `Provider "${providerSlug}" cannot serve this session: its credential cannot be served through the sandbox LLM gateway (a subscription runs only in its vendor's harness, and a per-credential endpoint is not provisioned into the gateway)`,
+        `Provider "${providerSlug}" cannot serve this session: its credential cannot be served through the model relay (a subscription runs only in its vendor's harness, and a per-credential endpoint is not served)`,
       );
+    }
+    if (base.credentialId !== undefined) {
+      servingCredentials[providerSlug] = base.credentialId;
     }
   }
 
-  const provisions: ProviderProvision[] = [];
-  /** Gateway record name → the connector it serves, for the refusal. */
-  const slugByRecord = new Map<string, string>();
-  for (const ref of args.allowedModels) {
-    const base = baseBySlug.get(ref.providerSlug);
-    if (!base) continue;
-    // Claude Code lane: an anthropic-wire harness on a connector that declares
-    // a native Anthropic endpoint rides a DISTINCT per-model record whose
-    // upstream is that endpoint, so the gateway forwards Anthropic through
-    // instead of down-converting Anthropic→OpenAI (which DeepSeek mishandles
-    // for multi-turn reasoning replay). Kept apart from the OpenAI record other
-    // harnesses use for the same model, so the two never overwrite each other.
-    // A STANDARD connector takes the same custom record on this lane
-    // (OpenRouter): the gateway's built-in implementation only speaks the
-    // OpenAI wire to the vendor, so its shared record cannot ride the door.
-    // The lane flag alone names the record — the same input the routing
-    // reads — and the connector's endpoint supplies the upstream.
-    const anthropicLane = ref.anthropicHarnessLane === true;
-    const nativeEndpoint = anthropicLane ? base.harnessEndpoint : undefined;
-    const provision =
-      isStandardGatewayProvider(ref.providerSlug) && !anthropicLane
-        ? base
-        : {
-            ...base,
-            name: resolveGatewayRouting(
-              args.organizationId,
-              ref.providerSlug,
-              ref.modelId,
-              { anthropicHarnessLane: anthropicLane },
-            ).gatewayProvider,
-            models: [ref.modelId],
-            ...(nativeEndpoint !== undefined
-              ? {
-                  baseUrl: nativeEndpoint.baseUrl,
-                  apiFormat: nativeEndpoint.apiFormat,
-                }
-              : {}),
-          };
-    if (slugByRecord.has(provision.name)) continue;
-    slugByRecord.set(provision.name, ref.providerSlug);
-    provisions.push(provision);
-  }
-  const verifiedKeyIds = new Map<string, string>();
-  const failures = await provisionProviders(args.organizationId, provisions, {
-    ...reuse,
-    onProviderKey: (provider, keyId) => {
-      verifiedKeyIds.set(provider, keyId);
-    },
-  });
-  // Every record here is one the mint below binds to, so a skipped push
-  // never helps: the gateway keeps the org's key from the last successful
-  // provision under the same stable name, and `mintVirtualKey` would resolve
-  // THAT — a rotated-away secret — and serve the session on it. Refuse with
-  // the connector's own name; the hosts post `message` as the reason the
-  // turn could not start.
-  const failed = failures[0];
-  if (failed !== undefined) {
-    const providerSlug = slugByRecord.get(failed.name) ?? failed.name;
-    throw new GatewayProvisioningError(
-      'gateway',
-      `Provider "${providerSlug}" cannot serve this session: its credential could not be pushed to the sandbox LLM gateway (${describeFailure(failed.error)})`,
-      { cause: failed.error },
-    );
-  }
-
-  await applyGatewayConfig(reuse);
-  // A provision resizes only the records it names. Once the gateway answered
-  // with its posture applied, the first provision of this process schedules
-  // the resize of every other record a few minutes later, in the background:
-  // nothing here waits for it, and it never rejects.
-  scheduleProviderPoolShrink();
-
-  await pushModelPricing(ctx, args);
-
-  const minted = await mintVirtualKey(
-    {
-      budgetCents: args.budgetCents,
-      allowedModels: args.allowedModels,
-      organizationId: args.organizationId,
-      sessionId: args.sessionId,
-      ...(args.requestId !== undefined ? { requestId: args.requestId } : {}),
-    },
-    {
-      ...reuse,
-      provisionedKeys: {
-        organizationId: args.organizationId,
-        keyIds: verifiedKeyIds,
-      },
-    },
-  );
+  const token = `tale-rt-${randomBytes(32).toString('base64url')}`;
   return {
-    token: minted.key,
-    keyId: minted.keyId,
-    keyHash: hashVirtualKey(minted.key),
+    token,
+    keyId: `${RELAY_KEY_PREFIX}${randomUUID()}`,
+    keyHash: hashVirtualKey(token),
+    relayModels: args.allowedModels,
+    servingCredentials,
   };
 }

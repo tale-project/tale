@@ -36,7 +36,7 @@ Beginne einen Chat und wähle das lokale Modell ausdrücklich aus. Verwende **Au
 
 Lass den Betreiber die Anfrage im Protokoll des gewünschten Inferenzservers bestätigen. Prüfe, ob Tale eine vollständige Antwort zeigt. Gespeicherte Zugangsdaten oder eine gefüllte Modellliste beweisen weniger als eine abgeschlossene Generierung. Die Dauer hängt von Modellgröße, Hardware und Auslastung ab.
 
-Sollen Coding-Agenten den Anbieter nutzen, wiederhole die Prüfung in einer neuen Sandbox-Sitzung mit dem gewünschten Modell und einer kompatiblen Laufzeit. Lass den Betreiber DNS, Erreichbarkeit und TLS-Vertrauen des Gateways ebenso prüfen wie beim Backend. Allgemeine Webzugriffsregeln der Sandbox richten den Modellzugriff nicht ein. Eine Chatantwort und eine Agentenantwort prüfen unterschiedliche Verbindungen.
+Sollen Coding-Agenten den Anbieter nutzen, wiederhole die Prüfung in einer neuen Sandbox-Sitzung mit dem gewünschten Modell und einer kompatiblen Laufzeit. Tale ruft den Anbieter für den Agenten ebenfalls aus dem Backend am selben Endpunkt auf, doch die Sitzung muss das Modell-Relay von Tale erreichen, und die Laufzeit muss mit dem Modell funktionieren. Allgemeine Webzugriffsregeln der Sandbox richten den Modellzugriff nicht ein. Eine Chatantwort und eine Agentenantwort prüfen unterschiedliche Verbindungen.
 
 ## Einen fehlgeschlagenen Test eingrenzen
 
@@ -47,6 +47,6 @@ Sollen Coding-Agenten den Anbieter nutzen, wiederhole die Prüfung in einer neue
 | Leere Modellliste | Modellerkennung des Servers, geladene Modelle, Freigabeliste und Modellrichtlinie. |
 | Verbindungs- oder Zertifikatsfehler | Erreichbarkeit aus dem Backend, Containerhostname und TLS-Vertrauen. |
 | Modell abgewiesen oder keine Antwort | Genaue Modell-ID, Anmeldung, API-Kompatibilität und Serverkapazität. |
-| Chat funktioniert, aber der Agent erreicht sein Modell nicht | DNS, Erreichbarkeit und TLS-Vertrauen des Gateways, Freigabe privater Anbieter und Laufzeitkompatibilität. |
+| Chat funktioniert, aber der Agent erreicht sein Modell nicht | Der Zugang der Sitzung zum Modell-Relay, den der Betreiber im Backend-Log prüft, und Laufzeitkompatibilität. |
 
 [KI-Anbieter](/de/platform/admin/providers) erklärt Austausch und Standardauswahl der Zugangsdaten. Halte Endpunkt und Modell-ID in der Betriebsübergabe fest, damit ein anderer Admin diesen Test nach einer Serveränderung wiederholen kann.

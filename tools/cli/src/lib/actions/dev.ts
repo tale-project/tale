@@ -58,6 +58,10 @@ import { isContainerRunning } from '../docker/is-container-running';
 import { composeCreatedContainerFilters } from '../docker/list-service-containers';
 import { migrateConfigVolume } from '../docker/migrate-config-volume';
 import {
+  minioNotice,
+  resolveObjectStore,
+} from '../docker/resolve-object-store';
+import {
   assertComposeAvailable,
   assertDockerEngineSupported,
   probeCgroupVersion,
@@ -326,8 +330,12 @@ export async function runDev(options: DevOptions): Promise<void> {
   const cgroupVersion = await probeCgroupVersion();
   const reservationNotice = memoryReservationNotice({ cgroupVersion });
   if (reservationNotice) warnLine(reservationNotice);
+  // The dev stack's blob store is the one its blobs are in, as a
+  // deployment's is.
+  const objectStore = await resolveObjectStore(devPrefix);
+  if (objectStore === 'minio') infoLine(minioNotice(devPrefix));
   const compose = generateDevCompose(
-    { version, registry: env.GHCR_REGISTRY, cgroupVersion },
+    { version, registry: env.GHCR_REGISTRY, cgroupVersion, objectStore },
     hostAlias,
     port,
     { projectDir },

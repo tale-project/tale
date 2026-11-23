@@ -457,16 +457,23 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
       // rather than kicking a SECOND turn (the double-spend guard). Terminal
       // ops (a settled prior node) are not returned. Provider/model split off
       // the op's `<provider>/<gatewayModel>` ref (the slug never has a slash).
+      // The harness is the one the kick resolved and stamped on the op, with
+      // why it put the turn there: the turn in flight runs there, whatever a
+      // step on the default would resolve to now. A row written before ops
+      // recorded them has neither.
       const rows = await sql<
         {
           execId: string;
           sessionId: string;
           modelRef: string | null;
           deadlineMs: number | null;
+          harness: string | null;
+          harnessReason: string | null;
         }[]
       >`
         SELECT exec_id AS "execId", session_id AS "sessionId",
-               model_ref AS "modelRef", deadline_ms::float8 AS "deadlineMs"
+               model_ref AS "modelRef", deadline_ms::float8 AS "deadlineMs",
+               harness, harness_reason AS "harnessReason"
         FROM app.sandbox_session_ops
         WHERE org_id = ${args.organizationId}
           AND session_id = ${sessionIdForWorkflowExecution(args.runId)}
@@ -484,6 +491,10 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
         deadlineAt: op.deadlineMs ?? 0,
         providerSlug: slash > 0 ? modelRef.slice(0, slash) : '',
         gatewayModel: slash > 0 ? modelRef.slice(slash + 1) : modelRef,
+        ...(op.harness !== null ? { harness: op.harness } : {}),
+        ...(op.harnessReason !== null
+          ? { harnessReason: op.harnessReason }
+          : {}),
       };
     },
 

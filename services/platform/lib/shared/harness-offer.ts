@@ -15,8 +15,10 @@
 import type { HarnessGatewayWire } from '@tale/shared/schemas/providers';
 
 /** The harness an automation's agent step runs on when it names none — the
- * runtime's own default and the "Default (Claude Code)" the picker labels. */
-export const DEFAULT_HARNESS = 'claude-code';
+ * runtime's own default and the "Default (Pi)" the picker labels — unless
+ * only a subscription serves the step's model ({@link defaultHarnessFor}).
+ * The standard agent's automatic runtime too. */
+export const DEFAULT_HARNESS = 'pi';
 
 /** One (provider, model) pair the agent can call — a composer model listing
  * entry. The same model id can appear once per provider that serves it. */
@@ -129,6 +131,36 @@ export function offeredToHarness(
     option.responsesOnly !== true ||
     runtime?.toolCallingWire === 'openai-responses'
   );
+}
+
+/**
+ * The runtime a step on "Default" runs `option` on: a subscription-served
+ * entry on the runtime its credential is bound to (a Claude subscription in
+ * Claude Code) — the default cannot drive that credential, and a step on
+ * Default is never refused for it — any other on {@link DEFAULT_HARNESS}.
+ * Without an option, the default.
+ */
+export function defaultHarnessFor(
+  option: Pick<ModelOption, 'subscription'> | undefined,
+): string {
+  return option?.subscription?.harness ?? DEFAULT_HARNESS;
+}
+
+/**
+ * Whether a picker for a step on "Default" offers `option`: on the runtime
+ * {@link defaultHarnessFor} names, which `runtimes` must list (a subscription
+ * bound to a runtime the managed lane cannot run is offered nowhere), by the
+ * rule a step naming that runtime would be offered it
+ * ({@link offeredToHarness}).
+ */
+export function offeredOnDefault(
+  option: ModelOption,
+  runtimes: AgentRoster['harnesses'] | undefined,
+): boolean {
+  const harness = defaultHarnessFor(option);
+  const runtime = runtimes?.find((entry) => entry.harness === harness);
+  if (option.subscription !== undefined && runtime === undefined) return false;
+  return offeredToHarness(option, harness, runtime);
 }
 
 /** The offered option matching a saved pick: the exact (provider, id) pair,
