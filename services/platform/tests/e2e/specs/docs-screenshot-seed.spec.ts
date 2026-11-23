@@ -1,4 +1,7 @@
+import { readFileSync } from 'node:fs';
+
 import { expect, test } from '@playwright/test';
+import { parse as parseYaml } from 'yaml';
 
 import { CAPTURE_LOCALES } from '../../docs-screenshots/capture-options';
 import {
@@ -8,6 +11,7 @@ import {
 import { withCaptureLocale } from '../../docs-screenshots/i18n';
 import { SHOTS, type ShotContext } from '../../docs-screenshots/manifest';
 import {
+  chooseEmbeddingProvider,
   projectFileRow,
   settleList,
   settleListOrEmpty,
@@ -200,4 +204,55 @@ test('a retired device does not satisfy the missing active WebDAV fixture', asyn
     body.append(row);
   });
   expect(await webdavPasswordRow(page, 'Design workstation').count()).toBe(1);
+});
+
+// The embedding form's Provider select as the seeder meets it once the
+// providers listing has answered: each option reads its provider's display
+// name, which the listing takes from the provider's definition — for the
+// mock, the docs-demo template the seeder copies into the organization.
+const MOCK_PROVIDER_DEFINITION = parseYaml(
+  readFileSync(
+    new URL(
+      '../fixtures/config/docs-demo/providers/e2e-mock.yml',
+      import.meta.url,
+    ),
+    'utf8',
+  ),
+) as { name: string; displayName: string };
+const EMBEDDING_PROVIDER_LABEL = t(
+  'settings.dataResidency.orgEmbedding.provider',
+);
+
+test('the embedding step chooses the mock provider by the name its option reads', async ({
+  page,
+}) => {
+  const { name, displayName } = MOCK_PROVIDER_DEFINITION;
+  await page.setContent(`
+    <button role="combobox" aria-label="${EMBEDDING_PROVIDER_LABEL}"
+      aria-expanded="false" aria-controls="providers" data-value="">Choose</button>
+    <div id="providers" role="listbox" hidden>
+      <div role="option" aria-selected="false" data-value="openrouter">OpenRouter</div>
+      <div role="option" aria-selected="false" data-value="${name}">${displayName}</div>
+    </div>
+    <script>
+      const select = document.querySelector('[role="combobox"]');
+      const list = document.getElementById('providers');
+      select.addEventListener('click', () => {
+        list.hidden = false;
+        select.setAttribute('aria-expanded', 'true');
+      });
+      for (const option of list.querySelectorAll('[role="option"]')) {
+        option.addEventListener('click', () => {
+          select.dataset.value = option.dataset.value;
+          list.hidden = true;
+          select.setAttribute('aria-expanded', 'false');
+        });
+      }
+    </script>
+  `);
+  // Asked for by its slug, the option never came and the step timed out.
+  await chooseEmbeddingProvider(page);
+  await expect(
+    page.getByRole('combobox', { name: EMBEDDING_PROVIDER_LABEL }),
+  ).toHaveAttribute('data-value', name);
 });

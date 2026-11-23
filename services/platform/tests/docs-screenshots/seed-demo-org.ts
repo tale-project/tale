@@ -71,7 +71,6 @@ import {
   DEMO_WEBDAV_RETIRED_LABEL,
   DEMO_WEBHOOK,
   MOCK_PROVIDER_DISPLAY_NAME,
-  MOCK_PROVIDER_SLUG,
   type DemoDocument,
   type DemoKnowledgeEntry,
   type DemoProduct,
@@ -473,6 +472,24 @@ async function ensureProjectAgents(
 }
 
 /**
+ * Choose the mock provider in the embedding form's Provider select. An
+ * option reads its provider's display name, as the AI providers page names
+ * it, once the providers listing has answered; the slug stands in only until
+ * then. So the option is asked for by the display name, which the click
+ * waits for, never by the slug: a pick by slug waited out its timeout.
+ */
+export async function chooseEmbeddingProvider(page: Page): Promise<void> {
+  await page
+    .getByRole('combobox', {
+      name: t('settings.dataResidency.orgEmbedding.provider'),
+    })
+    .click();
+  await page
+    .getByRole('option', { name: MOCK_PROVIDER_DISPLAY_NAME, exact: true })
+    .click();
+}
+
+/**
  * Settings > Data residency > Embedding model — knowledge indexing refuses
  * every upload ("No embedding model is configured") until the org names one,
  * so this runs BEFORE the first document lands. Points at the mock provider
@@ -502,14 +519,7 @@ async function ensureEmbeddingModel(page: Page, orgId: string): Promise<void> {
   } else {
     await toggle.click();
   }
-  await page
-    .getByRole('combobox', {
-      name: t('settings.dataResidency.orgEmbedding.provider'),
-    })
-    .click();
-  await page
-    .getByRole('option', { name: MOCK_PROVIDER_SLUG, exact: true })
-    .click();
+  await chooseEmbeddingProvider(page);
   await model.fill(DEMO_EMBEDDING_MODEL.model);
   await page
     .getByRole('spinbutton', {
