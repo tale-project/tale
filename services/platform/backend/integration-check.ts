@@ -77,6 +77,7 @@ import {
 } from './core/tasks/helpers.ts';
 import { setUrlSafetyResolverForTests } from './core/video_links/url_safety.ts';
 import { createBootDatabaseWait } from './db/boot-wait.ts';
+import { checkHarnessReasonUpgrade } from './db/harness-reason-upgrade.integration.ts';
 import { runBootMigrations } from './db/migrate.ts';
 import { createSql } from './db/sql.ts';
 import { checkAgentConnections } from './domains/agent_connections/agent-connections.integration.ts';
@@ -67250,6 +67251,7 @@ async function main(): Promise<void> {
     await checkTransactionalEnqueue(sql);
     await checkLegacyAutomationProtocol(databaseUrl, record);
     await checkLegacyAgentFlow(databaseUrl, record);
+    await checkHarnessReasonUpgrade(databaseUrl, record);
     await checkAutomationProtocolFloor(databaseUrl, record);
     await checkAutomationProtocolQueues(databaseUrl, boss, record);
     await checkAutomationProtocolReadback(sql, boss, record);
