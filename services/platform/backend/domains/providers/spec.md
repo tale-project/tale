@@ -4,8 +4,9 @@
 
 A provider is a service an organization gets its AI models from. Some ship with Tale; an
 organization can also define its own, with its address and the models it offers. These rules
-cover who can change an organization's own provider definitions and what a change is held to.
-The providers that ship with Tale and the credentials are not covered; see Not yet.
+cover who can change an organization's own provider definitions, what a change is held to, and
+whose models each provider lists. The rest of the shipped providers and the credentials are not
+covered; see Not yet.
 
 ## Defining a provider
 
@@ -54,6 +55,17 @@ while its credential is disabled.
   the models her key may use. Noah, in another organization, lists the same gateway without
   a key → refused, told that no key was sent.
 
+### PROV-R6 · Each provider lists only its own models
+
+A provider's model list comes from that provider alone, so an organization's own provider never
+adds models to a shipped one, never removes any from it, and never replaces its list. A
+provider whose list cannot be fetched changes no other provider's list; an organization's own
+provider shows the failure on its own entry.
+
+- **Example**: Ada's organization uses OpenRouter. She defines its own provider at an address
+  that does not resolve → OpenRouter still lists all its models, and the new provider lists none
+  and says its address cannot be reached.
+
 ## Not yet
 
 - **The providers that ship with Tale**, and how an organization's own definition appears
@@ -62,3 +74,8 @@ while its credential is disabled.
 - **Credentials**: see the provider credentials spec.
 - **Which models an organization can use for chat, embedding and transcription**, and the
   message when none is set for transcription (`NO_TRANSCRIPTION_MODEL`).
+- **Undecided: should a provider whose live list cannot be fetched say it shows a fallback?**
+  When OpenRouter's own list cannot be fetched and nothing is cached yet, it shows the short
+  list of models Tale ships for it, and its entry names no failure (`catalog_fetch.ts`,
+  `serveDegraded`). The code's comments choose to keep serving, but nothing decides whether
+  the entry should say so.
