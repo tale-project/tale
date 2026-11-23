@@ -32,8 +32,10 @@ import {
   endFileEventStreams,
   HEALTH_CHECK_WINDOW_MS,
   startWebServer,
+  WEB_TIER_OFF,
   webDrainMs,
   webPort,
+  webTierOff,
   type WebServer,
 } from './server';
 import { _resetStatusProbeCache } from './status-probe';
@@ -210,6 +212,25 @@ describe('the port the web tier listens on', () => {
       expect(() => webPort(value)).toThrow(/APP_PORT must be a port number/);
     },
   );
+
+  test('is off for a backend process whose app something else serves', () => {
+    expect(WEB_TIER_OFF).toBe('off');
+    expect(webTierOff('off')).toBe(true);
+    expect(webTierOff(' OFF ')).toBe(true);
+    for (const value of [undefined, '', ' ', '3000', 'of', 'offline', '0']) {
+      expect(webTierOff(value)).toBe(false);
+    }
+  });
+
+  test('reads APP_PORT=off from the environment when given nothing', () => {
+    vi.stubEnv('APP_PORT', 'off');
+    expect(webTierOff()).toBe(true);
+  });
+
+  test('refuses off where the web tier is all a process serves', () => {
+    // The `web` role and `startWebServer` take a port and nothing else.
+    expect(() => webPort('off')).toThrow(/APP_PORT must be a port number/);
+  });
 });
 
 describe('how long a stopping web tier keeps answering', () => {

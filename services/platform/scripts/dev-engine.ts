@@ -9,10 +9,11 @@
    2) The external toolchains (yt-dlp + deno + ffmpeg, which the video ingest
       lane spawns), resolved into the env the backend inherits.
    3) The BACKEND — the same `backend/main.ts` entry the container runs, in
-      role `all` (api + worker in one process) — supervised by a health probe
-      that restarts it up to a cap.
+      role `all` (api + worker in one process), without the web tier the
+      container serves beside its API (`APP_PORT=off`, ./dev-backend-env) —
+      supervised by a health probe that restarts it up to a cap.
    4) Vite (dev server, or `vite preview` over a production build in E2E),
-      proxying /api, /events and /dav to the backend.
+      on the app's port, proxying /api, /events and /dav to the backend.
 
   The restart/health DECISIONS live in `./backend-supervisor` as pure,
   exhaustively tested reducers; this file owns the effectful spawn/kill/probe
@@ -39,6 +40,7 @@ import {
   type SupervisorState,
   SUPERVISOR_LIMITS,
 } from './backend-supervisor';
+import { devBackendEnv } from './dev-backend-env';
 import { minioDevBlobsNotice } from './dev-blob-store';
 import { DEV_GATES } from './dev-gates';
 import { isTruthy, shouldOpenBrowser } from './dev-modes';
@@ -977,6 +979,7 @@ export async function runDevFleet() {
       // The SAME entry the container runs (role `all`: api + worker in one
       // process), so dev and prod exercise one boot path — including the
       // node-loader that lets it import the shared pure modules unchanged.
+      // Without the web tier: Vite serves the app (./dev-backend-env).
       backendProcess = spawn(
         'node',
         [
@@ -989,7 +992,7 @@ export async function runDevFleet() {
         {
           stdio: ['ignore', 'pipe', 'pipe'],
           cwd: platformRoot,
-          env: { ...process.env, TALE_ROLE: 'all', PORT: String(backendPort) },
+          env: devBackendEnv(process.env, backendPort),
         },
       );
       pipeChild(backendProcess, {

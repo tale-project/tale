@@ -203,12 +203,7 @@ export async function stackUp(options: StackUpOptions): Promise<StackState> {
     const log = join(options.logDir, `api-${i}.log`);
     const pid = spawnDetached(process.execPath, nodeArgs, {
       cwd: platformDir,
-      env: {
-        ...baseEnv,
-        ...roleEnv('api'),
-        PORT: String(port),
-        BACKEND_LISTEN_HOST: listenHost,
-      },
+      env: { ...baseEnv, ...apiEnv(port, listenHost) },
       log,
     });
     processes.push({ role: 'api', pid, port, log });
@@ -281,6 +276,29 @@ export function roleEnv(
   role: 'api' | 'worker',
 ): Record<'ROLE' | 'TALE_ROLE', string> {
   return { ROLE: role, TALE_ROLE: role };
+}
+
+/**
+ * What an api process of the stack is started with, over the env file: its
+ * role, the port and interface of its API, and no web tier (`APP_PORT=off`,
+ * which `webTierOff` in services/platform/server.ts reads). The load drives
+ * the API alone, and a web tier in every api process would each claim
+ * `APP_PORT`'s default port, where only the first can listen: the others
+ * failed their boot.
+ */
+export function apiEnv(
+  port: number,
+  listenHost: string,
+): Record<
+  'ROLE' | 'TALE_ROLE' | 'PORT' | 'BACKEND_LISTEN_HOST' | 'APP_PORT',
+  string
+> {
+  return {
+    ...roleEnv('api'),
+    PORT: String(port),
+    BACKEND_LISTEN_HOST: listenHost,
+    APP_PORT: 'off',
+  };
 }
 
 async function writeState(

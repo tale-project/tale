@@ -76,7 +76,7 @@ async function loadHttpSurface() {
     { seedDevUser },
     { BACKEND_SERVER_OPTIONS, installClientErrorEnvelope },
     { installVideoProxyRelay },
-    { startWebServer, webPort },
+    { startWebServer, webPort, webTierOff },
     { startModelRelay },
   ] = await Promise.all([
     import('@hono/node-server'),
@@ -104,6 +104,7 @@ async function loadHttpSurface() {
     installVideoProxyRelay,
     startWebServer,
     webPort,
+    webTierOff,
     startModelRelay,
   };
 }
@@ -157,7 +158,13 @@ async function main(): Promise<void> {
   const http = needsApi ? await loadHttpSurface() : null;
   // The app's own port, read before anything is migrated or started: a value
   // that is no port, or the API's, fails this boot at once and by name.
-  const webPort = http === null ? null : http.webPort();
+  // `APP_PORT=off` leaves the web tier out and the API serves alone, for a
+  // process whose app something else serves: the dev orchestrator's backend,
+  // beside the Vite server that holds the app's port.
+  const webPort = http === null || http.webTierOff() ? null : http.webPort();
+  if (http !== null && webPort === null) {
+    console.log('[backend] web tier off (APP_PORT=off): the API serves alone');
+  }
   if (webPort === env.PORT) {
     throw new Error(
       `APP_PORT and PORT are both ${env.PORT}: the app and the API each need a port of their own`,

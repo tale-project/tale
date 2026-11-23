@@ -45,14 +45,16 @@ bun run --filter @tale/platform backend:dev
 This starts Node with the repository's TypeScript loader and watch mode. Use the
 Node and Bun versions pinned by the repository. The loader resolves imports used
 by the shared platform code; launching `main.ts` with a different runtime command
-can fail before the application starts.
+can fail before the application starts. Like the container, it also serves the
+built app on port 3000. To run Vite there beside it, start it with
+`APP_PORT=off`, as `bun run dev` starts its backend.
 
 | Setting | Purpose |
 | --- | --- |
 | `DATABASE_URL` | Required application database connection |
 | `ROLE` | `api`, `worker`, or `all` (default) |
 | `PORT` | Backend HTTP port, default `3005` |
-| `APP_PORT` | The port the web tier is served on, default `3000`: beside the API in `api` and `all`, alone in the image's `web` role. Never the API's port |
+| `APP_PORT` | The port the web tier is served on, default `3000`: beside the API in `api` and `all`, alone in the image's `web` role. Never the API's port. `off` serves the API without the web tier, for a process whose app something else serves: `bun run dev` starts its backend so, beside Vite. The `web` role refuses it |
 | `BETTER_AUTH_SECRET` | Required when the process serves APIs (`api` or `all`) |
 | `SITE_URL` | Public origin used by authentication; non-loopback origins require HTTPS |
 | `TALE_CONFIG_DIR` / `TALE_CONFIG_BUILTIN_DIR` | Writable deployment configuration and shipped catalog |

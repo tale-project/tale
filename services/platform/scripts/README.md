@@ -16,9 +16,14 @@ the Vite frontend. For an already prepared stack, use
 `bun run --filter @tale/platform dev:fast`; skipping Docker does not provide a
 database or object store. Follow the [platform setup guide](../README.md) first.
 
+Vite serves the app on port 3000. The backend serves its API on 3005 and no web
+tier of its own (`APP_PORT=off`), unlike the container, which serves the built
+app beside its API.
+
 | Responsibility | Files |
 | --- | --- |
 | Development orchestration and process I/O | `dev.ts`, `dev-engine.ts` |
+| The backend's environment: role, port, no web tier | `dev-backend-env.ts` |
 | Backend health and restart decisions | `backend-supervisor.ts` |
 | Startup gates and timeouts | `dev-gates.ts` |
 | Log presentation and local modes | `dev-output.ts`, `dev-modes.ts` |

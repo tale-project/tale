@@ -1403,6 +1403,23 @@ export function webPort(value: string | undefined = process.env.APP_PORT) {
   return port;
 }
 
+/**
+ * The `APP_PORT` that starts a backend process (`backend/main.ts`) without
+ * the web tier: it serves its API alone, for a process whose app something
+ * else serves. The dev orchestrator starts its backend so, since Vite serves
+ * the app there on the port this one would have taken. The `web` role serves
+ * nothing else, so {@link webPort} refuses it there like any value that is
+ * no port.
+ */
+export const WEB_TIER_OFF = 'off';
+
+/** Whether `APP_PORT` is {@link WEB_TIER_OFF}, in any case. */
+export function webTierOff(
+  value: string | undefined = process.env.APP_PORT,
+): boolean {
+  return value?.trim().toLowerCase() === WEB_TIER_OFF;
+}
+
 /** How long a stopping web tier keeps answering once `/api/health` says
  * 503, unless `SHUTDOWN_DRAIN_SECONDS` names another span (0 to 300): a
  * balancer that checks each replica needs a check or two to stop sending it

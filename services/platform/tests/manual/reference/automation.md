@@ -28,10 +28,14 @@ own it end to end:
   read: what waits behind an `import()` for the backend, and that the web
   role's entry reads no database client, job queue or sign-in stack.
 - `server.listen.test.ts` starts the web tier on a real socket: the port it
-  takes (`APP_PORT`), the ready and shutdown markers it writes and deletes,
-  the wait a stopping replica grants a balancer that checks it and skips when
-  nothing does, the API it asks for the status page and the session verdict,
-  and built files with their length, compressed neighbour and byte ranges.
+  takes (`APP_PORT`, and `off`, which leaves a backend process serving its API
+  alone and which the `web` role refuses), the ready and shutdown markers it
+  writes and deletes, the wait a stopping replica grants a balancer that
+  checks it and skips when nothing does, the API it asks for the status page
+  and the session verdict, and built files with their length, compressed
+  neighbour and byte ranges.
+- `scripts/dev-backend-env.test.ts` holds that `bun run dev` starts its
+  backend with the web tier off, so Vite alone binds the app's port 3000.
 - `tests/guards/dockerfile-env-parity.guard.test.ts` keeps `PORT` and
   `APP_PORT` out of the image's environment, where one value would reach both
   listeners of a process.

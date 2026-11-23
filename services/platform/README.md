@@ -31,7 +31,7 @@ use CLI-generated files.
 
 | Interface | Purpose |
 | --- | --- |
-| Port 3000 | Vite during development. In the platform container the web server (`server.ts`): alone in the `web` role, beside the API in the `api` and `all` roles (`APP_PORT`). |
+| Port 3000 | Vite during development, where the backend serves no web tier (`APP_PORT=off`). In the platform container the web server (`server.ts`): alone in the `web` role, beside the API in the `api` and `all` roles (`APP_PORT`). |
 | Port 3005 | Backend HTTP and SSE in `api` or `all` mode (`PORT`). |
 | `/api/auth` | Sessions and authentication. |
 | `/api/app` | The application’s authenticated operations. |
