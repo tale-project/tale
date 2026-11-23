@@ -266,7 +266,7 @@ Fix the reason and run `tale deploy --stop` again. After a successful move:
 
 Agent turns that name no agent runtime now run on Pi: an automation's agent step left on **Default (Pi)**, and the organization's [standard agent](/platform/admin/governance/content-models#standard-agent) while its **Agent runtime** is **Automatic**. Earlier releases ran them on Claude Code. Nothing stored changes, so an existing organization moves at its next run, and agents and steps that name a runtime keep it.
 
-A model that only a subscription serves keeps running on the agent runtime that subscription is bound to, such as Claude Code for a Claude subscription, instead of being refused. A step that was running when you upgraded finishes its turn where it began; if it is retried, the retry starts a new conversation on Pi over the same workspace. Each run's agent log says which runtime ran a turn and why.
+A model that only a subscription serves keeps running on the agent runtime that subscription is bound to, such as Claude Code for a Claude subscription, instead of being refused. A step that was running when you upgraded finishes its turn where it began; if it is retried, the retry starts a new conversation on Pi over the same workspace. While both colours run during the handover, a worker of the earlier release can still take the retry of a step this release began on Pi. It hands Pi's conversation to Claude Code, which cannot continue it, so that retry is lost. Each run's agent log says which runtime ran a turn and why.
 
 To keep Claude Code, name it where the run takes its runtime:
 
