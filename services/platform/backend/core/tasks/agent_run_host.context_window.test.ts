@@ -1245,6 +1245,10 @@ describe('server-owned task execution identity', () => {
       .message.content.map((part) => part.text)
       .join('');
   }
+  /** The line Codex's harness puts ahead of the instructions: the CLI runs
+   * with its working directory untrusted and loads no AGENTS.md itself. */
+  const CODEX_AGENTS_MD_NOTE =
+    'If the repository you are working in contains an AGENTS.md file, read it and follow its instructions.';
   /** The instructions a built Codex exec carries
    * (`-c developer_instructions="…"`) — the developer message a thread
    * records when this exec starts it. */
@@ -1272,8 +1276,8 @@ describe('server-owned task execution identity', () => {
   }
   /** The instructions a built exec hands its CLI — Claude Code's
    * `--append-system-prompt` (its house rules ahead of them), Codex's
-   * `-c developer_instructions="…"` — which a conversation it starts
-   * records. */
+   * `-c developer_instructions="…"` (the note to read the repository's
+   * AGENTS.md ahead of them) — which a conversation it starts records. */
   function carriedInstructions(
     argv: readonly string[] | undefined,
   ): string | undefined {
@@ -1647,9 +1651,12 @@ describe('server-owned task execution identity', () => {
       });
       expect(current).toContain(`${NEW_RULE}\n\n${NEW_ROLE}`);
       expect(recorded).toContain(`${OLD_RULE}\n\n${OLD_ROLE}`);
-      // Composed for the rotated exec first, then restated at the opening.
+      // Composed for the rotated exec first, then restated at the opening;
+      // the exec carries it behind the AGENTS.md note Codex's harness adds.
       const turn = launch?.stdin ?? '';
-      expect(restated(turn, 'exec-rotated')).toBe(current);
+      expect(current).toBe(
+        `${CODEX_AGENTS_MD_NOTE}\n\n${restated(turn, 'exec-rotated')}`,
+      );
       expect(turn).not.toContain(OLD_RULE);
       expect(identity(turn)).toEqual({ ...expected, execId: 'exec-rotated' });
       expect(turn.indexOf(QUOTED)).toBeGreaterThan(
