@@ -86,6 +86,30 @@ install_ssrf_firewall() {
       iptables -A OUTPUT -d "$subnet" -j ACCEPT 2>/dev/null || \
         log_warn "iptables: failed to accept connected subnet ${subnet}"
     done
+    # DNS to the upstream resolvers, and only DNS. Docker's embedded
+    # resolver (127.0.0.11) forwards external names to the daemon's `dns`
+    # servers from inside this network namespace, so the OUTPUT chain sees
+    # those queries. On a host whose daemon points at a private resolver
+    # that is no connected subnet (an Incus bridge gateway, a VPC resolver,
+    # a home router) the REJECTs below would fail every external lookup
+    # with EAI_AGAIN. Port 53 alone: the resolver's other ports stay fenced.
+    # A start-time snapshot: Docker writes resolv.conf when it creates or
+    # restarts the container (each start re-runs this entrypoint) and does
+    # not rewrite the upstream list of a running container's embedded DNS.
+    dns_upstreams="$(ssrf_dns_upstreams 2>/dev/null </etc/resolv.conf || true)"
+    if [ -n "$dns_upstreams" ]; then
+      for resolver in $dns_upstreams; do
+        for protocol in udp tcp; do
+          iptables -A OUTPUT -d "${resolver}/32" -p "$protocol" --dport 53 -j ACCEPT 2>/dev/null || \
+            log_warn "iptables: failed to accept DNS (${protocol}) to resolver ${resolver}"
+        done
+      done
+      log_info "SSRF firewall: DNS (udp+tcp 53) allowed to upstream resolvers: ${dns_upstreams//$'\n'/ }"
+    elif [ -n "$(awk '/^#[ \t]*ExtServers:.*host\(/ { print "host"; exit }' 2>/dev/null </etc/resolv.conf || true)" ]; then
+      log_info "SSRF firewall: no DNS rule needed — the embedded DNS dials the host's own resolvers from the host's namespace"
+    else
+      log_warn "no upstream DNS resolver derivable from /etc/resolv.conf — external lookups work only through a resolver on a connected subnet or a public address"
+    fi
     iptables -A OUTPUT -d 10.0.0.0/8 -j REJECT --reject-with icmp-net-prohibited 2>/dev/null || true
     iptables -A OUTPUT -d 172.16.0.0/12 -j REJECT --reject-with icmp-net-prohibited 2>/dev/null || true
     iptables -A OUTPUT -d 192.168.0.0/16 -j REJECT --reject-with icmp-net-prohibited 2>/dev/null || true
@@ -100,6 +124,48 @@ install_ssrf_firewall() {
   iptables -I OUTPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || \
     iptables -I OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || \
     log_warn "iptables: failed to accept replies on established connections"
+}
+
+# The upstream DNS servers this container's lookups leave for, one IPv4
+# address per line, from the resolv.conf on stdin. Docker's embedded DNS
+# lists them in its `# ExtServers: [...]` comment, and a container without
+# the embedded DNS (`network_mode`, the default bridge) has them as
+# `nameserver` lines. Only the plain ExtServers entries count: the daemon's
+# `dns` setting or `--dns`, dialed from this namespace. A `host(...)` entry
+# (the host's own resolvers; every one of them from moby 28, the loopback
+# ones before) is dialed from the host's namespace, never crosses this
+# OUTPUT chain and so opens nothing. Loopback (127.0.0.11 itself, a host stub), 0.0.0.0/8,
+# link-local (the metadata guard rejects it ahead of any accept), IPv6 and
+# anything unparsable are dropped; duplicates print once.
+ssrf_dns_upstreams() {
+  LC_ALL=C awk '
+    function emit(address, parts, i) {
+      if (split(address, parts, ".") != 4) return
+      for (i = 1; i <= 4; i++) {
+        if (parts[i] !~ /^[0-9]+$/ || length(parts[i]) > 3 || parts[i] + 0 > 255) return
+        if (length(parts[i]) > 1 && substr(parts[i], 1, 1) == "0") return
+      }
+      if (parts[1] == 127 || parts[1] == 0) return
+      if (parts[1] == 169 && parts[2] == 254) return
+      if (!seen[address]++) print address
+    }
+    /^#[ \t]*ExtServers:/ {
+      list = $0
+      sub(/^#[ \t]*ExtServers:/, "", list)
+      gsub(/[][,]/, " ", list)
+      count = split(list, entries, /[ \t]+/)
+      for (i = 1; i <= count; i++) {
+        entry = entries[i]
+        if (entry ~ /^host\(/) continue
+        emit(entry)
+      }
+      next
+    }
+    {
+      sub(/[#;].*$/, "")
+      if ($1 == "nameserver" && NF == 2) emit($2)
+    }
+  '
 }
 
 # The markers a start must not inherit. /tmp outlives a stop whenever the

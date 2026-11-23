@@ -237,7 +237,7 @@ The three roles share the platform image: the API and the worker write `config-d
 
 <Warning>
 
-The backend roles run without `NET_ADMIN` and with `TALE_SKIP_SSRF_FIREWALL=1`. With that capability the image installs its iptables egress fence, which accepts only the subnets the Pod is directly connected to and rejects the rest of the private address space. On a Pod network that rejects the cluster DNS and every Service address, so the role fails with `getaddrinfo EAI_AGAIN db` and restarts until you remove the capability. The NetworkPolicy at the end of the file provides the fence instead: the roles reach every peer in the namespace, the cluster DNS, and the public internet, and never the cloud metadata service, the nodes, or private networks. Extend its last rule when your model providers or connectors live on a private range.
+The backend roles run without `NET_ADMIN` and with `TALE_SKIP_SSRF_FIREWALL=1`. With that capability the image installs its iptables egress fence, which accepts only the subnets the Pod is directly connected to and DNS to the resolvers its `/etc/resolv.conf` names, and rejects the rest of the private address space. On a Pod network that rejects every Service address, so the role cannot reach `db` and restarts until you remove the capability. The NetworkPolicy at the end of the file provides the fence instead: the roles reach every peer in the namespace, the cluster DNS, and the public internet, and never the cloud metadata service, the nodes, or private networks. Extend its last rule when your model providers or connectors live on a private range.
 
 </Warning>
 
