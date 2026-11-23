@@ -146,3 +146,68 @@ describe('where a call goes upstream', () => {
     );
   });
 });
+
+describe('the effort a call with tools must carry', () => {
+  const openai: RelayConnector = {
+    name: 'openai',
+    apiFormat: 'openai',
+    baseUrl: 'https://api.openai.com/v1',
+    apiKey: 'sk-openai',
+  };
+  /** A model whose Chat Completions endpoint takes tools only at `none`
+   * (OpenAI's GPT-6 Sol: "Chat Completions supports function calling only
+   * with reasoning_effort set to none"). */
+  const offWithTools = {
+    reasoning: { off: 'none' as const, toolsRequireOff: true },
+  };
+
+  it('is the catalog’s off on Chat Completions, where the model takes tools only there', () => {
+    expect(
+      upstreamFor(
+        openai,
+        model({ providerSlug: 'openai', modelId: 'gpt-6-sol' }),
+        'openai-chat',
+        offWithTools,
+      ),
+    ).toMatchObject({ wire: 'openai-chat', toolsEffort: 'none' });
+    // A client on another wire translated onto Chat Completions too.
+    expect(
+      upstreamFor(
+        { ...deepseek, harnessEndpoint: undefined },
+        model(),
+        'anthropic',
+        { reasoning: { off: 'minimal', toolsRequireOff: true } },
+      ),
+    ).toMatchObject({ wire: 'openai-chat', toolsEffort: 'minimal' });
+  });
+
+  it('is nothing on the Responses API, which takes tools at any effort, nor for any other model', () => {
+    // Codex on OpenAI's own API stays on the Responses wire.
+    expect(
+      upstreamFor(
+        openai,
+        model({ providerSlug: 'openai', modelId: 'gpt-6-sol' }),
+        'openai-responses',
+        offWithTools,
+      ),
+    ).not.toHaveProperty('toolsEffort');
+    // A model that names an off value but takes tools at any effort.
+    expect(
+      upstreamFor(openai, model(), 'openai-chat', {
+        reasoning: { off: 'none' },
+      }),
+    ).not.toHaveProperty('toolsEffort');
+    expect(
+      upstreamFor(openai, model(), 'openai-chat', undefined),
+    ).not.toHaveProperty('toolsEffort');
+    // An Anthropic upstream.
+    expect(
+      upstreamFor(
+        deepseek,
+        model({ anthropicLane: true }),
+        'anthropic',
+        offWithTools,
+      ),
+    ).not.toHaveProperty('toolsEffort');
+  });
+});

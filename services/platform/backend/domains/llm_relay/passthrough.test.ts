@@ -532,6 +532,83 @@ describe('a call relayed on its own wire', () => {
   });
 });
 
+describe('the effort a call with tools carries to a model that takes tools only at its off', () => {
+  /** OpenAI's Chat Completions for a model that takes function tools only
+   * at `reasoning_effort: none`, whose own default is medium. */
+  const offOnly: UpstreamEndpoint = {
+    ...endpoint('openai-chat'),
+    toolsEffort: 'none',
+  };
+  const TOOLS = [
+    {
+      type: 'function',
+      function: { name: 'connector', parameters: { type: 'object' } },
+    },
+  ];
+  const answered = () =>
+    upstream(() =>
+      Response.json({
+        id: 'chatcmpl-1',
+        choices: [],
+        usage: { prompt_tokens: 3, completion_tokens: 1 },
+      }),
+    );
+  const relay = async (
+    to: UpstreamEndpoint,
+    body: Record<string, unknown>,
+    fetcher: UpstreamFetch,
+  ) =>
+    relayPassthrough({
+      endpoint: to,
+      body: { model: 'm', messages: [], ...body },
+      stream: false,
+      signal: new AbortController().signal,
+      onDone: outcomeOf().onDone,
+      fetcher,
+    });
+
+  it('sends the off with tools, whatever the client asked: an effort above it, or none (Pi’s)', async () => {
+    const { fetcher, sent } = answered();
+    await relay(offOnly, { tools: TOOLS }, fetcher);
+    await relay(offOnly, { tools: TOOLS, reasoning_effort: 'high' }, fetcher);
+    // The older form of tools counts too.
+    await relay(offOnly, { functions: [{ name: 'connector' }] }, fetcher);
+    expect(sent.map((call) => call.body.reasoning_effort)).toEqual([
+      'none',
+      'none',
+      'none',
+    ]);
+    expect(sent[1]?.body.tools).toEqual(TOOLS);
+  });
+
+  it('leaves a call without tools as its client sent it', async () => {
+    const { fetcher, sent } = answered();
+    await relay(offOnly, {}, fetcher);
+    await relay(offOnly, { tools: [], reasoning_effort: 'high' }, fetcher);
+    expect(sent[0]?.body).not.toHaveProperty('reasoning_effort');
+    expect(sent[1]?.body.reasoning_effort).toBe('high');
+  });
+
+  it('leaves the effort to the client on a wire that takes tools at any', async () => {
+    const { fetcher, sent } = answered();
+    // The Responses API (Codex on OpenAI's own API), and Chat Completions
+    // for a model that names no such limit.
+    await relay(
+      endpoint('openai-responses'),
+      { tools: TOOLS, reasoning: { effort: 'high' } },
+      fetcher,
+    );
+    await relay(
+      endpoint('openai-chat'),
+      { tools: TOOLS, reasoning_effort: 'high' },
+      fetcher,
+    );
+    expect(sent[0]?.body).not.toHaveProperty('reasoning_effort');
+    expect(sent[0]?.body.reasoning).toEqual({ effort: 'high' });
+    expect(sent[1]?.body.reasoning_effort).toBe('high');
+  });
+});
+
 describe('headers a client hands on to the vendor', () => {
   it('passes x-bf-eh-<name> on as <name>, but never a credential', () => {
     expect(

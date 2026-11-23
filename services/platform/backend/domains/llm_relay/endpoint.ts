@@ -1,4 +1,4 @@
-import type { ApiFormat } from '@tale/shared/schemas/providers';
+import type { ApiFormat, ReasoningOff } from '@tale/shared/schemas/providers';
 
 import { checkProviderHostPolicy } from '../../../lib/net/host-policy.ts';
 import { providerAttributionHeaders } from '../../../lib/shared/providers/attribution.ts';
@@ -34,6 +34,14 @@ export interface UpstreamEndpoint {
   apiKey: string;
   /** Headers the upstream is always sent: the vendor's attribution. */
   headers: Record<string, string>;
+  /** The effort a call that carries tools must be sent here, whatever its
+   * client asked: the catalog's `off` for a model whose Chat Completions
+   * endpoint takes function tools only at that effort
+   * (`reasoning.toolsRequireOff`). An effort above it is refused, and so
+   * is none at all, which leaves the vendor's own default in force (medium,
+   * on the OpenAI models that declare it). Absent on every other wire and
+   * model: the Responses API takes tools at any effort. */
+  toolsEffort?: ReasoningOff;
 }
 
 /** Why an upstream cannot be reached for a model. */
@@ -48,13 +56,20 @@ export class UpstreamUnavailableError extends Error {}
  * whose tools work only there — and is translated onto Chat Completions
  * everywhere else. The URL is held to the provider host policy before
  * anything is sent: no cloud metadata endpoint, and a private address only
- * where the operator admitted them.
+ * where the operator admitted them. `catalog` is the model's catalog entry:
+ * where its tools work, and the effort its Chat Completions endpoint takes
+ * them at ({@link UpstreamEndpoint.toolsEffort}).
  */
 export function upstreamFor(
   connector: RelayConnector,
   model: RelayModel,
   inbound: RelayWire,
-  catalog: { toolCallingApi?: 'responses' } | undefined,
+  catalog:
+    | {
+        toolCallingApi?: 'responses';
+        reasoning?: { off?: ReasoningOff; toolsRequireOff?: boolean };
+      }
+    | undefined,
 ): UpstreamEndpoint {
   let wire: UpstreamWire;
   let baseUrl: string | undefined;
@@ -84,6 +99,10 @@ export function upstreamFor(
   }
   const trimmed = baseUrl.trim().replace(/\/+$/, '');
   checkProviderHostPolicy(trimmed);
+  const toolsEffort =
+    wire === 'openai-chat' && catalog?.reasoning?.toolsRequireOff === true
+      ? catalog.reasoning.off
+      : undefined;
   return {
     wire,
     connector: connector.name,
@@ -94,6 +113,7 @@ export function upstreamFor(
       providerName: connector.name,
       baseUrl: trimmed,
     }),
+    ...(toolsEffort !== undefined ? { toolsEffort } : {}),
   };
 }
 

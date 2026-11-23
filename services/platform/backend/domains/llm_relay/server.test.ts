@@ -316,6 +316,68 @@ describe('the provider’s answer', () => {
     expect(sent[0]?.body.model).toBe('claude-sonnet-5-5');
   });
 
+  it('sends a call with tools the off of a model that takes tools only there, whatever its client asked [RELAY-R11]', async () => {
+    // Pi on OpenAI's GPT-6 Sol, whose Chat Completions takes function tools
+    // only at `none` while its own default is medium: Pi asks no effort,
+    // and the relay sends the catalog's off.
+    const { handle, sent } = relay({
+      grants: {
+        [tokenHashOf(TOKEN)]: {
+          ...GRANT,
+          allowedModels: [{ providerSlug: 'openai', modelId: 'gpt-6-sol' }],
+        },
+      },
+      connectorFor: async () => ({
+        connector: {
+          name: 'openai',
+          apiFormat: 'openai',
+          baseUrl: 'https://api.openai.com/v1',
+          apiKey: 'sk-openai-org',
+        },
+        entry: {
+          id: 'gpt-6-sol',
+          provider: 'openai',
+          tags: ['chat'],
+          supportsTools: true,
+          supportsVision: true,
+          reasoning: { knob: 'effort', off: 'none', toolsRequireOff: true },
+          contextWindow: 1_050_000,
+        },
+      }),
+      upstream: () =>
+        Response.json({
+          id: 'chatcmpl-1',
+          choices: [],
+          usage: { prompt_tokens: 3, completion_tokens: 1 },
+        }),
+    });
+    const tools = [
+      { type: 'function', function: { name: 'connector', parameters: {} } },
+    ];
+    await handle(
+      call('/openai/v1/chat/completions', {
+        model: 'openai/gpt-6-sol',
+        messages: [{ role: 'user', content: 'go' }],
+        tools,
+      }),
+    );
+    await handle(
+      call('/openai/v1/chat/completions', {
+        model: 'openai/gpt-6-sol',
+        messages: [{ role: 'user', content: 'go' }],
+        reasoning_effort: 'high',
+      }),
+    );
+    expect(sent[0]?.url).toBe('https://api.openai.com/v1/chat/completions');
+    expect(sent[0]?.body).toMatchObject({
+      model: 'gpt-6-sol',
+      reasoning_effort: 'none',
+      tools,
+    });
+    // Without tools the model takes any effort: the client's stands.
+    expect(sent[1]?.body.reasoning_effort).toBe('high');
+  });
+
   it('says a refused provider credential as its own 502, never as the agent’s key [RELAY-R9]', async () => {
     const { handle } = relay({
       upstream: () =>

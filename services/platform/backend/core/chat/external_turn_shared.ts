@@ -416,7 +416,8 @@ export async function resolveHarnessTurnModelLimits(
       : {}),
     // A model with a reasoning knob can be told how hard to think — except
     // where its endpoint refuses any effort beside tools, which an agent
-    // turn always carries.
+    // turn always carries: the model relay sends such a call the model's
+    // `off` effort itself, whatever the harness asked (RELAY-R11).
     ...(entry.reasoning !== undefined &&
     entry.reasoning.toolsRequireOff !== true
       ? { reasoning: true as const }

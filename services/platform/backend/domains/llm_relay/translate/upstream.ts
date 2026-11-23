@@ -32,11 +32,20 @@ type Reasoning = LanguageModelV4CallOptions['reasoning'];
  * is rounded to those, and `none` sends nothing. Anthropic's newest models
  * cannot stop thinking and refuse to be told to, so `none` asks nothing of
  * Anthropic either: the model thinks as it does by default.
+ *
+ * A call that carries tools to a model whose endpoint takes them only at
+ * its catalog's `off` effort is sent exactly that, whatever was asked —
+ * even nothing, which would leave the vendor's default above it in force
+ * ({@link UpstreamEndpoint.toolsEffort}).
  */
 export function reasoningForUpstream(
   endpoint: UpstreamEndpoint,
   reasoning: Reasoning,
+  call: { tools: boolean },
 ): Reasoning {
+  if (call.tools && endpoint.toolsEffort !== undefined) {
+    return endpoint.toolsEffort;
+  }
   if (reasoning === undefined || reasoning === 'provider-default') {
     return reasoning;
   }

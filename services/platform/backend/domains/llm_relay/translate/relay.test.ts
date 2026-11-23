@@ -391,6 +391,91 @@ describe('a call translated between wires', () => {
     expect(theModel.calls[0]?.providerOptions).toBeUndefined();
   });
 
+  it('sends a call with tools the off of a model whose Chat Completions takes tools only there, on the wire [RELAY-R11]', async () => {
+    // Claude Code (the Anthropic wire) on OpenAI's GPT-6 Sol, which takes
+    // function tools on Chat Completions only at `none`: the effort Claude
+    // Code asked for is not what goes up.
+    const sent: Record<string, unknown>[] = [];
+    const answer = await relayTranslated({
+      ...base,
+      inbound: 'anthropic',
+      endpoint: {
+        ...endpoint('openai-chat', 'openai'),
+        modelId: 'gpt-6-sol',
+        baseUrl: 'https://api.openai.com/v1',
+        toolsEffort: 'none',
+      },
+      stream: false,
+      signal: new AbortController().signal,
+      onDone: () => {},
+      adapter: adapter({
+        parse: () => ({
+          options: {
+            prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
+            tools: [
+              {
+                type: 'function',
+                name: 'connector',
+                inputSchema: { type: 'object', properties: {} },
+              },
+            ],
+            reasoning: 'high',
+          },
+        }),
+      }),
+      fetcher: async (_url, init) => {
+        sent.push(
+          JSON.parse(
+            typeof init.body === 'string' ? init.body : '{}',
+          ) as Record<string, unknown>,
+        );
+        return Response.json({
+          id: 'chatcmpl-1',
+          object: 'chat.completion',
+          created: 0,
+          model: 'gpt-6-sol',
+          choices: [
+            {
+              index: 0,
+              message: { role: 'assistant', content: 'ok' },
+              finish_reason: 'stop',
+            },
+          ],
+          usage: { prompt_tokens: 3, completion_tokens: 1, total_tokens: 4 },
+        });
+      },
+    });
+    expect(answer.status).toBe(200);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({
+      model: 'gpt-6-sol',
+      reasoning_effort: 'none',
+    });
+    expect(sent[0]?.tools).toHaveLength(1);
+  });
+
+  it('leaves the effort as asked for a call without tools to such a model', async () => {
+    const theModel = model([]);
+    await relayTranslated({
+      ...base,
+      inbound: 'anthropic',
+      endpoint: { ...endpoint('openai-chat', 'openai'), toolsEffort: 'none' },
+      stream: false,
+      signal: new AbortController().signal,
+      onDone: () => {},
+      adapter: adapter({
+        parse: () => ({
+          options: {
+            prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }],
+            reasoning: 'high',
+          },
+        }),
+      }),
+      model: theModel,
+    });
+    expect(theModel.calls[0]?.reasoning).toBe('high');
+  });
+
   it('sends nothing for a client that already left', async () => {
     const theModel = model(TEXT);
     const gone = new AbortController();

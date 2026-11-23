@@ -240,7 +240,9 @@ export async function relayTranslated(args: TranslatedArgs): Promise<Response> {
         }
       : { status, usage: NO_USAGE, estimated: false };
   const providerOptions = upstreamProviderOptions(endpoint);
-  const reasoning = reasoningForUpstream(endpoint, parsed.options.reasoning);
+  const reasoning = reasoningForUpstream(endpoint, parsed.options.reasoning, {
+    tools: (parsed.options.tools?.length ?? 0) > 0,
+  });
   const { reasoning: _asked, ...asked } = parsed.options;
   const call = {
     ...asked,

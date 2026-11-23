@@ -221,19 +221,32 @@ export function forwardedExtraHeaders(
   return extra;
 }
 
+/** Whether a Chat Completions body offers the model tools: `tools`, or
+ * the older `functions`. */
+function offersTools(body: Record<string, unknown>): boolean {
+  return [body.tools, body.functions].some(
+    (list) => Array.isArray(list) && list.length > 0,
+  );
+}
+
 /** The body as it goes upstream. */
 function upstreamBody(
-  wire: UpstreamWire,
+  endpoint: UpstreamEndpoint,
   body: Record<string, unknown>,
-  modelId: string,
   stream: boolean,
 ): Record<string, unknown> {
   const { fallbacks: _fallbacks, ...rest } = body;
-  const sent: Record<string, unknown> = { ...rest, model: modelId };
-  if (wire === 'openai-chat' && stream) {
+  const sent: Record<string, unknown> = { ...rest, model: endpoint.modelId };
+  if (endpoint.wire === 'openai-chat' && stream) {
     // Chat Completions reports usage on a closing chunk only when asked.
     const options = isRecord(body.stream_options) ? body.stream_options : {};
     sent.stream_options = { ...options, include_usage: true };
+  }
+  // A model whose endpoint takes tools only at its `off` effort is sent
+  // that effort with tools, whatever the client asked: any other effort,
+  // or none (the vendor's default is above it), has the call refused.
+  if (endpoint.toolsEffort !== undefined && offersTools(body)) {
+    sent.reasoning_effort = endpoint.toolsEffort;
   }
   return sent;
 }
@@ -428,9 +441,7 @@ export async function relayPassthrough(
   const clientAskedUsage =
     isRecord(args.body.stream_options) &&
     args.body.stream_options.include_usage === true;
-  const sentBody = JSON.stringify(
-    upstreamBody(wire, args.body, endpoint.modelId, stream),
-  );
+  const sentBody = JSON.stringify(upstreamBody(endpoint, args.body, stream));
   const inputEstimate = estimatedInput(args.body);
   const headers = upstreamHeaders(endpoint, args.forwarded, args.extraHeaders);
 

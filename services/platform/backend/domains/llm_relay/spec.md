@@ -107,6 +107,20 @@ and the agent is told the provider could not be reached.
   deployment that admits no private provider hosts → Kai's agent is told the provider could not be
   reached, and nothing is sent to that address.
 
+## What the provider is sent
+
+### RELAY-R11 · A call with tools is sent the effort its model takes tools at
+
+Some models take tools on the Chat Completions API only when told not to think, while their own
+default is to think: OpenAI's GPT-6 Sol takes them only at `reasoning_effort: none`. The relay
+sends a call with tools to such a model the effort its catalog entry names, whatever the agent
+asked, and also when it asked for none. A call without tools keeps the effort its agent asked
+for, and so does a call on the Responses API, which takes tools at any effort.
+
+- **Example**: Lena's pi agent runs on GPT-6 Sol through OpenAI's Chat Completions and asks for no
+  effort → the relay tells GPT-6 Sol not to think, and the call with its tools is answered
+  instead of refused.
+
 ## Not yet
 
 - **Images a tool returns, on a provider that takes only text from tools**: they reach the model

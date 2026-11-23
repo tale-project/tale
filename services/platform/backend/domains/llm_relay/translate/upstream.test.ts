@@ -110,31 +110,69 @@ describe('the upstream a translated call goes to', () => {
   });
 });
 
+/** A call that offers the model no tools. */
+const NO_TOOLS = { tools: false };
+
 describe('how an upstream is asked to think', () => {
+  it('sends a call with tools the off of a model that takes tools only there, whatever was asked', () => {
+    // OpenAI's Chat Completions takes function tools on GPT-6 Sol only at
+    // `none`, and its own default is medium: no effort is refused too.
+    const offOnly: UpstreamEndpoint = {
+      ...endpoint('openai-chat', 'openai'),
+      toolsEffort: 'none',
+    };
+    const withTools = { tools: true };
+    expect(reasoningForUpstream(offOnly, 'high', withTools)).toBe('none');
+    expect(reasoningForUpstream(offOnly, undefined, withTools)).toBe('none');
+    expect(reasoningForUpstream(offOnly, 'provider-default', withTools)).toBe(
+      'none',
+    );
+    // An off another server takes is sent as the catalog names it, not
+    // rounded as an asked level would be.
+    expect(
+      reasoningForUpstream(
+        { ...endpoint('openai-chat'), toolsEffort: 'minimal' },
+        'max',
+        withTools,
+      ),
+    ).toBe('minimal');
+    // Without tools, the model takes any effort.
+    expect(reasoningForUpstream(offOnly, 'high', NO_TOOLS)).toBe('high');
+    expect(reasoningForUpstream(offOnly, undefined, NO_TOOLS)).toBeUndefined();
+  });
+
   it('gives OpenAI’s own API every level it names', () => {
     const openai = endpoint('openai-chat', 'openai');
-    expect(reasoningForUpstream(openai, 'none')).toBe('none');
-    expect(reasoningForUpstream(openai, 'minimal')).toBe('minimal');
-    expect(reasoningForUpstream(openai, 'xhigh')).toBe('xhigh');
-    expect(reasoningForUpstream(openai, 'max')).toBe('xhigh');
+    expect(reasoningForUpstream(openai, 'none', NO_TOOLS)).toBe('none');
+    expect(reasoningForUpstream(openai, 'minimal', NO_TOOLS)).toBe('minimal');
+    expect(reasoningForUpstream(openai, 'xhigh', NO_TOOLS)).toBe('xhigh');
+    expect(reasoningForUpstream(openai, 'max', NO_TOOLS)).toBe('xhigh');
   });
 
   it('rounds to low, medium and high for any other Chat Completions server, and sends nothing for none', () => {
     const other = endpoint('openai-chat', 'deepseek');
-    expect(reasoningForUpstream(other, 'none')).toBeUndefined();
-    expect(reasoningForUpstream(other, 'minimal')).toBe('low');
-    expect(reasoningForUpstream(other, 'medium')).toBe('medium');
-    expect(reasoningForUpstream(other, 'max')).toBe('high');
+    expect(reasoningForUpstream(other, 'none', NO_TOOLS)).toBeUndefined();
+    expect(reasoningForUpstream(other, 'minimal', NO_TOOLS)).toBe('low');
+    expect(reasoningForUpstream(other, 'medium', NO_TOOLS)).toBe('medium');
+    expect(reasoningForUpstream(other, 'max', NO_TOOLS)).toBe('high');
   });
 
   it('never tells Anthropic to stop thinking, and leaves an unasked level alone', () => {
-    expect(reasoningForUpstream(endpoint('anthropic'), 'none')).toBeUndefined();
-    expect(reasoningForUpstream(endpoint('anthropic'), 'max')).toBe('max');
     expect(
-      reasoningForUpstream(endpoint('openai-chat'), undefined),
+      reasoningForUpstream(endpoint('anthropic'), 'none', NO_TOOLS),
+    ).toBeUndefined();
+    expect(reasoningForUpstream(endpoint('anthropic'), 'max', NO_TOOLS)).toBe(
+      'max',
+    );
+    expect(
+      reasoningForUpstream(endpoint('openai-chat'), undefined, NO_TOOLS),
     ).toBeUndefined();
     expect(
-      reasoningForUpstream(endpoint('openai-chat'), 'provider-default'),
+      reasoningForUpstream(
+        endpoint('openai-chat'),
+        'provider-default',
+        NO_TOOLS,
+      ),
     ).toBe('provider-default');
   });
 });
