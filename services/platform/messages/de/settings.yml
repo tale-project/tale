@@ -1984,8 +1984,8 @@ dataResidency:
         weder Dokumente noch Websites lassen sich durchsuchen.
       link: Embedding-Modell wählen
     recommendationBody:
-      Dein {provider}-Zugang kann {model} bedienen ({dimensions}-dimensionale
-      Vektoren).
+      Dein {provider}-Zugang kann {model} bedienen. Tale fordert davon
+      {dimensions}-dimensionale Vektoren an.
     recommendationApply: Dieses Modell verwenden
     readOnlyBody: Zum Ändern des Embedding-Modells dieser Organisation sind
       Admin-Berechtigungen erforderlich.
@@ -2030,10 +2030,14 @@ dataResidency:
     modelTag: Modell-Tag
     dimensions: Vektorbreite
     dimensionsHint:
-      'Angegeben, nie geraten: die exakte Dimensionszahl, die dieses Modell
-      erzeugt — eine von {widths}. Speicherst du ein anderes Modell oder eine
-      andere Breite, erhalten die indexierten Dokumente neue Vektoren, bei
-      einer neuen Breite auch die Website-Seiten.'
+      'Angegeben, nie geraten: die exakte Dimensionszahl der Vektoren, die
+      dieses Modell liefert — eine von {widths}. Tale fordert diese Breite
+      beim Modell an: Ein Modell, das seine Vektoren kürzen kann, wie Qwen3
+      Embedding, kann auch eine Breite unterhalb seiner vollen liefern, doch
+      ein Anbieter nimmt unter Umständen nur bestimmte Breiten an.
+      Speicherst du ein anderes Modell oder eine andere Breite, erhalten die
+      indexierten Dokumente neue Vektoren, bei einer neuen Breite auch die
+      Website-Seiten.'
     baseUrl: Basis-URL
     baseUrlHint: OpenAI-kompatibler Endpunkt; leer lassen für den des Anbieters.
     removed:

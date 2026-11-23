@@ -38,6 +38,7 @@ import {
   KNOWLEDGE_DEFAULT_MAX_CONCURRENT_REQUESTS,
   type KnowledgeEmbeddingConfig,
 } from '@tale/shared/schemas/knowledge';
+import type { ProviderDefinition } from '@tale/shared/schemas/providers';
 import OpenAI from 'openai';
 import PQueue from 'p-queue';
 
@@ -46,6 +47,7 @@ import type { QueryEmbedder } from '../../../lib/knowledge/retrieve';
 import type { EmbeddingModel } from '../../../lib/knowledge/types';
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
+import { openRouterEndpointsRefusingWidth } from '../lib/providers/catalog_fetch';
 import { directActiveCredential } from '../lib/providers/direct_credential';
 import { resolveProvidersForOrgId } from '../lib/providers/org_providers';
 import {
@@ -896,6 +898,11 @@ export class Embedder implements QueryEmbedder {
             model: this.model.model,
             input: [...texts],
             dimensions: this.model.dimensions,
+            // OpenRouter's provider routing: skip the endpoints that would
+            // refuse this width (`openRouterEndpointsRefusingWidth`).
+            ...(this.model.ignoredEndpoints !== undefined && {
+              provider: { ignore: [...this.model.ignoredEndpoints] },
+            }),
             // Stated explicitly because the SDK otherwise asks for base64 and
             // then base64-decodes whatever comes back WITHOUT checking that it
             // is a string. An OpenAI-compatible provider that ignores the
@@ -1015,14 +1022,22 @@ export async function embedderForOrg(
   // settings form leaves the endpoint optional (few admins know a provider's
   // API origin by heart), and without this fallback a config without one
   // would silently send its key to the OpenAI SDK's default host.
+  const connector = await orgConnector(
+    ctx,
+    args.organizationId,
+    args.config.providerSlug,
+  );
   const baseUrl =
-    credential.endpointUrl ??
-    args.config.baseUrl ??
-    (await connectorBaseUrl(
-      ctx,
-      args.organizationId,
-      args.config.providerSlug,
-    ));
+    credential.endpointUrl ?? args.config.baseUrl ?? connector?.baseUrl;
+  // OpenRouter balances a request across the model's endpoints; one that
+  // serves only a fixed set of widths would refuse this organization's.
+  const ignoredEndpoints =
+    connector?.catalog.source === 'openrouter-api'
+      ? openRouterEndpointsRefusingWidth(
+          args.config.model,
+          args.config.dimensions,
+        )
+      : [];
 
   return new Embedder(
     {
@@ -1030,6 +1045,7 @@ export async function embedderForOrg(
       model: args.config.model,
       dimensions: args.config.dimensions,
       ...(baseUrl !== undefined && { baseUrl }),
+      ...(ignoredEndpoints.length > 0 && { ignoredEndpoints }),
       ...(args.config.maxConcurrentRequests !== undefined && {
         maxConcurrentRequests: args.config.maxConcurrentRequests,
       }),
@@ -1051,21 +1067,21 @@ export async function embedderForOrg(
   );
 }
 
-/** The provider connector's declared API origin, resolved through the same
- * per-org connector set every other call uses; undefined when the connector
- * is gone or declares none (the SDK default then applies, as before). */
-async function connectorBaseUrl(
+/** The provider connector, resolved through the same per-org connector set
+ * every other call uses: its declared API origin and its catalog source.
+ * Undefined when the connector is gone (the SDK default host then applies,
+ * as before, and no OpenRouter routing is sent). */
+async function orgConnector(
   ctx: ActionCtx,
   organizationId: string,
   providerSlug: string,
-): Promise<string | undefined> {
+): Promise<ProviderDefinition | undefined> {
   try {
     const connectors = await resolveProvidersForOrgId(ctx, organizationId);
-    return connectors.find((connector) => connector.name === providerSlug)
-      ?.baseUrl;
+    return connectors.find((connector) => connector.name === providerSlug);
   } catch (error) {
     console.warn(
-      `[knowledge] could not resolve the "${providerSlug}" connector's base URL:`,
+      `[knowledge] could not resolve the "${providerSlug}" connector:`,
       error instanceof Error ? error.message : error,
     );
     return undefined;

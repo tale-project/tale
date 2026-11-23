@@ -13,6 +13,7 @@ import {
   CatalogListingError,
   getProviderCatalog,
   invalidateCatalogFetchCache,
+  openRouterEndpointsRefusingWidth,
 } from './catalog_fetch';
 
 vi.mock('../../../../lib/net/safe-fetch', async (importOriginal) => {
@@ -504,6 +505,9 @@ describe('getProviderCatalog — live sources', () => {
     expect(embedding?.embedding).toEqual({
       dimensions: 1536,
       recommended: true,
+      fixedWidthEndpoints: {
+        siliconflow: [64, 128, 256, 512, 768, 1024, 2048, 4096],
+      },
     });
   });
 
@@ -1418,5 +1422,36 @@ describe('getProviderCatalog — a gateway listing that does not describe its mo
         supportsVision: false,
       });
     });
+  });
+});
+
+describe('openRouterEndpointsRefusingWidth', () => {
+  // OpenRouter serves Qwen3 Embedding 8B from Nebius, DeepInfra and
+  // SiliconFlow (endpoints listing, 2026-11-23); SiliconFlow accepts only
+  // 64…4096 in powers of two plus 768, so the curated 1536 lands there as a
+  // refusal unless the request tells OpenRouter to skip it.
+  it('names the endpoints whose fixed widths lack the requested one', () => {
+    expect(
+      openRouterEndpointsRefusingWidth('qwen/qwen3-embedding-8b', 1536),
+    ).toEqual(['siliconflow']);
+  });
+
+  it('keeps an endpoint whose fixed widths include the requested one', () => {
+    expect(
+      openRouterEndpointsRefusingWidth('qwen/qwen3-embedding-8b', 1024),
+    ).toEqual([]);
+  });
+
+  it('names none for a model no shipped OpenRouter catalog describes', () => {
+    expect(
+      openRouterEndpointsRefusingWidth('qwen/qwen3-embedding-4b', 1536),
+    ).toEqual([]);
+    // Exact ids only: a gateway's spelling is another provider's row.
+    expect(
+      openRouterEndpointsRefusingWidth(
+        'openrouter/qwen/qwen3-embedding-8b',
+        1536,
+      ),
+    ).toEqual([]);
   });
 });

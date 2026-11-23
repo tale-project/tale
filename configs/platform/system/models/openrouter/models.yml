@@ -381,9 +381,22 @@
 # Embedding models. OpenRouter serves these ONLY behind its
 # ?output_modalities=embeddings listing, which publishes no vector width —
 # the `embedding.dimensions` fact here is what makes one-click knowledge
-# setup possible. qwen3-embedding supports Matryoshka truncation; 1536 keeps
-# the corpus under pgvector's 2000-dim HNSW index limit and matches the
+# setup possible. Qwen3 Embedding 8B produces 4096 dimensions natively and
+# supports Matryoshka truncation down to 32 (Qwen model card); 1536 is the
+# width the embedder REQUESTS (`dimensions`), not the model's native one. It
+# keeps the corpus under pgvector's 2000-dim HNSW index limit and matches the
 # width most existing deployments' corpora are already pinned to.
+# OpenRouter serves it from three endpoints (checked 2026-11-23 against
+# /api/v1/models/qwen/qwen3-embedding-8b/endpoints), each at $0.01 per
+# million input tokens except SiliconFlow at $0.04:
+#   - Nebius (bf16, 40960 context): `dimensions` is any integer (its
+#     create-embeddings API reference).
+#   - DeepInfra (32768 context): `dimensions` is any integer; above the
+#     native width it pads zeros (its model schema).
+#   - SiliconFlow (fp8, 32768 context): `dimensions` is one of 64, 128, 256,
+#     512, 768, 1024, 2048 or 4096 (its create-embeddings docs) — 1536 is
+#     not, so `fixedWidthEndpoints` has the embedder of an organization at
+#     1536 tell OpenRouter to skip it.
 - id: qwen/qwen3-embedding-8b
   provider: openrouter
   tags:
@@ -397,3 +410,5 @@
   embedding:
     dimensions: 1536
     recommended: true
+    fixedWidthEndpoints:
+      siliconflow: [64, 128, 256, 512, 768, 1024, 2048, 4096]

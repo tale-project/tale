@@ -511,6 +511,27 @@ describe('shipped static model catalogs', () => {
     ]);
   });
 
+  // `fixedWidthEndpoints` becomes OpenRouter's `provider.ignore` on the
+  // embedding request, a field only OpenRouter reads: it belongs on entries
+  // of an OpenRouter-listed catalog alone.
+  it('names fixed-width endpoints only on OpenRouter catalogs', () => {
+    const openRouter = new Set(
+      loadProviderDefinitions()
+        .filter((provider) => provider.catalog.source === 'openrouter-api')
+        .map((provider) => provider.name),
+    );
+    const declared: string[] = [];
+    for (const [provider, entries] of loadStaticCatalogs()) {
+      for (const entry of entries) {
+        const fixed = entry.embedding?.fixedWidthEndpoints;
+        if (fixed === undefined) continue;
+        declared.push(`${provider}/${entry.id}`);
+        expect(openRouter.has(provider), provider).toBe(true);
+      }
+    }
+    expect(declared).toEqual(['openrouter/qwen/qwen3-embedding-8b']);
+  });
+
   // The embedding form acts on each provider's `embedding` declaration:
   // `unsupported` refuses the provider at the point of choosing, anything
   // else lets the admin enter a model and its width. `supported` is what a

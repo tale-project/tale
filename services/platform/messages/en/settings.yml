@@ -1921,8 +1921,8 @@ dataResidency:
         be searched.
       link: Choose an embedding model
     recommendationBody:
-      Your {provider} credential can serve {model} ({dimensions}-dimensional
-      vectors).
+      Your {provider} credential can serve {model}. Tale asks it for
+      {dimensions}-dimensional vectors.
     recommendationApply: Use this model
     readOnlyBody:
       Admin permissions are required to change this organization's embedding
@@ -1967,9 +1967,13 @@ dataResidency:
     modelTag: Model tag
     dimensions: Vector width
     dimensionsHint:
-      'Stated, never guessed: the exact dimension count this model produces,
-      one of {widths}. Saving another model or width embeds the indexed
-      documents again, and the website pages too when the width changes.'
+      'Stated, never guessed: the exact dimension count of the vectors this
+      model returns, one of {widths}. Tale asks the model for this width: a
+      model that can shorten its vectors, such as Qwen3 Embedding, can serve
+      one below its full width, though a provider may accept only some
+      widths. Saving another model or width
+      embeds the indexed documents again, and the website pages too when the
+      width changes.'
     baseUrl: Base URL
     baseUrlHint: OpenAI-compatible endpoint; leave blank for the provider's own.
     removed:

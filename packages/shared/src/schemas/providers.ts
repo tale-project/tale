@@ -647,6 +647,19 @@ export const modelCatalogEntrySchema = z
       .object({
         dimensions: z.number().int().min(1).max(16_000),
         recommended: z.boolean().optional(),
+        /** An OpenRouter entry's endpoints, by OpenRouter's provider slug,
+         * that accept only the listed widths for this model (SiliconFlow
+         * serves Qwen3 Embedding 8B at a fixed set of widths, while its other
+         * endpoints shorten to any). OpenRouter balances a request across a
+         * model's endpoints, so the embedder of an organization whose width
+         * is not in an endpoint's set tells OpenRouter to skip that endpoint
+         * (`provider.ignore`); an organization at a listed width keeps it. */
+        fixedWidthEndpoints: z
+          .record(
+            z.string().regex(/^[a-z0-9][a-z0-9-]*$/),
+            z.array(z.number().int().min(1).max(16_000)).nonempty(),
+          )
+          .optional(),
       })
       .strict()
       .optional(),

@@ -2013,8 +2013,8 @@ dataResidency:
         les documents ni les sites web ne peuvent être cherchés.
       link: Choisir un modèle d'embedding
     recommendationBody:
-      Ton identifiant {provider} peut servir {model} (vecteurs à {dimensions}
-      dimensions).
+      Ton identifiant {provider} peut servir {model}. Tale lui demande des
+      vecteurs à {dimensions} dimensions.
     recommendationApply: Utiliser ce modèle
     readOnlyBody:
       Des permissions Admin sont requises pour modifier le modèle d'embedding
@@ -2061,10 +2061,14 @@ dataResidency:
     modelTag: Tag du modèle
     dimensions: Largeur des vecteurs
     dimensionsHint:
-      "Déclarée, jamais devinée : le nombre exact de dimensions que produit
-      ce modèle, parmi {widths}. Enregistrer un autre modèle ou une autre
-      largeur donne de nouveaux vecteurs aux documents déjà indexés, et aussi
-      aux pages de sites quand la largeur change."
+      "Déclarée, jamais devinée : le nombre exact de dimensions des vecteurs
+      que renvoie ce modèle, parmi {widths}. Tale demande cette largeur au
+      modèle : un modèle qui sait raccourcir ses vecteurs, comme Qwen3
+      Embedding, peut en servir une inférieure à sa largeur complète, mais un
+      fournisseur peut n’accepter que certaines largeurs.
+      Enregistrer un autre modèle ou une autre largeur donne de nouveaux
+      vecteurs aux documents déjà indexés, et aussi aux pages de sites quand
+      la largeur change."
     baseUrl: URL de base
     baseUrlHint: Endpoint compatible OpenAI ; vide pour celui du fournisseur.
     removed: Modèle d'embedding supprimé — la recherche de connaissances est
