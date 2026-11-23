@@ -2064,7 +2064,8 @@ dataResidency:
       "Déclarée, jamais devinée : le nombre exact de dimensions des vecteurs
       que renvoie ce modèle, parmi {widths}. Tale demande cette largeur au
       modèle : un modèle qui sait raccourcir ses vecteurs, comme Qwen3
-      Embedding, la renvoie même en dessous de sa largeur complète.
+      Embedding, peut en servir une inférieure à sa largeur complète, mais un
+      fournisseur peut n’accepter que certaines largeurs.
       Enregistrer un autre modèle ou une autre largeur donne de nouveaux
       vecteurs aux documents déjà indexés, et aussi aux pages de sites quand
       la largeur change."

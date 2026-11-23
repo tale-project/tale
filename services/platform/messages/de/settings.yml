@@ -2033,7 +2033,8 @@ dataResidency:
       'Angegeben, nie geraten: die exakte Dimensionszahl der Vektoren, die
       dieses Modell liefert — eine von {widths}. Tale fordert diese Breite
       beim Modell an: Ein Modell, das seine Vektoren kürzen kann, wie Qwen3
-      Embedding, liefert sie auch unterhalb seiner vollen Breite.
+      Embedding, kann auch eine Breite unterhalb seiner vollen liefern, doch
+      ein Anbieter nimmt unter Umständen nur bestimmte Breiten an.
       Speicherst du ein anderes Modell oder eine andere Breite, erhalten die
       indexierten Dokumente neue Vektoren, bei einer neuen Breite auch die
       Website-Seiten.'

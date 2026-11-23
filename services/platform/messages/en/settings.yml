@@ -1969,8 +1969,9 @@ dataResidency:
     dimensionsHint:
       'Stated, never guessed: the exact dimension count of the vectors this
       model returns, one of {widths}. Tale asks the model for this width: a
-      model that can shorten its vectors, such as Qwen3 Embedding, returns it
-      even below its full width. Saving another model or width
+      model that can shorten its vectors, such as Qwen3 Embedding, can serve
+      one below its full width, though a provider may accept only some
+      widths. Saving another model or width
       embeds the indexed documents again, and the website pages too when the
       width changes.'
     baseUrl: Base URL
