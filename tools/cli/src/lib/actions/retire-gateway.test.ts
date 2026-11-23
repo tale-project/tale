@@ -1,4 +1,7 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import { createModuleMocks } from '../../utils/module-mock-fixture';
 import { setProjectId } from '../project/project-context';
@@ -23,8 +26,12 @@ await mockModule('../../utils/logger', () => ({
   blank: mock(),
 }));
 
-const { GATEWAY_KEYS_PATH, gatewayRetired, retireGateway } =
-  await import('./retire-gateway');
+const {
+  GATEWAY_KEYS_PATH,
+  gatewayRetired,
+  keepGatewayPassword,
+  retireGateway,
+} = await import('./retire-gateway');
 
 /**
  * The model relay in the backend replaced the sandbox LLM gateway
@@ -334,5 +341,104 @@ describe('whether a colour hears that the gateway is retired', () => {
     delete process.env.SANDBOX_LLM_GATEWAY_URL;
     setUrl('LLM_GATEWAY_URL', 'http://gateway.internal:8080');
     expect(await gatewayRetired(fake)).toBe(false);
+  });
+});
+
+/**
+ * While the gateway's container is there, the backend settles the keys it
+ * minted with its admin password, which every backend role reads from `.env`
+ * when its container is created. An operator who took the password out of
+ * `.env` would have the colour of the next deploy start without it, and the
+ * keys would never settle: the deploy puts it back from the gateway's own
+ * environment, which the same `.env` made, or says how to recover.
+ */
+describe("a deploy keeps the gateway's admin password while the gateway is there", () => {
+  const KEY = 'SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD';
+  let deployDir: string;
+  const envFile = (): string => readFileSync(join(deployDir, '.env'), 'utf8');
+  /** The gateway's own environment, as Docker would read it back. */
+  const readGatewayValue = mock(
+    async (container: string, keys: readonly string[]) => {
+      const environment = fake.instances.get(container)?.environment ?? {};
+      const key = keys.find((name) => environment[name] !== undefined);
+      return key === undefined ? null : (environment[key] ?? null);
+    },
+  );
+  const keep = () =>
+    keepGatewayPassword({ runtime: fake, deployDir, readGatewayValue });
+  const logged = (): string[] => [...lines(infoMock), ...lines(warnMock)];
+
+  beforeEach(() => {
+    deployDir = mkdtempSync(join(tmpdir(), 'tale-gateway-password-'));
+    readGatewayValue.mockClear();
+  });
+
+  afterEach(() => {
+    rmSync(deployDir, { recursive: true, force: true });
+  });
+
+  test.each([
+    [`${KEY}=pw-in-env`],
+    ['LLM_GATEWAY_ADMIN_PASSWORD=pw-before-the-rename'],
+  ])('leaves .env as it is where it holds the password (%s)', async (line) => {
+    writeFileSync(join(deployDir, '.env'), `HOST=localhost\n${line}\n`);
+
+    expect(await keep()).toEqual({ outcome: 'kept' });
+
+    expect(envFile()).toBe(`HOST=localhost\n${line}\n`);
+    expect(readGatewayValue).not.toHaveBeenCalled();
+    expect(logged()).toEqual([]);
+  });
+
+  test("puts it back from the gateway's own environment, saying so and never printing it", async () => {
+    const password = 'Pa$$w0rd-$&-of-the-gateway';
+    writeFileSync(join(deployDir, '.env'), 'HOST=localhost\n');
+    const gateway = fake.instances.get(GATEWAY);
+    if (gateway !== undefined) gateway.environment[KEY] = password;
+
+    expect(await keep()).toEqual({ outcome: 'restored' });
+
+    expect(envFile()).toBe(`HOST=localhost\n${KEY}=${password}\n`);
+    expect(lines(infoMock)).toEqual([
+      `Put ${KEY} back into .env from the model gateway ${GATEWAY}, which is still there: the backend reads the spend of the keys the gateway minted and revokes them with it. Leave it in .env until a deploy retires the gateway.`,
+    ]);
+    expect(logged().some((line) => line.includes(password))).toBe(false);
+  });
+
+  test.each([[`${KEY}=`], [`${KEY}=""`]])(
+    'fills a line that gives it no value in place (%s)',
+    async (line) => {
+      writeFileSync(join(deployDir, '.env'), `${line}\nHOST=localhost\n`);
+      const gateway = fake.instances.get(GATEWAY);
+      if (gateway !== undefined)
+        gateway.environment.LLM_GATEWAY_ADMIN_PASSWORD = 'pw-$&-old-name';
+
+      expect(await keep()).toEqual({ outcome: 'restored' });
+
+      expect(envFile()).toBe(`${KEY}=pw-$&-old-name\nHOST=localhost\n`);
+    },
+  );
+
+  test('says what is missing and how to recover where the gateway holds none either', async () => {
+    writeFileSync(join(deployDir, '.env'), 'HOST=localhost\n');
+
+    expect(await keep()).toEqual({ outcome: 'missing' });
+
+    expect(envFile()).toBe('HOST=localhost\n');
+    expect(lines(warnMock)).toEqual([
+      `The model gateway ${GATEWAY} is still there, but ${KEY} is neither in .env nor in the gateway's own environment. Without it the backend can neither read the spend of the keys the gateway minted nor revoke them, so they never settle and no deploy retires the gateway. Set ${KEY} in .env to the password the gateway was deployed with, then run \`tale deploy\` again. If it is lost, remove the gateway (docker rm -f ${GATEWAY}): the next \`tale deploy\` tells the backend that it is retired, and the keys it minted close without their spend.`,
+    ]);
+  });
+
+  test('asks nothing once the gateway is gone, nor where there is no .env', async () => {
+    expect(await keep()).toEqual({ outcome: 'no-env' });
+    writeFileSync(join(deployDir, '.env'), 'HOST=localhost\n');
+    await fake.remove(GATEWAY);
+
+    expect(await keep()).toEqual({ outcome: 'absent' });
+
+    expect(envFile()).toBe('HOST=localhost\n');
+    expect(readGatewayValue).not.toHaveBeenCalled();
+    expect(logged()).toEqual([]);
   });
 });

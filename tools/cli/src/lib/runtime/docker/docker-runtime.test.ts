@@ -1071,6 +1071,45 @@ async function isolatedSuite(): Promise<void> {
         ).not.toHaveProperty('SANDBOX_LLM_GATEWAY_URL');
       });
 
+      // Its admin password reaches the backend through `.env`, which a
+      // colour reads when its containers are made: one taken out of it
+      // would leave the keys of those turns unsettled for good.
+      test("puts the admin password back into .env from the gateway's own environment, before the colour starts", async () => {
+        seedLiveBlue(fake);
+        fake.seedImage(platformImage(TARGET), APP_IN_BACKEND);
+        await workspace('blue');
+        writeFileSync(join(deployDir, '.env'), 'HOST=localhost\n');
+        const gateway = fake.instances.get(GATEWAY);
+        if (gateway !== undefined)
+          gateway.environment.SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD =
+            'pw-of-the-gateway';
+        keysAnswer({
+          success: true,
+          stdout: '{"open":2}',
+          stderr: '',
+          exitCode: 0,
+        });
+        // What `.env` held when the colour's containers were made.
+        let envWhenColourStarted = '';
+        const composeUp = fake.composeUp.bind(fake);
+        fake.composeUp = (stack, document, scope) => {
+          if (stack === `${PROJECT}-green`)
+            envWhenColourStarted = readFileSync(
+              join(deployDir, '.env'),
+              'utf8',
+            );
+          composeUp(stack, document, scope);
+        };
+
+        await run(TARGET);
+
+        const restored =
+          'HOST=localhost\nSANDBOX_LLM_GATEWAY_ADMIN_PASSWORD=pw-of-the-gateway\n';
+        expect(readFileSync(join(deployDir, '.env'), 'utf8')).toBe(restored);
+        expect(envWhenColourStarted).toBe(restored);
+        expect(await getCurrentColor(deployDir)).toBe('green');
+      });
+
       // The first deploy of this release asks the live colour, which still
       // runs the earlier release, whose backend has no such door.
       test('stays as it is where the live backend has no answer, and the deploy goes on', async () => {

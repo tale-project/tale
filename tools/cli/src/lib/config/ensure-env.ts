@@ -205,11 +205,23 @@ async function promptProductionDomain(): Promise<DomainTlsConfig> {
   return deriveDomainTls({ mode: 'production', host, email });
 }
 
+/** The variables of the deployment's `.env` as written there, or null when
+ * there is none. */
+export async function readEnvVars(
+  deployDir: string,
+): Promise<Record<string, string> | null> {
+  const envPath = join(deployDir, '.env');
+  if (!existsSync(envPath)) return null;
+  return parseEnvFile(await readFile(envPath, 'utf-8'));
+}
+
 /**
  * Set (update or append) plain `KEY=value` pairs in `<deployDir>/.env`,
- * preserving everything else. For non-secret operator toggles like
- * SANDBOX_DOCKER_IN_CONTAINER that `tale init` writes from a prompt. No-op if
- * the .env doesn't exist yet (ensureEnv creates it first).
+ * preserving everything else. For operator toggles like
+ * SANDBOX_DOCKER_IN_CONTAINER that `tale init` writes from a prompt, and the
+ * retired model gateway's admin password a deploy puts back
+ * (actions/retire-gateway.ts). No-op if the .env doesn't exist yet
+ * (ensureEnv creates it first).
  */
 export async function setEnvVars(
   deployDir: string,
@@ -235,7 +247,9 @@ async function applyEnvUpdates(
   for (const [key, value] of Object.entries(updates)) {
     const line = `${key}=${value}`;
     if (existing[key] !== undefined) {
-      content = content.replace(new RegExp(`^${key}=.*$`, 'm'), line);
+      // A function, so that a `$` in the value is written as it is and not
+      // read as a replacement pattern.
+      content = content.replace(new RegExp(`^${key}=.*$`, 'm'), () => line);
     } else {
       content = `${content.endsWith('\n') ? content : `${content}\n`}${line}\n`;
     }

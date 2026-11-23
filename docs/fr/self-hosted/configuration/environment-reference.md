@@ -610,7 +610,7 @@ La passerelle LLM de la sandbox, `sandbox-llm-gateway`, gardait ses données dan
 
 | Nom | Défaut | Description |
 | --- | --- | --- |
-| `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` | non défini | Le mot de passe administrateur de la passerelle. `tale init` et `tale deploy` ne le génèrent plus. Laisse une valeur existante telle quelle tant que la passerelle est gardée. |
+| `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` | non défini | Le mot de passe administrateur de la passerelle. `tale init` et `tale deploy` ne le génèrent plus. Laisse une valeur existante telle quelle tant que la passerelle est gardée. Si le `.env` l’a perdue, `tale deploy` la remet à partir de l’environnement de la passerelle. |
 | `SANDBOX_LLM_GATEWAY_ADMIN_USERNAME` | `admin` | Le nom d’utilisateur administrateur de la passerelle. |
 | `SANDBOX_LLM_GATEWAY_URL` | `http://sandbox-llm-gateway:8080` | L’adresse à laquelle le backend joint la passerelle. Vide, elle signifie que la passerelle est retirée et que plus rien ne lui est demandé : `tale deploy` démarre le backend avec une valeur vide dès que le conteneur de la passerelle a disparu. Sans valeur, une passerelle dont le nom ne se résout plus compte comme retirée. |
 

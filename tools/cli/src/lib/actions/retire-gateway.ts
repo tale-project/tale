@@ -25,7 +25,9 @@
  * tells its backend roles that the gateway is retired ({@link
  * gatewayRetired}), so that the backend never has to guess it from a lookup
  * of the gone name: a host whose resolver cannot answer at all reports that
- * lookup as unfinished, not as a name that does not exist.
+ * lookup as unfinished, not as a name that does not exist. While it is
+ * there, they need its admin password, which a deploy keeps in `.env`
+ * ({@link keepGatewayPassword}).
  */
 
 import { z } from 'zod';
@@ -33,6 +35,8 @@ import { z } from 'zod';
 import { getProjectId } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
 import { GATEWAY_VOLUME } from '../backup/constants';
+import { readEnvVars, setEnvVars } from '../config/ensure-env';
+import { containerEnvValue } from '../docker/container-env';
 import { controlCall, DEFAULT_CONTROL_TIMEOUT_S } from '../docker/control-call';
 import type { StackRuntime } from '../runtime/types';
 
@@ -62,6 +66,71 @@ export async function gatewayRetired(runtime: StackRuntime): Promise<boolean> {
   return (
     URL.canParse(configured) && GATEWAY_HOSTS.has(new URL(configured).hostname)
   );
+}
+
+/** The gateway's admin password, by its name and the name it had before the
+ * rename, which the backend still reads. */
+const PASSWORD_KEY = 'SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD';
+const PASSWORD_KEYS = [PASSWORD_KEY, 'LLM_GATEWAY_ADMIN_PASSWORD'] as const;
+
+/** Whether `.env` gives the password a value: blank, or quotes around
+ * nothing, is none, as the backend reads it. */
+function holdsPassword(values: Record<string, string>): boolean {
+  return PASSWORD_KEYS.some(
+    (key) => (values[key] ?? '').replace(/^["']|["']$/g, '').trim() !== '',
+  );
+}
+
+/** What a deploy did about the gateway's admin password. */
+export type GatewayPassword =
+  | { outcome: 'absent' }
+  | { outcome: 'no-env' }
+  | { outcome: 'kept' }
+  | { outcome: 'restored' }
+  | { outcome: 'missing' };
+
+/**
+ * Keep the gateway's admin password in `.env` while the gateway's container
+ * is there. With it, the backend reads the spend of the keys the gateway
+ * minted and revokes them; without it, those keys never settle, and no
+ * deploy retires the gateway. A backend role reads `.env` when its container
+ * is created, so a password taken out of `.env` reaches the colour the next
+ * deploy starts.
+ *
+ * Where `.env` gives it no value, the gateway's own environment still holds
+ * it: the gateway was created from the same `.env`. It is written back under
+ * its name, and said so, never printed. Where the gateway holds none either,
+ * the deploy says what is missing and how to recover.
+ */
+export async function keepGatewayPassword(options: {
+  runtime: StackRuntime;
+  deployDir: string;
+  /** The gateway's own value, read from its container (Docker by default). */
+  readGatewayValue?: (
+    container: string,
+    keys: readonly string[],
+  ) => Promise<string | null>;
+}): Promise<GatewayPassword> {
+  const { runtime, deployDir } = options;
+  const container = `${getProjectId()}-${GATEWAY_SERVICE}`;
+  if (!(await runtime.exists(container))) return { outcome: 'absent' };
+  const values = await readEnvVars(deployDir);
+  if (values === null) return { outcome: 'no-env' };
+  if (holdsPassword(values)) return { outcome: 'kept' };
+
+  const read = options.readGatewayValue ?? containerEnvValue;
+  const password = (await read(container, PASSWORD_KEYS))?.trim();
+  if (password === undefined || password === '') {
+    logger.warn(
+      `The model gateway ${container} is still there, but ${PASSWORD_KEY} is neither in .env nor in the gateway's own environment. Without it the backend can neither read the spend of the keys the gateway minted nor revoke them, so they never settle and no deploy retires the gateway. Set ${PASSWORD_KEY} in .env to the password the gateway was deployed with, then run \`tale deploy\` again. If it is lost, remove the gateway (docker rm -f ${container}): the next \`tale deploy\` tells the backend that it is retired, and the keys it minted close without their spend.`,
+    );
+    return { outcome: 'missing' };
+  }
+  await setEnvVars(deployDir, { [PASSWORD_KEY]: password });
+  logger.info(
+    `Put ${PASSWORD_KEY} back into .env from the model gateway ${container}, which is still there: the backend reads the spend of the keys the gateway minted and revokes them with it. Leave it in .env until a deploy retires the gateway.`,
+  );
+  return { outcome: 'restored' };
 }
 
 /** The control door that counts the keys the gateway minted which have not

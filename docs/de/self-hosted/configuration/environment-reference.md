@@ -610,7 +610,7 @@ Das LLM-Gateway der Sandbox, `sandbox-llm-gateway`, hielt seinen Speicher im Vol
 
 | Name | Default | Beschreibung |
 | --- | --- | --- |
-| `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` | nicht gesetzt | Das Admin-Passwort des Gateways. `tale init` und `tale deploy` erzeugen es nicht mehr. Lass einen vorhandenen Wert unverändert, solange das Gateway bleibt. |
+| `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` | nicht gesetzt | Das Admin-Passwort des Gateways. `tale init` und `tale deploy` erzeugen es nicht mehr. Lass einen vorhandenen Wert unverändert, solange das Gateway bleibt. Fehlt er in der `.env`, schreibt `tale deploy` ihn aus der Umgebung des Gateways zurück. |
 | `SANDBOX_LLM_GATEWAY_ADMIN_USERNAME` | `admin` | Der Admin-Benutzername des Gateways. |
 | `SANDBOX_LLM_GATEWAY_URL` | `http://sandbox-llm-gateway:8080` | Wo das Backend das Gateway erreicht. Leer heißt, dass das Gateway entfernt ist und nichts mehr bei ihm angefragt wird: `tale deploy` startet das Backend mit leerem Wert, sobald der Container des Gateways weg ist. Ohne Wert gilt ein Gateway, dessen Name sich nicht mehr auflösen lässt, als entfernt. |
 

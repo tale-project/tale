@@ -64,7 +64,7 @@ import {
   startColor,
 } from './color-lifecycle';
 import { incusWorkspaceOf, rollbackOnIncus } from './incus-deploy';
-import { gatewayRetired } from './retire-gateway';
+import { gatewayRetired, keepGatewayPassword } from './retire-gateway';
 import { retireLegacyBackendTier } from './retire-legacy-backend';
 
 interface RollbackOptions {
@@ -280,6 +280,8 @@ export async function rollback(
       const subnet = await readSandboxNetworkSubnet();
       if (subnet !== undefined) serviceConfig.sandboxNetworkSubnet = subnet;
       serviceConfig.gatewayRetired = await gatewayRetired(runtime);
+      if (!serviceConfig.gatewayRetired)
+        await keepGatewayPassword({ runtime, deployDir: env.DEPLOY_DIR });
     }
     const reservationNotice = memoryReservationNotice(serviceConfig);
     if (reservationNotice) logger.warn(reservationNotice);

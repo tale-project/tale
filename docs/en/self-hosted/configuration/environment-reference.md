@@ -610,7 +610,7 @@ The sandbox LLM gateway, `sandbox-llm-gateway`, kept its store in the `llm-gatew
 
 | Name | Default | Description |
 | --- | --- | --- |
-| `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` | unset | The gateway's admin password. `tale init` and `tale deploy` no longer generate it. Leave an existing value as it is while the gateway is kept. |
+| `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` | unset | The gateway's admin password. `tale init` and `tale deploy` no longer generate it. Leave an existing value as it is while the gateway is kept. Where `.env` has lost it, `tale deploy` puts it back from the gateway's own environment. |
 | `SANDBOX_LLM_GATEWAY_ADMIN_USERNAME` | `admin` | The gateway's admin user name. |
 | `SANDBOX_LLM_GATEWAY_URL` | `http://sandbox-llm-gateway:8080` | Where the backend reaches the gateway. Empty says the gateway is retired, and nothing is asked of it any more: `tale deploy` starts the backend with it empty once the gateway's container is gone. Unset, a gateway whose name no longer resolves counts as gone. |
 
