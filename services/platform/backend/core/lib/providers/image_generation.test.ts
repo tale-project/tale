@@ -4,8 +4,8 @@
  * failure as a plain account that names no host, and the ledger figure is
  * the provider's reported charge or the catalog price of the tokens it
  * reported — for a reply without a usable image too, since the provider
- * billed it. A gateway that refuses its images API for a model is asked
- * over chat completions. `safeFetch` is stubbed — no paid call is made.
+ * billed it. A gateway that refuses its images API for a model, or answers
+ * it with no image at all, is asked over chat completions. `safeFetch` is stubbed — no paid call is made.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -429,11 +429,12 @@ describe('generateOneImage — a gateway that serves a model over chat alone', (
     },
   );
 
-  it('asks nothing more of a limit, an outage or a billed answer', async () => {
+  it('asks nothing more of a limit, an outage or a billed answer that sent an image', async () => {
     for (const answer of [
       reply(429, { error: { message: 'Rate limit exceeded' } }),
       reply(503, { error: { message: 'Upstream unavailable' } }),
-      reply(200, { data: [] }),
+      reply(200, { data: [{ b64_json: Buffer.from(SVG).toString('base64') }] }),
+      reply(200, { data: [{ url: 'https://cdn.example.com/i.png' }] }),
     ]) {
       mockedFetch.mockReset();
       mockedFetch.mockResolvedValueOnce(answer);
@@ -443,6 +444,87 @@ describe('generateOneImage — a gateway that serves a model over chat alone', (
         'https://gateway.example.com/v1/images/generations',
       ]);
     }
+  });
+
+  it('asks chat completions when the images API answers with no image at all, and books both', async () => {
+    // Bifrost 2.6.0 relays a Gemini answer that drew nothing through its
+    // images API as an empty list, dropping the model's words (#5498).
+    mockedFetch
+      .mockResolvedValueOnce(
+        reply(200, {
+          created: 1_790_000_000,
+          data: [],
+          usage: { input_tokens: 1000, output_tokens: 100 },
+        }),
+      )
+      .mockResolvedValueOnce(reply(200, CHAT_IMAGE));
+    const pricing = {
+      inputCentsPerMillion: 30,
+      outputCentsPerMillion: 250,
+    };
+    const result = await send({ ...GATEWAY_MODEL, pricing });
+    expect(result.images).toEqual([
+      { bytes: CHAT_PNG, mediaType: 'image/png', width: 1, height: 1 },
+    ]);
+    // 1000 × 30 + 100 × 250 ¢ per million tokens for the empty answer, then
+    // the 3.9 ¢ the chat reply reports.
+    expect(result.costCents).toBeCloseTo(3.9 + 0.055, 9);
+    expect(sentUrls()).toEqual([
+      'https://gateway.example.com/v1/images/generations',
+      'https://gateway.example.com/v1/chat/completions',
+    ]);
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'Gateway returned no usable image: the provider answered without an image; asking chat completions',
+      ),
+    );
+
+    mockedFetch.mockResolvedValueOnce(reply(200, CHAT_IMAGE));
+    await send({ ...GATEWAY_MODEL, pricing });
+    expect(sentUrls()[2]).toBe(
+      'https://gateway.example.com/v1/chat/completions',
+    );
+  });
+
+  it('says what both APIs answered when neither drew, and books both', async () => {
+    mockedFetch
+      .mockResolvedValueOnce(
+        reply(200, {
+          data: [],
+          usage: { input_tokens: 1000, output_tokens: 100 },
+        }),
+      )
+      .mockResolvedValueOnce(
+        reply(200, {
+          choices: [
+            { message: { content: 'I can only describe a lighthouse.' } },
+          ],
+          usage: { prompt_tokens: 10, completion_tokens: 9, cost: 0.002 },
+        }),
+      );
+    const error = await failureOf({
+      ...GATEWAY_MODEL,
+      pricing: { inputCentsPerMillion: 30, outputCentsPerMillion: 250 },
+    });
+    expect(error).toBeInstanceOf(ImageProviderError);
+    expect((error as ImageProviderError).message).toBe(
+      'Gateway returned no usable image: the provider answered without an image. Asked over chat completions instead: Gateway returned no usable image: the model answered in words without an image: "I can only describe a lighthouse."',
+    );
+    // 0.055 ¢ priced from the empty answer's tokens, 0.2 ¢ the chat reports.
+    expect((error as ImageProviderError).charge?.costCents).toBeCloseTo(
+      0.255,
+      9,
+    );
+    expect(sentUrls()).toHaveLength(2);
+  });
+
+  it('asks no other wire of an empty answer from a model that carries none', async () => {
+    mockedFetch.mockResolvedValueOnce(reply(200, { data: [] }));
+    const error = await failureOf(OPENAI_MODEL);
+    expect(String(error)).toContain(
+      'OpenAI returned no usable image: the provider answered without an image',
+    );
+    expect(sentUrls()).toHaveLength(1);
   });
 
   it("keeps each organization's gateway memory its own", async () => {

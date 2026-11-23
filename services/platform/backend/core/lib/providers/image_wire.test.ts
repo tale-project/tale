@@ -531,6 +531,72 @@ describe('parseImageReply', () => {
       ImageReplyError,
     );
   });
+
+  /** The error a reply throws, or `undefined` when it parses. */
+  function replyError(
+    wire: Parameters<typeof parseImageReply>[0],
+    payload: unknown,
+  ): ImageReplyError | undefined {
+    try {
+      parseImageReply(wire, payload);
+    } catch (error) {
+      if (error instanceof ImageReplyError) return error;
+      throw error;
+    }
+    return undefined;
+  }
+
+  it('marks an image list that holds no image at all, with what it cost', () => {
+    // Bifrost's images API over a Gemini answer that drew nothing: the list
+    // stays empty and the model's words are dropped (Bifrost 2.6.0).
+    for (const data of [[], [{ index: 0 }], [{ b64_json: '', index: 0 }]]) {
+      const error = replyError('openai-images', {
+        data,
+        usage: { input_tokens: 60, output_tokens: 12 },
+      });
+      expect(error?.message).toBe('the provider answered without an image');
+      expect(error?.withoutImage).toBe(true);
+      expect(error?.charge).toEqual({
+        usage: { textInputTokens: 60, imageInputTokens: 0, outputTokens: 12 },
+      });
+    }
+  });
+
+  it('reads an image sent as a data URL where a link would go', () => {
+    const reply = parseImageReply('openai-images', {
+      data: [{ url: `data:image/png;base64,${b64(PNG)}` }],
+    });
+    expect(reply.images).toEqual([{ bytes: PNG, mediaType: 'image/png' }]);
+  });
+
+  it('says a link is not an image, and marks no answer that sent one', () => {
+    const link = replyError('openai-images', {
+      data: [{ url: 'https://cdn.example.com/i.png' }],
+    });
+    expect(link?.message).toBe(
+      'the provider answered with a link to an image rather than the image itself, and the platform fetches no address a provider names',
+    );
+    expect(link?.withoutImage).toBe(false);
+    expect(
+      replyError('openai-images', { data: [{ b64_json: b64(SVG) }] })
+        ?.withoutImage,
+    ).toBe(false);
+    expect(replyError('openai-images', {})?.withoutImage).toBe(false);
+    // Image data that does not decode was sent, and billed.
+    expect(
+      replyError('openai-images', { data: [{ b64_json: '!!!!' }] })
+        ?.withoutImage,
+    ).toBe(false);
+    expect(
+      replyError('openai-images', { error: { message: 'Upstream failed' } })
+        ?.withoutImage,
+    ).toBe(false);
+    expect(
+      replyError('chat-images', {
+        choices: [{ message: { content: '' } }],
+      })?.withoutImage,
+    ).toBe(false);
+  });
 });
 
 describe('parseImageReply — chat completions', () => {

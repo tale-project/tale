@@ -19,7 +19,12 @@
  * ({@link GATEWAY_REFUSAL_STATUSES}) is sent again on the fallback wire, and
  * when that serves it, later calls of the organization's model on that
  * gateway go there first, for a while. A refusal costs nothing; an answer
- * without a usable image is billed, so it is never asked again.
+ * without a usable image is billed, so it is never asked again — save one
+ * whose image list holds no image at all. That is how a gateway relays,
+ * through its images API, an upstream reached over chat that drew nothing
+ * (Bifrost's Gemini backend lists only the answer's inline images and drops
+ * its words): over chat completions the same model draws, or says in words
+ * why not.
  */
 
 import { LRUCache } from 'lru-cache';
@@ -120,6 +125,9 @@ export class ImageProviderError extends Error {
   readonly charge?: { costCents: number };
   readonly refusedStatus?: number;
   readonly refusedCode?: string;
+  /** The provider's image API answered with a list that holds no image at
+   * all ({@link ImageReplyError.withoutImage}). */
+  readonly withoutImage?: true;
   constructor(
     message: string,
     options?: {
@@ -127,11 +135,13 @@ export class ImageProviderError extends Error {
       charge?: { costCents: number };
       refusedStatus?: number;
       refusedCode?: string;
+      withoutImage?: boolean;
     },
   ) {
     super(message, options);
     this.name = 'ImageProviderError';
     if (options?.charge !== undefined) this.charge = options.charge;
+    if (options?.withoutImage === true) this.withoutImage = true;
     if (options?.refusedStatus !== undefined) {
       this.refusedStatus = options.refusedStatus;
     }
@@ -258,11 +268,33 @@ function refusedAsUnserved(error: unknown): error is ImageProviderError {
   );
 }
 
+/** A failure the model's other wire may not meet: a refusal that says the
+ * provider cannot serve that API for the model, or an image API's answer
+ * that holds no image at all (see the module doc). */
+function unservedOnThisWire(error: unknown): error is ImageProviderError {
+  return (
+    refusedAsUnserved(error) ||
+    (error instanceof ImageProviderError && error.withoutImage === true)
+  );
+}
+
+/** Both of a call's charges as one, or `undefined` when neither wire
+ * billed. */
+function chargeOfBoth(
+  first: { costCents: number } | undefined,
+  second: { costCents: number } | undefined,
+): { costCents: number } | undefined {
+  if (first === undefined) return second;
+  if (second === undefined) return first;
+  return { costCents: first.costCents + second.costCents };
+}
+
 /**
  * Send one prepared request: ONE image. A model with a fallback wire is
  * asked on it when its first wire refuses the request as one it cannot
- * serve; the wire that served is the first the next call asks (see the
- * module doc). When both fail, the error says what each answered.
+ * serve, or answers it with no image at all; the wire that served is the
+ * first the next call asks (see the module doc). When both fail, the error
+ * says what each answered. What both billed is booked.
  */
 export async function generateOneImage(
   model: ResolvedImageModel,
@@ -277,7 +309,7 @@ export async function generateOneImage(
   try {
     return await sendImageRequest(model, first, options);
   } catch (error) {
-    if (!refusedAsUnserved(error)) throw error;
+    if (!unservedOnThisWire(error)) throw error;
     const second = fallbackFirst ? request : fallback();
     console.warn(
       `[image-generation] ${model.providerSlug}/${model.modelId}: ${error.message}; asking ${WIRE_NAMES[second.wire]}`,
@@ -287,13 +319,12 @@ export async function generateOneImage(
       result = await sendImageRequest(model, second, options);
     } catch (secondError) {
       if (!(secondError instanceof ImageProviderError)) throw secondError;
+      const charge = chargeOfBoth(error.charge, secondError.charge);
       throw new ImageProviderError(
         `${error.message.replace(/\.+$/, '')}. Asked over ${WIRE_NAMES[second.wire]} instead: ${secondError.message}`,
         {
           cause: secondError,
-          ...(secondError.charge !== undefined
-            ? { charge: secondError.charge }
-            : {}),
+          ...(charge !== undefined ? { charge } : {}),
           ...(secondError.refusedStatus !== undefined
             ? { refusedStatus: secondError.refusedStatus }
             : {}),
@@ -305,7 +336,9 @@ export async function generateOneImage(
     }
     if (second === request) servedOnFallback.delete(key);
     else servedOnFallback.set(key, second.wire);
-    return result;
+    return error.charge === undefined
+      ? result
+      : { ...result, costCents: result.costCents + error.charge.costCents };
   }
 }
 
@@ -376,6 +409,7 @@ async function sendImageRequest(
         {
           cause: error,
           charge: { costCents: costCentsOf(model, error.charge) },
+          withoutImage: error.withoutImage,
         },
       );
     }
