@@ -103,14 +103,16 @@ export function reconcileBakedSkills(
         if (repoShips && linkProject === true && repoRoot !== null) continue;
         reconcileLink(skillsDir, name, join(paths.baked, name), !repoShips);
       }
-      for (const name of repoNames) {
-        reconcileLink(
-          skillsDir,
-          name,
-          join(repoRoot as string, name),
-          true,
-          names.includes(name) ? [join(paths.baked, name)] : [],
-        );
+      if (repoRoot !== null) {
+        for (const name of repoNames) {
+          reconcileLink(
+            skillsDir,
+            name,
+            join(repoRoot, name),
+            true,
+            names.includes(name) ? [join(paths.baked, name)] : [],
+          );
+        }
       }
     } catch (err) {
       console.warn(
