@@ -882,6 +882,22 @@ export function classifyYtDlpStderr(stderr: string): YtDlpErrorReason {
   // video on through the other proxies instead of reporting its own wall.
   if (s.includes('http error 429') || s.includes('too many requests'))
     return 'rateLimited';
+  // YouTube's session wall: "Video unavailable. This content isn't
+  // available[, try again later]." It names no video — YouTube answers every
+  // video this way once the guest session or its address has spent its
+  // request budget (yt-dlp's wiki, "This content isn't available, try again
+  // later"; issue #10085 for the bare form), and yt-dlp then appends "has
+  // been rate-limited by YouTube". The page writes the apostrophe either way.
+  // Matched here, ahead of `unavailable`: read as a gone video, it would keep
+  // the video on the walled proxy and tell the user the video is gone, while
+  // a removed or private video says so in its own words below.
+  const apostrophesPlain = s.replace(/[\u2018\u2019]/g, "'");
+  if (
+    apostrophesPlain.includes("this content isn't available") ||
+    s.includes('rate-limited by youtube')
+  ) {
+    return 'rateLimited';
+  }
   if (
     s.includes('private video') ||
     s.includes('age-restricted') ||
