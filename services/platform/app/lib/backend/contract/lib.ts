@@ -11,11 +11,13 @@ import type { ProviderDefinition } from '@tale/shared/schemas/providers';
 
 /** Why a provider's model listing failed, when the server knows: a server
  * that answered without a model list (a body that is not JSON, or HTTP
- * 404), refused the key (HTTP 401 or 403), failed on its side (HTTP 5xx),
- * or gave no answer at all. */
+ * 404), wanted a key the listing did not send or refused the one it sent
+ * (HTTP 401 or 403), failed on its side (HTTP 5xx), or gave no answer at
+ * all. */
 export type ProviderCatalogFailureCode =
   | 'PROVIDER_CATALOG_NOT_JSON'
   | 'PROVIDER_CATALOG_NOT_FOUND'
+  | 'PROVIDER_CATALOG_KEY_REQUIRED'
   | 'PROVIDER_CATALOG_KEY_REFUSED'
   | 'PROVIDER_CATALOG_UPSTREAM_ERROR'
   | 'PROVIDER_CATALOG_UNREACHABLE';
@@ -112,6 +114,21 @@ export interface LibContract {
   'lib/providers/definition_actions:checkProviderDefinitionCatalog': {
     kind: 'action';
     args: { organizationId: string; name: string };
+    returns: ProviderCatalogModel[];
+  };
+  /** One provider's live model listing with the key the caller names: the
+   * provider by `name`, or a `definition` not saved yet; the key as the
+   * `secret` a dialog holds, or a saved credential's `credentialId`; neither
+   * lists without a key. Never cached, so the answer is this caller's. */
+  'lib/providers/definition_actions:listProviderCatalogWithKey': {
+    kind: 'action';
+    args: {
+      organizationId: string;
+      name?: string;
+      definition?: ProviderDefinition;
+      secret?: string;
+      credentialId?: string;
+    };
     returns: ProviderCatalogModel[];
   };
   'lib/providers/catalog_actions:refreshProviderCatalogs': {

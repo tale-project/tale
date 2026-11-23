@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { renderHook } from '@testing-library/react';
+import { renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -27,6 +27,7 @@ const actions = vi.hoisted(() => ({
   save: vi.fn(),
   remove: vi.fn(),
   read: vi.fn(),
+  check: vi.fn(),
   create: vi.fn(),
   update: vi.fn(),
   updateWithDefinition: vi.fn(),
@@ -38,7 +39,9 @@ vi.mock('@/app/hooks/use-backend-action', () => ({
       ? actions.save
       : name.endsWith(':deleteProviderDefinition')
         ? actions.remove
-        : actions.read,
+        : name.endsWith(':checkProviderDefinitionCatalog')
+          ? actions.check
+          : actions.read,
     isPending: false,
   }),
 }));
@@ -112,6 +115,97 @@ describe('useCreateProviderCredential', () => {
       name: 'Prod',
       secret: 'sk',
     });
+    // The provider's first key may list what its keyless read could not:
+    // the listing refetches, with no shipped provider force-read.
+    expect(
+      client.getQueryState(providerCatalogsQueryKey('org-1'))?.isInvalidated,
+    ).toBe(true);
+    expect(actions.check).not.toHaveBeenCalled();
+  });
+
+  it("lists a new custom provider's models with its new key, without a click", async () => {
+    actions.save.mockResolvedValue({ config: {}, hash: 'h1' });
+    actions.create.mockResolvedValue({ credentialId: 'c1' });
+    let answer: (models: unknown[]) => void = () => {};
+    actions.check.mockReturnValue(
+      new Promise((resolve) => {
+        answer = resolve;
+      }),
+    );
+    const { result } = renderHook(() => useCreateProviderCredential(), {
+      wrapper,
+    });
+    // The save resolves without waiting for the listing.
+    await expect(
+      result.current.mutateAsync({
+        organizationId: 'org-1',
+        providerSlug: CUSTOM_VENDOR_KEY,
+        authMethod: 'api-key',
+        name: 'Qwen CN',
+        secret: 'sk',
+        customProvider: facts,
+      }),
+    ).resolves.toEqual({ credentialId: 'c1' });
+    expect(actions.check).toHaveBeenCalledExactlyOnceWith({
+      organizationId: 'org-1',
+      name: 'qwen-cn-2',
+    });
+    expect(actions.create.mock.invocationCallOrder[0]).toBeLessThan(
+      actions.check.mock.invocationCallOrder[0] ?? 0,
+    );
+    // The listing answers: the catalog read refetches to show its models.
+    client.setQueryData(providerCatalogsQueryKey('org-1'), []);
+    expect(
+      client.getQueryState(providerCatalogsQueryKey('org-1'))?.isInvalidated,
+    ).toBe(false);
+    answer([{ id: 'qwen-max' }]);
+    await waitFor(() =>
+      expect(
+        client.getQueryState(providerCatalogsQueryKey('org-1'))?.isInvalidated,
+      ).toBe(true),
+    );
+  });
+
+  it('keeps the save when the listing after it fails, and refetches the listing', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    actions.save.mockResolvedValue({ config: {}, hash: 'h1' });
+    actions.create.mockResolvedValue({ credentialId: 'c1' });
+    actions.check.mockRejectedValue(new Error('PROVIDER_CATALOG_KEY_REFUSED'));
+    const { result } = renderHook(() => useCreateProviderCredential(), {
+      wrapper,
+    });
+    await expect(
+      result.current.mutateAsync({
+        organizationId: 'org-1',
+        providerSlug: CUSTOM_VENDOR_KEY,
+        authMethod: 'api-key',
+        name: 'Qwen CN',
+        secret: 'sk',
+        customProvider: facts,
+      }),
+    ).resolves.toEqual({ credentialId: 'c1' });
+    await waitFor(() => expect(warn).toHaveBeenCalled());
+    expect(
+      client.getQueryState(providerCatalogsQueryKey('org-1'))?.isInvalidated,
+    ).toBe(true);
+  });
+
+  it('lists nothing after creating a provider without a models endpoint', async () => {
+    actions.save.mockResolvedValue({ config: {}, hash: 'h1' });
+    actions.create.mockResolvedValue({ credentialId: 'c1' });
+    const { result } = renderHook(() => useCreateProviderCredential(), {
+      wrapper,
+    });
+    await result.current.mutateAsync({
+      organizationId: 'org-1',
+      providerSlug: CUSTOM_VENDOR_KEY,
+      authMethod: 'api-key',
+      name: 'Local',
+      secret: 'sk',
+      modelAllowlist: ['m1'],
+      customProvider: { ...facts, catalogSource: 'none' },
+    });
+    expect(actions.check).not.toHaveBeenCalled();
   });
 
   it('writes the definition first, slugged past the catalog, then the credential', async () => {
@@ -181,6 +275,8 @@ describe('useCreateProviderCredential', () => {
       organizationId: 'org-1',
       name: 'local-vllm',
     });
+    // No provider is left to list.
+    expect(actions.check).not.toHaveBeenCalled();
   });
 
   it('refuses a plain-http public endpoint before any request goes out', async () => {

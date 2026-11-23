@@ -83,6 +83,16 @@ export const RATE_LIMITS = {
     capacity: 60,
   },
 
+  // A person listing a provider's models with a key the dialog holds or a
+  // credential they name: each call goes out to the endpoint uncached, so
+  // the budget is what keeps the button from probing keys against it.
+  'provider:catalog-check': {
+    kind: 'token bucket',
+    rate: 10,
+    period: MINUTE,
+    capacity: 20,
+  },
+
   // TIER 3: file & folder operations
   'folder:mutate': { kind: 'fixed window', rate: 60, period: MINUTE },
   'file:upload': { kind: 'fixed window', rate: 50, period: MINUTE },

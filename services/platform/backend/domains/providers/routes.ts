@@ -11,6 +11,7 @@ import { bodyLimit } from 'hono/body-limit';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import { AppError } from '../../../lib/shared/errors/app-error.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
@@ -40,19 +41,73 @@ import { appErrorHandler } from '../../error-reporting';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { parseNativeJsonBody } from '../../lib/native-json-body.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
+import { rateLimitedResponse } from '../../lib/rate-limit-response.ts';
+import {
+  checkUserRateLimit,
+  RateLimitExceededError,
+} from '../../lib/rate-limit.ts';
 import { listComposerModels } from '../chat/composer.ts';
 import { governanceShimHandlers } from '../governance/shim.ts';
 import { knowledgeShimHandlers } from '../knowledge/service.ts';
 import {
   listCredentials,
   resolveCatalogBearer,
+  resolveCredentialListingBearer,
 } from '../provider_credentials/service.ts';
 import {
+  checkProviderDefinition,
   deleteProviderDefinition,
   readProviderDefinition,
   saveProviderDefinition,
 } from './config';
 import { mayManageProviders, refreshProviderCatalogs } from './management.ts';
+
+/**
+ * The body of a listing with a key the caller names: the provider — one the
+ * organization resolves, by `name`, or a `definition` a dialog has not saved
+ * yet — and, at most one of, the `secret` the dialog holds or the
+ * `credentialId` of a saved credential of that provider. Neither: the listing
+ * goes out without a key. The secret rides in this body only — never a URL,
+ * a log line or a cache.
+ */
+const catalogCheckSchema = z
+  .strictObject({
+    name: z.string().min(1).max(64).optional(),
+    definition: z.unknown().optional(),
+    secret: z.string().trim().min(1).max(8192).optional(),
+    credentialId: z.string().min(1).max(128).optional(),
+  })
+  .refine(
+    (body) => (body.name === undefined) !== (body.definition === undefined),
+  )
+  .refine(
+    (body) => body.secret === undefined || body.credentialId === undefined,
+  )
+  // A draft has no saved credential to name.
+  .refine(
+    (body) => body.definition === undefined || body.credentialId === undefined,
+  );
+
+/** The refusal a credential named for a listing answers with, by its code:
+ * not this organization's, not this provider's, or not usable. */
+function credentialRefusalStatus(code: string): 404 | 409 | 400 {
+  if (code === 'CREDENTIAL_NOT_FOUND') return 404;
+  if (code === 'CREDENTIAL_PROVIDER_MISMATCH') return 409;
+  return 400;
+}
+
+/** The code of a credential refusal the resolver threw, else `undefined`. */
+function credentialRefusalCode(error: unknown): string | undefined {
+  if (!(error instanceof AppError)) return undefined;
+  const data: unknown = error.data;
+  return data !== null &&
+    typeof data === 'object' &&
+    'code' in data &&
+    typeof data.code === 'string' &&
+    data.code.startsWith('CREDENTIAL_')
+    ? data.code
+    : undefined;
+}
 
 /**
  * /api/app/providers — the AI-providers SETTINGS surface (the 0.4
@@ -69,13 +124,14 @@ export function createProviderSettingRoutes(deps: {
 }): Hono<OrgEnv> {
   const app = new Hono<OrgEnv>();
   app.use(requireSession(deps.auth), requireOrgMember(deps.sql));
-  app.use(
-    '/definitions/*',
-    bodyLimit({
-      maxSize: 256 * 1024,
-      onError: (c) => c.json({ error: 'PROVIDER_DEFINITION_TOO_LARGE' }, 413),
-    }),
-  );
+  // A definition — saved, or drafted for a listing — is a small document;
+  // anything larger is refused before its body is read.
+  const definitionBodyLimit = bodyLimit({
+    maxSize: 256 * 1024,
+    onError: (c) => c.json({ error: 'PROVIDER_DEFINITION_TOO_LARGE' }, 413),
+  });
+  app.use('/definitions/*', definitionBodyLimit);
+  app.use('/catalog-check', definitionBodyLimit);
 
   const requireDeveloper = (c: Context<OrgEnv>): Response | null =>
     mayManageProviders(c.get('orgMember').role)
@@ -199,6 +255,122 @@ export function createProviderSettingRoutes(deps: {
       // A listing that answered with something other than a model list says
       // so by its code, which settings turns into the fix; anything else is
       // the catalog being unavailable.
+      return c.json(
+        {
+          error: catalogFailureCode(error) ?? 'PROVIDER_CATALOG_UNAVAILABLE',
+          message: 'The selected provider catalog is unavailable.',
+        },
+        502,
+      );
+    }
+  });
+
+  /**
+   * One provider's live model listing, with the key the caller names rather
+   * than the organization's default: the key typed into the dialog that is
+   * setting the provider up (before anything is saved), or a saved
+   * credential's — the row's **Check models**, an edit — default or not,
+   * enabled or not. A key goes only to the provider's own `/models`; any
+   * other source is read keyless, the ordinary cached way.
+   * Fetched once and uncached: the answer is this caller's alone, never
+   * served to another caller, organization or key, and a failure is not
+   * remembered. A refused or missing key says which by its code
+   * (`PROVIDER_CATALOG_KEY_REFUSED` / `PROVIDER_CATALOG_KEY_REQUIRED`).
+   * Charged against the person's `provider:catalog-check` budget: every call
+   * reaches the endpoint.
+   */
+  app.post('/catalog-check', async (c) => {
+    const denied = requireDeveloper(c);
+    if (denied) return denied;
+    const body = catalogCheckSchema.safeParse(
+      parseNativeJsonBody(await c.req.text()) ?? null,
+    );
+    if (!body.success)
+      return c.json(
+        {
+          error: 'PROVIDER_DEFINITION_INVALID',
+          message: 'Invalid catalog check request.',
+        },
+        400,
+      );
+    const orgSlug = await orgSlugOf(c);
+    if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
+    const organizationId = c.get('orgId');
+    const { name, definition, secret, credentialId } = body.data;
+    let provider: ProviderDefinition | undefined;
+    if (name !== undefined) {
+      provider = resolveProvidersForOrg(orgSlug).find(
+        (entry) => entry.name === name,
+      );
+      if (provider === undefined)
+        return c.json({ error: 'PROVIDER_NOT_FOUND' }, 404);
+    } else {
+      // Checked as its save would check it — shape, name, endpoint policy —
+      // writing nothing.
+      const draftName =
+        definition !== null &&
+        typeof definition === 'object' &&
+        'name' in definition &&
+        typeof definition.name === 'string'
+          ? definition.name
+          : '';
+      provider = checkProviderDefinition(orgSlug, draftName, definition);
+    }
+    try {
+      await checkUserRateLimit(
+        deps.sql,
+        'provider:catalog-check',
+        c.get('sessionBundle').user.id,
+      );
+    } catch (error) {
+      if (error instanceof RateLimitExceededError)
+        return rateLimitedResponse(c, error);
+      throw error;
+    }
+    // A key goes only to the provider's own `/models` endpoint — as
+    // `resolveCatalogBearer` sends one. Any other source is a public listing
+    // (OpenRouter's catalog, a static file) that takes no key: it is read
+    // the ordinary way, shared and cached, and no key leaves for it.
+    const keyed = provider.catalog.source === 'models-endpoint';
+    let bearerToken: string | undefined = keyed ? secret : undefined;
+    if (keyed && credentialId !== undefined) {
+      try {
+        bearerToken = await resolveCredentialListingBearer(
+          deps.sql,
+          organizationId,
+          provider,
+          credentialId,
+        );
+      } catch (error) {
+        const code = credentialRefusalCode(error);
+        if (code === undefined) throw error;
+        return c.json({ error: code }, credentialRefusalStatus(code));
+      }
+    }
+    try {
+      return c.json(
+        {
+          models: await getProviderCatalog(
+            provider,
+            keyed
+              ? {
+                  uncached: true,
+                  maxAttempts: 1,
+                  ...(bearerToken !== undefined ? { bearerToken } : {}),
+                }
+              : {},
+          ),
+        },
+        200,
+        { 'cache-control': 'no-store' },
+      );
+    } catch (error) {
+      // A listing failure's words name the status and whether a key went,
+      // never the key; the endpoint's own answer stays out of the log too.
+      console.warn(
+        `[catalog] check of ${provider.name}'s listing with the named key failed:`,
+        error instanceof Error ? error.message : error,
+      );
       return c.json(
         {
           error: catalogFailureCode(error) ?? 'PROVIDER_CATALOG_UNAVAILABLE',

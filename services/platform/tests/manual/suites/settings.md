@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 154 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 156 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -1586,7 +1586,8 @@ Restore any toggled setting after the run.
   the **API key** `sk-wrong` → submit → the row reads
   `settings.providers.card.catalogUnavailable` with
   `settings.providers.custom.errors.catalogKeyRefused` in German and the
-  server's words after it in parentheses (`catalog fetch returned HTTP 401`),
+  server's words after it in parentheses (`catalog fetch returned HTTP 401
+  for the API key sent`),
   never an English sentence; **Refresh catalogs** reports the provider with
   the same sentence and words; **Check models** toasts
   `settings.providers.custom.checkFailed` with the sentence alone.
@@ -1610,6 +1611,37 @@ Restore any toggled setting after the run.
   agent still name their P models (Governance › Models: `GOV-B29`). With a
   second active credential of P, or for a disabled C, the dialog names none
   of them.
+- [ ] `SET-B52` · **A key-gated gateway lists its models with the key typed in
+  the dialog** — Against an OpenAI-compatible gateway whose `/models` answers
+  401 without a key and lists models for a valid one (Bifrost with a virtual
+  key, or LiteLLM with a master key): **Add credential** → **Custom provider**
+  → its **Base URL** and **List models** with no key typed → the dialog reads
+  `settings.providers.custom.listModelsFailed` with
+  `settings.providers.custom.errors.catalogKeyRequired` ("…the listing sent
+  none"); type a wrong **API key** → **List models** → `catalogKeyRefused`
+  ("…refused the API key the listing sent"); type the valid key → **List
+  models** → `settings.providers.custom.listModelsOk` with the count, and the
+  **Model allowlist** offers exactly the models that key may use — all before
+  **Add credential**, with no provider or credential saved (the table is
+  unchanged). Add it → the row shows no `catalogUnavailable` line. Add a
+  second, non-default credential with another key → its **Check models**
+  toasts the count that key lists, not the default's; disable that credential
+  → **Check models** still toasts its count, never
+  `settings.credentials.errors.disabledDefault`. In DevTools, no
+  request URL carries the key; the backend log's `[catalog]` lines name the
+  status and whether a key went, never the key.
+- [ ] `SET-B53` · **A custom provider's models load by themselves** — Against
+  the same key-gated gateway as `SET-B52`: **Add credential** → **Custom
+  provider** → paste its **Base URL**, then type the valid **API key** →
+  about a second after the typing stops, with no click, the dialog reads
+  `settings.providers.custom.listModelsOk` and the **Model allowlist**
+  offers the key's models; DevTools shows ONE `POST
+  /api/app/providers/catalog-check` for that URL and key, none per
+  keystroke, and none again while neither changes. Change the key → one more
+  listing after the typing stops; **List models** still lists again on a
+  click. Add it → the dialog closes and, with no **Check models** and no
+  reload, the new row shows no `catalogUnavailable` line and a model picker
+  (e.g. a project's model setting) offers the gateway's models.
 
 ## Accessibility (WCAG 2.1 AA)
 

@@ -281,6 +281,7 @@ export async function resolveProviderCredential(
     excludeBrokerTokens?: readonly string[];
     excludeBrokerTokenHashes?: readonly string[];
     requireBrokerAccountId?: boolean;
+    includeDisabled?: boolean;
   },
 ): Promise<ResolvedProviderCredential> {
   const shim = createCtxShim({
@@ -306,6 +307,9 @@ export async function resolveProviderCredential(
         : {}),
       ...(args.requireBrokerAccountId !== undefined
         ? { requireBrokerAccountId: args.requireBrokerAccountId }
+        : {}),
+      ...(args.includeDisabled !== undefined
+        ? { includeDisabled: args.includeDisabled }
         : {}),
     },
   );
@@ -889,6 +893,48 @@ export async function resolveCatalogBearer(
     }
     return undefined;
   }
+}
+
+/**
+ * The bearer one named credential lists its provider's models with: its
+ * api-key or env secret, `undefined` for a method that is no bearer (a
+ * subscription, a broker). For the listing a person asks of that very
+ * credential — the row's **Check models**, an edit dialog — whether or not
+ * it is the default. Refuses a credential of another organization or
+ * another provider (`CREDENTIAL_NOT_FOUND` / `CREDENTIAL_PROVIDER_MISMATCH`).
+ * A disabled credential lists too: disabling stops it serving, and a person
+ * checking its key before enabling it again is exactly who asks. INTERNAL
+ * ONLY: the secret never leaves the listing.
+ */
+export async function resolveCredentialListingBearer(
+  sql: Sql,
+  organizationId: string,
+  provider: ProviderDefinition,
+  credentialId: string,
+): Promise<string | undefined> {
+  // A method that is no bearer is answered before the resolver runs: a
+  // broker's resolution selects (and so spends) one of its pool's accounts.
+  const [row] = await sql<{ authMethod: string }[]>`
+    SELECT auth_method AS "authMethod" FROM app.provider_credentials
+    WHERE id = ${credentialId} AND org_id = ${organizationId}
+      AND provider_slug = ${provider.name}
+    LIMIT 1
+  `;
+  if (
+    row !== undefined &&
+    row.authMethod !== 'api-key' &&
+    row.authMethod !== 'env'
+  )
+    return undefined;
+  const resolved = await resolveProviderCredential(sql, {
+    organizationId,
+    providerSlug: provider.name,
+    credentialId,
+    includeDisabled: true,
+  });
+  return resolved.authMethod === 'api-key' || resolved.authMethod === 'env'
+    ? resolved.secret
+    : undefined;
 }
 
 /** What in the organization resolves its key through a credential. */

@@ -963,6 +963,13 @@ providers:
     modelsManual: Enter model IDs
     modelsManualHelp: For an endpoint that cannot list its models.
     check: Check models
+    listModels: List models
+    listModelsHelp: >-
+      Reads the endpoint's /models with this credential's key (the one typed
+      above while you add it) before anything is saved. While you add it, the
+      list loads by itself once the base URL and the key are entered.
+    listModelsOk: '{count, plural, =0 {The endpoint lists no models.} one {The endpoint lists # model.} other {The endpoint lists # models.}}'
+    listModelsFailed: "Couldn't list the models: {error}"
     checkOk: '{name}: {count, plural, =0 {no models listed} one {# model listed} other {# models listed}}'
     checkFailed: "Couldn't list the models of {name}: {error}"
     deleteRetires: >-
@@ -989,9 +996,12 @@ providers:
       catalogUnreachable: >-
         Couldn't reach the endpoint, or it didn't answer in time. Check that it
         is running and that this deployment can reach it.
+      catalogKeyRequired: >-
+        The endpoint needs an API key, and the listing sent none. Enter the
+        key, or give the provider a default credential with its key.
       catalogKeyRefused: >-
-        The endpoint refused the API key, or needs one. Check the provider's
-        default credential and its key.
+        The endpoint refused the API key the listing sent. Check that the key
+        is right and may list models.
       catalogUpstreamError: The endpoint answered with a server error. Try again later.
   catalogs:
     emptyBody: >-

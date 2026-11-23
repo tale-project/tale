@@ -66,8 +66,10 @@ function catalogRefreshHint(
     case 'PROVIDER_CATALOG_NOT_JSON':
     case 'PROVIDER_CATALOG_NOT_FOUND':
       return "the provider's base URL answered without a model list: set it to the API root (for most gateways it ends in /v1), then refresh again";
+    case 'PROVIDER_CATALOG_KEY_REQUIRED':
+      return "the provider's endpoint wants a key for its listing and none was sent: give the provider a default credential with its key (kind provider-credential, ids beginning with the provider name), then refresh again";
     case 'PROVIDER_CATALOG_KEY_REFUSED':
-      return "the provider's endpoint refused the listing or wants a key for it: check the key of the provider's default credential (kind provider-credential, ids beginning with the provider name), then refresh again";
+      return "the provider's endpoint refused the key the listing sent: check the key of the provider's default credential (kind provider-credential, ids beginning with the provider name), then refresh again";
     case 'PROVIDER_CATALOG_UNREACHABLE':
       return "the provider's endpoint did not answer: check that its host is right and reachable from the server, then refresh again";
     case 'PROVIDER_CATALOG_UPSTREAM_ERROR':

@@ -16,10 +16,11 @@ import {
  * which holds the credential list and every read derived from it (the model
  * pickers, the runtime status, the resolved vision model). The catalog
  * refresh's row does the same — those reads answer from the catalogs too —
- * and its hook also invalidates the catalog listing, which only a refresh
- * changes. Error feedback is handled at the call sites (dialog-inline or
- * toast, via `mapCredentialError`), so the mutation hooks opt out of the
- * generic error toast.
+ * and its hook also invalidates the catalog listing (the create composition
+ * in `custom-provider-mutations.ts` does too: a new key may list models the
+ * provider could not list without one). Error feedback is handled at the
+ * call sites (dialog-inline or toast, via `mapCredentialError`), so the
+ * mutation hooks opt out of the generic error toast.
  */
 
 /** Create one credential (api-key / env / subscription-broker). */
@@ -101,6 +102,17 @@ function useProviderDefinitionWrite<
       });
     },
   });
+}
+
+/** List one provider's models with the key the caller names — the key a
+ * dialog holds before anything is saved, or a saved credential's — rather
+ * than the organization's default. Changes nothing; the caller reports a
+ * failure inline or in its own toast. */
+export function useListProviderCatalogWithKey() {
+  return useBackendAction(
+    'lib/providers/definition_actions:listProviderCatalogWithKey',
+    { errorToast: false },
+  );
 }
 
 /** Fetch one custom provider's live model listing anew — the reachability

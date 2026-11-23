@@ -65,7 +65,7 @@ const REFRESH = /^POST \/api\/app\/providers\/catalogs\/refresh\?orgId=org-1$/;
 /** What the server says of a listing that got no answer in time. */
 const TIMED_OUT = 'Request timed out after 20000ms';
 /** What it says of a listing whose endpoint refused the key. */
-const KEY_REFUSED = 'catalog fetch returned HTTP 401';
+const KEY_REFUSED = 'catalog fetch returned HTTP 401 for the API key sent';
 
 /** OpenRouter, whose listing failed for the reason `code` names. */
 function failedOpenRouter(
@@ -158,6 +158,7 @@ const inEnglish = (key: string) => i18n.t(key, { ns: 'settings', lng: 'en' });
 
 const FAILURE_SENTENCES = [
   'providers.custom.errors.catalogUnreachable',
+  'providers.custom.errors.catalogKeyRequired',
   'providers.custom.errors.catalogKeyRefused',
   'providers.custom.errors.catalogUpstreamError',
 ];
@@ -210,12 +211,12 @@ describe(
 
         expect(
           await screen.findByText(
-            'OpenRouter: Der Endpunkt hat den API-Schlüssel abgelehnt oder braucht einen. Prüfe die Standard-Zugangsdaten des Anbieters und ihren Schlüssel. (catalog fetch returned HTTP 401)',
+            'OpenRouter: Der Endpunkt hat den gesendeten API-Schlüssel abgelehnt. Prüfe, ob der Schlüssel stimmt und Modelle auflisten darf. (catalog fetch returned HTTP 401 for the API key sent)',
           ),
         ).toBeVisible();
         expect(
           await screen.findByText(
-            'Modellkatalog nicht verfügbar: Der Endpunkt hat den API-Schlüssel abgelehnt oder braucht einen. Prüfe die Standard-Zugangsdaten des Anbieters und ihren Schlüssel. (catalog fetch returned HTTP 401)',
+            'Modellkatalog nicht verfügbar: Der Endpunkt hat den gesendeten API-Schlüssel abgelehnt. Prüfe, ob der Schlüssel stimmt und Modelle auflisten darf. (catalog fetch returned HTTP 401 for the API key sent)',
           ),
         ).toBeVisible();
         expect(backend.count(REFRESH)).toBe(1);

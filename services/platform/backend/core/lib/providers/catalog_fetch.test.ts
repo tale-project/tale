@@ -785,9 +785,11 @@ describe('getProviderCatalog — live sources', () => {
       }).catch((error: unknown) => error);
       expect(failure).toBeInstanceOf(CatalogListingError);
       expect(catalogFailureCode(failure)).toBe('PROVIDER_CATALOG_KEY_REFUSED');
+      // The words say a key went, and never which.
       expect((failure as Error).message).toBe(
-        `catalog fetch returned HTTP ${status}`,
+        `catalog fetch returned HTTP ${status} for the API key sent`,
       );
+      expect((failure as Error).message).not.toContain('sk-listing');
       // The same key gets the same answer: no second attempt.
       expect(mockedFetch).toHaveBeenCalledTimes(1);
 
@@ -1005,6 +1007,140 @@ describe('getProviderCatalog — listing credential', () => {
         },
       }),
     );
+  });
+
+  it.each([401, 403])(
+    'names an anonymous refusal (HTTP %i) as a key the endpoint wants, apart from a refused key',
+    async (status) => {
+      vi.spyOn(console, 'warn').mockImplementation(() => {});
+      mockedFetch.mockResolvedValue({ ...unauthorized(), status });
+      const anonymous: unknown = await getProviderCatalog(VERCEL, {
+        maxAttempts: 3,
+      }).catch((error: unknown) => error);
+      expect(catalogFailureCode(anonymous)).toBe(
+        'PROVIDER_CATALOG_KEY_REQUIRED',
+      );
+      expect((anonymous as Error).message).toBe(
+        `catalog fetch returned HTTP ${status} without an API key`,
+      );
+      expect(mockedFetch).toHaveBeenCalledTimes(1);
+      const keyed: unknown = await getProviderCatalog(VERCEL, {
+        maxAttempts: 3,
+        bearerToken: 'sk-wrong',
+      }).catch((error: unknown) => error);
+      expect(catalogFailureCode(keyed)).toBe('PROVIDER_CATALOG_KEY_REFUSED');
+      expect((keyed as Error).message).toBe(
+        `catalog fetch returned HTTP ${status} for the API key sent`,
+      );
+    },
+  );
+
+  it("never answers a key with the anonymous fetch in flight, nor one key with another key's", async () => {
+    let releaseAnonymous: (
+      value: ReturnType<typeof unauthorized>,
+    ) => void = () => {};
+    mockedFetch.mockImplementation((_url, init) => {
+      const headers = (init?.headers ?? {}) as Record<string, string>;
+      if (headers.authorization === undefined) {
+        return new Promise((resolve) => {
+          releaseAnonymous = resolve;
+        });
+      }
+      return Promise.resolve(
+        headers.authorization === 'Bearer sk-right'
+          ? listingResponse(USABLE_PAYLOAD)
+          : unauthorized(),
+      );
+    });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      // A listing without a key is still waiting on the endpoint…
+      const anonymous = getProviderCatalog(VERCEL, { maxAttempts: 1 }).catch(
+        (error: unknown) => error,
+      );
+      // …when the first caller with a key asks: it goes out on its own.
+      await expect(
+        getProviderCatalog(VERCEL, { maxAttempts: 1, bearerToken: 'sk-right' }),
+      ).resolves.toHaveLength(2);
+      releaseAnonymous(unauthorized());
+      expect(catalogFailureCode(await anonymous)).toBe(
+        'PROVIDER_CATALOG_KEY_REQUIRED',
+      );
+
+      // A refused key is remembered for that key alone: the key typed in its
+      // place goes out at once and is answered for itself.
+      invalidateCatalogFetchCache();
+      await expect(
+        getProviderCatalog(VERCEL, { maxAttempts: 1, bearerToken: 'sk-typo' }),
+      ).rejects.toThrow('HTTP 401');
+      const calls = mockedFetch.mock.calls.length;
+      await expect(
+        getProviderCatalog(VERCEL, { maxAttempts: 1, bearerToken: 'sk-typo' }),
+      ).rejects.toThrow('HTTP 401');
+      expect(mockedFetch).toHaveBeenCalledTimes(calls);
+      await expect(
+        getProviderCatalog(VERCEL, { maxAttempts: 1, bearerToken: 'sk-right' }),
+      ).resolves.toHaveLength(2);
+      expect(mockedFetch).toHaveBeenCalledTimes(calls + 1);
+    } finally {
+      warn.mockRestore();
+      mockedFetch.mockReset();
+    }
+  });
+
+  it('lists an unsaved key once, outside the cache, the failure memory and any fetch in flight', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      // A refused candidate key is not remembered…
+      mockedFetch.mockResolvedValueOnce(unauthorized());
+      await expect(
+        getProviderCatalog(VERCEL, {
+          maxAttempts: 1,
+          bearerToken: 'sk-candidate',
+          uncached: true,
+        }),
+      ).rejects.toThrow('HTTP 401 for the API key sent');
+      // …so the saved caller with the same key still goes out,
+      mockedFetch.mockResolvedValueOnce(unauthorized());
+      await expect(
+        getProviderCatalog(VERCEL, {
+          maxAttempts: 1,
+          bearerToken: 'sk-candidate',
+        }),
+      ).rejects.toThrow('HTTP 401');
+      expect(mockedFetch).toHaveBeenCalledTimes(2);
+
+      // …and a candidate's successful listing is served to no one else.
+      invalidateCatalogFetchCache();
+      mockedFetch.mockResolvedValueOnce(listingResponse(USABLE_PAYLOAD));
+      await expect(
+        getProviderCatalog(VERCEL, {
+          maxAttempts: 1,
+          bearerToken: 'sk-candidate',
+          uncached: true,
+        }),
+      ).resolves.toHaveLength(2);
+      mockedFetch.mockResolvedValueOnce(unauthorized());
+      await expect(
+        getProviderCatalog(VERCEL, { maxAttempts: 1 }),
+      ).rejects.toThrow('HTTP 401 without an API key');
+      expect(mockedFetch).toHaveBeenCalledTimes(4);
+
+      // Nor does it ever read the cache: a cached catalog does not answer it.
+      mockedFetch.mockResolvedValueOnce(listingResponse(USABLE_PAYLOAD));
+      await getProviderCatalog(VERCEL, { maxAttempts: 1, bearerToken: 'k' });
+      mockedFetch.mockResolvedValueOnce(unauthorized());
+      await expect(
+        getProviderCatalog(VERCEL, {
+          maxAttempts: 1,
+          bearerToken: 'sk-candidate',
+          uncached: true,
+        }),
+      ).rejects.toThrow('HTTP 401');
+      expect(mockedFetch).toHaveBeenCalledTimes(6);
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it('lets the first attempt that brings a key through an anonymous refusal, but honours a refusal of the key itself', async () => {

@@ -216,6 +216,15 @@ export function CredentialAddDialog<
 
   const SecretFields = secret.Fields;
   const ExtraFields = extra.Fields;
+  // The key as the form would send it now: what a field beside it lists
+  // with before anything is saved.
+  const builtSecret =
+    vendor !== null &&
+    activeMethod !== undefined &&
+    secret.isComplete(activeMethod, draft, vendor)
+      ? secret.buildArgs(t, activeMethod, draft)
+      : undefined;
+  const secretArgs = builtSecret?.ok === true ? builtSecret.args : undefined;
   const Consent = adapter.Consent;
   const endpoint =
     vendor === null ? undefined : adapter.endpointField(t, vendor);
@@ -371,6 +380,8 @@ export function CredentialAddDialog<
                     onChange={setExtraValue}
                     disabled={create.isPending}
                     method={activeMethod}
+                    organizationId={organizationId}
+                    {...(secretArgs !== undefined ? { secretArgs } : {})}
                   />
                 )}
               </Stack>
