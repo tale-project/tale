@@ -299,6 +299,14 @@ describe('install_ssrf_firewall rule program', () => {
       }
     }
 
+    function assertFenceIntact(rules: string[]): void {
+      for (const cidr of ['10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16']) {
+        expect(rules.some((r) => r.includes(`-d ${cidr} -j REJECT`))).toBe(
+          true,
+        );
+      }
+    }
+
     it('allows the embedded DNS upstreams of the ExtServers comment', () => {
       const { rules, status, stdout } = runFirewall({
         withIp: true,
@@ -309,16 +317,31 @@ describe('install_ssrf_firewall rule program', () => {
       expect(dnsAccepts(rules)).toEqual([
         dnsRule('10.200.50.97', 'udp'),
         dnsRule('10.200.50.97', 'tcp'),
-        dnsRule('192.168.1.1', 'udp'),
-        dnsRule('192.168.1.1', 'tcp'),
       ]);
       assertAheadOfFence(rules);
-      // Nothing beyond port 53 to the resolver, and never the stub itself.
+      // Nothing beyond port 53 to the resolver, never the stub itself, and
+      // never a host(...) entry: moby dials those from the host's namespace.
       expect(rules.filter((r) => r.includes('10.200.50.97'))).toHaveLength(2);
+      expect(rules.some((r) => r.includes('192.168.1.1/32'))).toBe(false);
       expect(rules.some((r) => r.includes('127.'))).toBe(false);
       expect(stdout).toContain(
-        'DNS (udp+tcp 53) allowed to upstream resolvers: 10.200.50.97 192.168.1.1',
+        'DNS (udp+tcp 53) allowed to upstream resolvers: 10.200.50.97\n',
       );
+    });
+
+    it("opens nothing for the host's own resolvers, dialed from the host", () => {
+      const { rules, status, stdout, stderr } = runFirewall({
+        withIp: true,
+        routes: LINK_ROUTES,
+        resolvConf: `${EMBEDDED}\n# Based on host file: '/etc/resolv.conf' (internal resolver)\n# ExtServers: [host(192.168.1.1) host(10.0.2.3) host(127.0.0.53)]\n`,
+      });
+      expect(status).toBe(0);
+      expect(dnsAccepts(rules)).toEqual([]);
+      expect(rules.some((r) => r.includes('192.168.1.1'))).toBe(false);
+      expect(rules.some((r) => r.includes('10.0.2.3'))).toBe(false);
+      expect(stdout).toContain('no DNS rule needed');
+      expect(stderr).not.toContain('no upstream DNS resolver derivable');
+      assertFenceIntact(rules);
     });
 
     it('allows plain nameserver lines without the embedded DNS', () => {
@@ -355,11 +378,7 @@ describe('install_ssrf_firewall rule program', () => {
       expect(dnsAccepts(rules)).toEqual([]);
       expect(stderr).toContain('no upstream DNS resolver derivable');
       // The fence itself is unchanged.
-      for (const cidr of ['10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16']) {
-        expect(rules.some((r) => r.includes(`-d ${cidr} -j REJECT`))).toBe(
-          true,
-        );
-      }
+      assertFenceIntact(rules);
     });
 
     it('ignores what is no IPv4 address', () => {

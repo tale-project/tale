@@ -105,6 +105,8 @@ install_ssrf_firewall() {
         done
       done
       log_info "SSRF firewall: DNS (udp+tcp 53) allowed to upstream resolvers: ${dns_upstreams//$'\n'/ }"
+    elif [ -n "$(awk '/^#[ \t]*ExtServers:.*host\(/ { print "host"; exit }' 2>/dev/null </etc/resolv.conf || true)" ]; then
+      log_info "SSRF firewall: no DNS rule needed — the embedded DNS dials the host's own resolvers from the host's namespace"
     else
       log_warn "no upstream DNS resolver derivable from /etc/resolv.conf — external lookups work only through a resolver on a connected subnet or a public address"
     fi
@@ -126,11 +128,13 @@ install_ssrf_firewall() {
 
 # The upstream DNS servers this container's lookups leave for, one IPv4
 # address per line, from the resolv.conf on stdin. Docker's embedded DNS
-# lists them in its `# ExtServers: [...]` comment — plain for the daemon's
-# `dns` setting or `--dns` (dialed from this namespace), `host(...)` for the
-# host's own resolvers (dialed from the host's) — and a container without
+# lists them in its `# ExtServers: [...]` comment, and a container without
 # the embedded DNS (`network_mode`, the default bridge) has them as
-# `nameserver` lines. Loopback (127.0.0.11 itself, a host stub), 0.0.0.0/8,
+# `nameserver` lines. Only the plain ExtServers entries count: the daemon's
+# `dns` setting or `--dns`, dialed from this namespace. A `host(...)` entry
+# (the host's own resolvers; every one of them from moby 28, the loopback
+# ones before) is dialed from the host's namespace, never crosses this
+# OUTPUT chain and so opens nothing. Loopback (127.0.0.11 itself, a host stub), 0.0.0.0/8,
 # link-local (the metadata guard rejects it ahead of any accept), IPv6 and
 # anything unparsable are dropped; duplicates print once.
 ssrf_dns_upstreams() {
@@ -152,7 +156,7 @@ ssrf_dns_upstreams() {
       count = split(list, entries, /[ \t]+/)
       for (i = 1; i <= count; i++) {
         entry = entries[i]
-        if (entry ~ /^host\(.*\)$/) entry = substr(entry, 6, length(entry) - 6)
+        if (entry ~ /^host\(/) continue
         emit(entry)
       }
       next
