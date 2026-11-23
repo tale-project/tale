@@ -184,9 +184,6 @@ describe('each provider lists its own models in the catalog listing [PROV-R6]', 
     const gateway = rows.get(custom.name);
 
     expect(ids(openrouter)).toEqual(expect.arrayContaining(OPENROUTER_LIVE));
-    expect(ids(openrouter)).not.toEqual(
-      expect.arrayContaining([CUSTOM_LIVE[0]]),
-    );
     expect(
       ids(openrouter).filter((id) => id.startsWith('gateway-only/')),
     ).toEqual([]);

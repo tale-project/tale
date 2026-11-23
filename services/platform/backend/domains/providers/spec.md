@@ -59,8 +59,8 @@ while its credential is disabled.
 
 A provider's model list comes from that provider alone, so an organization's own provider never
 adds models to a shipped one, never removes any from it, and never replaces its list. A
-provider whose list cannot be fetched shows that failure on its own entry, and no other
-provider's list changes because of it.
+provider whose list cannot be fetched changes no other provider's list; an organization's own
+provider shows the failure on its own entry.
 
 - **Example**: Ada's organization uses OpenRouter. She defines its own provider at an address
   that does not resolve → OpenRouter still lists all its models, and the new provider lists none
