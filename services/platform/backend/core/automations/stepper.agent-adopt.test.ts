@@ -64,6 +64,7 @@ function recordingHost(): KickArgs[] {
         providerSlug: 'anthropic',
         gatewayModel: 'claude-sonnet',
         harness: DEFAULT_HARNESS,
+        harnessReason: 'default',
       };
     },
     poll: async () => null,
@@ -104,6 +105,27 @@ describe('adopting the turn a crashed kick left in flight', () => {
     });
   });
 
+  it('keeps why the op runs where it runs, as the kick that opened it recorded', async () => {
+    recordingHost();
+    const world = fakeStepperWorld({
+      document: DOCUMENT,
+      mode: 'live',
+      liveAgentOp: {
+        ...LIVE_OP,
+        harness: 'claude-code',
+        harnessReason: 'subscription_bound',
+      },
+    });
+
+    await stepRunImpl(world.ctx, RUN);
+
+    // An answered question's resume of this turn records the same reason.
+    expect(parkedTurn(world)).toMatchObject({
+      harness: 'claude-code',
+      harnessReason: 'subscription_bound',
+    });
+  });
+
   it('falls back to the step’s harness for an op written before ops recorded theirs', async () => {
     const kicks = recordingHost();
     const world = fakeStepperWorld({
@@ -118,6 +140,23 @@ describe('adopting the turn a crashed kick left in flight', () => {
     expect(parkedTurn(world)).toMatchObject({
       execId: 'exec-live',
       harness: DEFAULT_HARNESS,
+    });
+    expect(parkedTurn(world)).not.toHaveProperty('harnessReason');
+  });
+});
+
+describe('the turn a kick parks the run on', () => {
+  it('keeps why the kick put it on its harness, for the conversation’s later turns', async () => {
+    const kicks = recordingHost();
+    const world = fakeStepperWorld({ document: DOCUMENT, mode: 'live' });
+
+    await stepRunImpl(world.ctx, RUN);
+
+    expect(kicks).toHaveLength(1);
+    expect(parkedTurn(world)).toMatchObject({
+      execId: 'exec-new',
+      harness: DEFAULT_HARNESS,
+      harnessReason: 'default',
     });
   });
 });

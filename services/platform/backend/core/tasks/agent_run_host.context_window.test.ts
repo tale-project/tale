@@ -64,8 +64,10 @@ const io = vi.hoisted(() => ({
     | { providerSlug: string; modelId: string; apiBaseUrl: string },
   /** What the session ensure throws, when it refuses. */
   sessionRefusal: undefined as Error | undefined,
-  /** How the run got its runtime (`getAgentHarnessChoice`). */
-  harnessChoice: 'pinned' as 'pinned' | 'policy' | 'automatic',
+  /** Why the run's kick chose its harness, as the run keeps it
+   * (`getTaskAgentRunHarnessReason`): null for a run an earlier image
+   * kicked, `throws` for a read that fails. */
+  harnessReason: 'pinned' as string | null,
   /** What the turn's budget reservation answers. */
   reservation: { allowed: true, budgetCents: 500 } as
     | { allowed: true; budgetCents: number }
@@ -304,8 +306,11 @@ function makeCtx(run: RunState, contextCap: number | null = null) {
         }
         return { confined: run.confined ?? false };
       }
-      if (name === 'projects/internal_queries:getAgentHarnessChoice') {
-        return io.harnessChoice;
+      if (name === 'tasks/agent_runs:getTaskAgentRunHarnessReason') {
+        if (io.harnessReason === 'throws') {
+          throw new Error('the run could not be read');
+        }
+        return io.harnessReason;
       }
       throw new Error(`unexpected query ${name}`);
     },
@@ -372,7 +377,7 @@ beforeEach(() => {
   io.subscription = undefined;
   io.sessionRefusal = undefined;
   io.reservation = { allowed: true, budgetCents: 500 };
-  io.harnessChoice = 'pinned';
+  io.harnessReason = 'pinned';
   io.brokerRow = null;
   io.ensures = 0;
   io.endpointPolicy = { kind: 'open' };
@@ -719,7 +724,7 @@ describe('a task agent start', () => {
     });
   });
 
-  it('records on the op it opens that an agent runs on the runtime it names', async () => {
+  it('records on the op it opens why the run’s kick chose its runtime', async () => {
     const { ctx, mutations, queries } = makeCtx({
       status: 'queued',
       execId: 'exec-1',
@@ -730,9 +735,9 @@ describe('a task agent start', () => {
     expect(io.starts).toHaveLength(1);
     expect(
       queries.find(
-        (q) => q.name === 'projects/internal_queries:getAgentHarnessChoice',
+        (q) => q.name === 'tasks/agent_runs:getTaskAgentRunHarnessReason',
       )?.args,
-    ).toMatchObject({ agentId: KEYS.agentId, harness: KEYS.harness });
+    ).toEqual({ organizationId: KEYS.organizationId, runId: KEYS.runId });
     expect(
       mutations.find(
         (m) => m.name === 'sandbox/session_mutations:reserveTurnBudget',
@@ -740,13 +745,40 @@ describe('a task agent start', () => {
     ).toMatchObject({ kind: 'task-agent', harnessReason: 'pinned' });
   });
 
-  it.each([
-    ['automatic', 'subscription_bound'],
-    ['policy', 'policy'],
-  ] as const)(
-    'records why the standard agent’s %s subscription turn runs on its runtime',
-    async (choice, reason) => {
-      io.harnessChoice = choice;
+  it('records what the kick decided for a turn off the default, never the default', async () => {
+    // The standard agent ran a model only Codex runs: the kick recorded why.
+    io.harnessReason = 'model_bound';
+    const { ctx, mutations } = makeCtx({ status: 'queued', execId: 'exec-1' });
+
+    await startTaskAgentTurnImpl(ctx, { ...KEYS, harness: 'codex' } as never);
+
+    expect(
+      mutations.find(
+        (m) => m.name === 'sandbox/session_mutations:reserveTurnBudget',
+      )?.args,
+    ).toMatchObject({ harness: 'codex', harnessReason: 'model_bound' });
+  });
+
+  it('records none for a run an earlier image kicked, rather than deciding again', async () => {
+    // Kicked on Claude Code while it was the default: the run keeps no
+    // reason, and Claude Code is not the default now.
+    io.harnessReason = null;
+    const { ctx, mutations } = makeCtx({ status: 'queued', execId: 'exec-1' });
+
+    await startTaskAgentTurnImpl(ctx, KEYS as never);
+
+    expect(io.starts).toHaveLength(1);
+    const reserved = mutations.find(
+      (m) => m.name === 'sandbox/session_mutations:reserveTurnBudget',
+    )?.args;
+    expect(reserved).toMatchObject({ harness: 'claude-code' });
+    expect(reserved).not.toHaveProperty('harnessReason');
+  });
+
+  it.each(['subscription_bound', 'policy'] as const)(
+    'records why the standard agent’s subscription turn runs on its runtime: %s',
+    async (reason) => {
+      io.harnessReason = reason;
       io.subscription = {
         providerSlug: 'anthropic',
         modelId: 'claude-sonnet-4-6',
@@ -781,7 +813,7 @@ describe('a task agent start', () => {
   );
 
   it('still starts, recording no reason, when how the run got its runtime cannot be read', async () => {
-    io.harnessChoice = 'unreadable' as never;
+    io.harnessReason = 'throws';
     const { ctx, mutations } = makeCtx({ status: 'queued', execId: 'exec-1' });
 
     await startTaskAgentTurnImpl(ctx, KEYS as never);
@@ -1130,6 +1162,42 @@ describe('a task agent steer restart', () => {
       )?.args,
     ).toMatchObject({ execId: 'exec-rotated', kind: 'task-agent' });
     expect(console.error).not.toHaveBeenCalled();
+  });
+
+  it('records on the restarted exec’s op why the run’s kick chose its runtime', async () => {
+    servesWindow(32_768, 8_192);
+    // A run the standard agent's kick put on Codex for a model only Codex
+    // runs: its restart records the kick's reason, not one decided now.
+    io.harnessReason = 'model_bound';
+    const { ctx, mutations, queries } = makeCtx({
+      status: 'running',
+      execId: 'exec-1',
+    });
+
+    await steerTaskAgentTurnImpl(ctx, {
+      ...KEYS,
+      harness: 'codex',
+      model: 'qwen3-32b',
+      feedback: 'Use the second address.',
+      author: 'Dana',
+      authorId: 'user-dana',
+      attempt: 0,
+    } as never);
+
+    expect(
+      queries.find(
+        (q) => q.name === 'tasks/agent_runs:getTaskAgentRunHarnessReason',
+      )?.args,
+    ).toEqual({ organizationId: KEYS.organizationId, runId: KEYS.runId });
+    expect(
+      mutations.find(
+        (m) => m.name === 'sandbox/session_mutations:reserveTurnBudget',
+      )?.args,
+    ).toMatchObject({
+      execId: 'exec-rotated',
+      harness: 'codex',
+      harnessReason: 'model_bound',
+    });
   });
 
   it('fails a restart the broker refused while every account cooled down, naming when the first is back', async () => {

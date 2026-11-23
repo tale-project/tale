@@ -15352,10 +15352,11 @@ async function checkAutomationRunLifecycle(
     `running→${liveOpView.success ? `${liveOpView.data.providerSlug}/${liveOpView.data.gatewayModel} on ${liveOpView.data.harness ?? 'no harness'}` : 'ERR'}, settled→${settledOp === null ? 'null' : JSON.stringify(settledOp)}`,
   );
 
-  // ---- #5a: why a turn runs on its harness (migration 0240). The host's
-  // open records the rule it applied, a later write of the same turn that
-  // names none keeps it, the step's agent-node read answers it with the
-  // harness's name, and the column refuses a rule it does not know.
+  // ---- #5a: why a turn runs on its harness (migrations 0240, 0241). The
+  // host's open records the rule it applied, a later write of the same turn
+  // that names none keeps it, the step's agent-node read answers it with the
+  // harness's name, and the column refuses a rule it does not know — but
+  // admits 0241's `model_bound` (the default cannot run the model).
   const { agentTurnShimHandlers } =
     await import('./domains/tasks/agent-turn-shim.ts');
   const { getAgentNodeSandboxOp } =
@@ -15415,18 +15416,52 @@ async function checkAutomationRunLifecycle(
   await sql`
     DELETE FROM app.sandbox_session_ops WHERE session_id = ${reasonSessionId}
   `;
+  // A turn the standard agent ran on Codex because the default cannot run
+  // its model (0241): opened by the host's write, read with its name.
+  let modelBoundOpen = 'accepted';
+  try {
+    await upsertOp?.({
+      ...reasonOp,
+      execId: 'exec-reason-2',
+      harness: 'codex',
+      harnessReason: 'model_bound',
+    });
+  } catch (error) {
+    modelBoundOpen =
+      error instanceof Error && 'code' in error ? String(error.code) : 'threw';
+  }
+  const modelBoundView = z
+    .object({
+      harness: z.string(),
+      harnessLabel: z.string(),
+      harnessReason: z.string(),
+    })
+    .safeParse(
+      await getAgentNodeSandboxOp(sql, {
+        organizationId: orgId,
+        runId: reasonRunId,
+      }),
+    );
+  await sql`
+    DELETE FROM app.sandbox_session_ops WHERE session_id = ${reasonSessionId}
+  `;
   await sql.begin(async (fixtureTx) => {
     await markAutomationWriterInTx(fixtureTx);
     return fixtureTx`DELETE FROM app.automation_runs WHERE id = ${reasonRunId}`;
   });
   record(
-    'a turn records why it runs on its harness: kept across later writes, read with the harness name, an unknown rule refused',
+    'a turn records why it runs on its harness: kept across later writes, read with the harness name, an unknown rule refused, model_bound admitted',
     reasonView.success &&
       reasonView.data.harness === 'claude-code' &&
       reasonView.data.harnessLabel === 'Claude Code' &&
       reasonView.data.harnessReason === 'subscription_bound' &&
-      unknownRule === '23514',
-    `read=${reasonView.success ? `${reasonView.data.harnessLabel}/${reasonView.data.harnessReason}` : 'ERR'} (want Claude Code/subscription_bound), unknown rule=${unknownRule} (want 23514)`,
+      unknownRule === '23514' &&
+      modelBoundOpen === 'accepted' &&
+      modelBoundView.success &&
+      modelBoundView.data.harness === 'codex' &&
+      modelBoundView.data.harnessLabel === 'Codex' &&
+      modelBoundView.data.harnessReason === 'model_bound',
+    `read=${reasonView.success ? `${reasonView.data.harnessLabel}/${reasonView.data.harnessReason}` : 'ERR'} (want Claude Code/subscription_bound), unknown rule=${unknownRule} (want 23514), model_bound open=${modelBoundOpen} read=${modelBoundView.success ? `${modelBoundView.data.harnessLabel}/${modelBoundView.data.harnessReason}` : 'ERR'} (want accepted, Codex/model_bound)`,
   );
 
   // ---- #5b: the agent node's folder mounts list through the run's shim —
@@ -48668,6 +48703,30 @@ async function checkTaskAgentRuns(
     await tx`DELETE FROM app.project_agents WHERE id = ${ledgerAgentId}`;
     return reKicked;
   });
+  // The run keeps why its kick chose its harness (0241): an agent of the
+  // project's own names its runtime, and each turn of the run reads the
+  // kick's reason back for its op. The column refuses a rule it does not
+  // know.
+  const { agentTurnShimHandlers: runTurnShim } =
+    await import('./domains/tasks/agent-turn-shim.ts');
+  const kickReason = await runTurnShim(sql)[
+    'tasks/agent_runs:getTaskAgentRunHarnessReason'
+  ]?.({ organizationId: orgId, runId: reuseProbe.runId });
+  let unknownRunReason = 'accepted';
+  try {
+    await sql`
+      UPDATE app.project_agent_runs SET harness_reason = 'a-rule-nobody-wrote'
+      WHERE id = ${reuseProbe.runId}
+    `;
+  } catch (error) {
+    unknownRunReason =
+      error instanceof Error && 'code' in error ? String(error.code) : 'threw';
+  }
+  record(
+    'a task run keeps why its kick chose its runtime, read back for its turns, an unknown rule refused',
+    kickReason === 'pinned' && unknownRunReason === '23514',
+    `kick reason=${String(kickReason)} (want pinned), unknown rule=${unknownRunReason} (want 23514)`,
+  );
   const secondRuns = {
     success: true as const,
     data: {

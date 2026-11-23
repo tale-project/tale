@@ -120,6 +120,12 @@ export interface AgentCursor {
    * vendor-native catalog id on the subscription lane. */
   gatewayModel: string;
   harness: string;
+  /** Why the turn runs on `harness`, as the kick that chose it decided (one
+   * of `HARNESS_REASONS`, `lib/shared/harness-reason.ts`): a later turn of
+   * the same conversation records it instead of deciding again. Absent on a
+   * cursor an earlier release wrote, and on one adopted from an op that
+   * records none. */
+  harnessReason?: string;
   input: Record<string, unknown>;
   /** How many auto-retries preceded this attempt (0 = the original kick).
    * The counter lives here — not on the run row — so it dies with the node

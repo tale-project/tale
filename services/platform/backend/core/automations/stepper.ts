@@ -1900,6 +1900,7 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
         providerSlug: string;
         gatewayModel: string;
         harness?: string;
+        harnessReason?: string;
       };
       const agent: AgentCursor = {
         execId: op.execId,
@@ -1908,6 +1909,10 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
         providerSlug: op.providerSlug,
         gatewayModel: op.gatewayModel,
         harness: op.harness ?? request.harness ?? DEFAULT_HARNESS,
+        // Why it runs there, as the kick that opened the op recorded it.
+        ...(op.harnessReason !== undefined
+          ? { harnessReason: op.harnessReason }
+          : {}),
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the resolved request is plain JSON by construction
         input: request as unknown as Record<string, unknown>,
       };
@@ -1952,6 +1957,9 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
       providerSlug: kicked.providerSlug,
       gatewayModel: kicked.gatewayModel,
       harness: kicked.harness,
+      ...(kicked.harnessReason !== undefined
+        ? { harnessReason: kicked.harnessReason }
+        : {}),
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the resolved request is plain JSON by construction
       input: request as unknown as Record<string, unknown>,
     };
@@ -2169,6 +2177,9 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
         providerSlug: kicked.providerSlug,
         gatewayModel: kicked.gatewayModel,
         harness: kicked.harness,
+        ...(kicked.harnessReason !== undefined
+          ? { harnessReason: kicked.harnessReason }
+          : {}),
         input: parked.input,
         attempt: plan.attempt,
         ...(burned.length > 0 ? { burnedBrokerTokenHashes: burned } : {}),

@@ -9,6 +9,10 @@ import {
 import { DOCUMENT_SKILL_SLUGS } from '../../../lib/shared/document-skills.ts';
 import { DEFAULT_HARNESS } from '../../../lib/shared/harness-offer.ts';
 import {
+  agentHarnessReason,
+  type HarnessReason,
+} from '../../../lib/shared/harness-reason.ts';
+import {
   type HarnessModelFit,
   harnessModelFit,
   harnessRunsModel,
@@ -104,6 +108,10 @@ export type StandardAgentServing =
       /** Where the model came from — the pin, or the automatic choice. */
       source: 'pinned' | 'preferred' | 'cheapest';
       engine: StandardAgentEngine;
+      /** Why it runs on `harness`: the policy pins the runtime, or the
+       * choice put it there — the default, a subscription's bound runtime,
+       * or a runtime that can run a model the default cannot. */
+      harnessReason: HarnessReason;
     }
   | {
       ok: false;
@@ -223,6 +231,9 @@ export function chooseStandardAgentServing(
         config.harness === undefined && direct.length > 0
           ? 'native'
           : 'harness',
+      harnessReason: standardAgentHarnessReason(config, harness, {
+        direct: direct.some((option) => runnable(option, harness)),
+      }),
     };
   }
 
@@ -288,7 +299,26 @@ export function chooseStandardAgentServing(
       boundHarness(choice.entry.option) === undefined
         ? 'native'
         : 'harness',
+    harnessReason: standardAgentHarnessReason(config, harness, {
+      direct: boundHarness(choice.entry.option) === undefined,
+    }),
   };
+}
+
+/** Why the standard agent runs on `harness`: its policy pins the runtime, or
+ * it chose one — and then the choice's serving tells the default from a
+ * subscription's bound runtime and from a runtime that runs a model the
+ * default cannot (`agentHarnessReason`). `direct`: a credential any runtime
+ * can use serves the chosen model there, rather than a subscription. */
+function standardAgentHarnessReason(
+  config: Pick<StandardAgentConfig, 'harness'>,
+  harness: string,
+  served: { direct: boolean },
+): HarnessReason {
+  return agentHarnessReason(
+    config.harness !== undefined ? 'policy' : 'automatic',
+    { harness, lane: served.direct ? 'gateway' : 'subscription' },
+  );
 }
 
 /** What each shipped harness can run: the wire its tools ride, and whether
@@ -528,6 +558,10 @@ export async function standardAgentServingForKick(
   /** How the run executes: only the standard agent on an automatic runtime
    * starts native. */
   engine: StandardAgentEngine;
+  /** Why the run gets `harness`, as this kick decides it: the run keeps it
+   * (`project_agent_runs.harness_reason`) and each of its turns records it,
+   * so a later turn never reads the policy again. */
+  harnessReason: HarnessReason;
 }> {
   const rows = await tx<
     { managed: boolean; projectId: string; createdBy: string }[]
@@ -545,6 +579,8 @@ export async function standardAgentServingForKick(
       ? { modelProvider: args.modelProvider }
       : {}),
     engine: 'harness' as const,
+    // An agent of a project's own names its runtime.
+    harnessReason: 'pinned' as const,
   };
   if (agent === undefined || !agent.managed) return passthrough;
 
@@ -584,34 +620,8 @@ export async function standardAgentServingForKick(
     model: serving.model,
     modelProvider: serving.modelProvider,
     engine: serving.engine,
+    harnessReason: serving.harnessReason,
   };
-}
-
-/**
- * How a run of this agent got its runtime, for the reason its turns record
- * (`harness_reason`, `agentHarnessReason`): an agent of a project's own
- * names it (`pinned`); the standard agent runs on what its policy pins
- * (`policy`), or on what it chose automatically (`automatic`) — the turn's
- * serving then tells a subscription's bound runtime from the default. Read
- * when a turn opens: the run's harness is the one its kick resolved, so the
- * policy counts only when it pins that very harness (an Admin's edit since
- * the kick does not relabel the run).
- */
-export async function agentHarnessChoice(
-  sql: Sql | TransactionSql,
-  args: { organizationId: string; agentId: string; harness: string },
-): Promise<'pinned' | 'policy' | 'automatic'> {
-  const rows = await sql<{ managed: boolean }[]>`
-    SELECT managed FROM app.project_agents
-    WHERE id = ${args.agentId} AND org_id = ${args.organizationId}
-    LIMIT 1
-  `;
-  const managed = rows[0]?.managed ?? false;
-  if (!managed) return 'pinned';
-  const config = await readStandardAgentPolicy(sql, args.organizationId);
-  return config !== 'unreadable' && config.harness === args.harness
-    ? 'policy'
-    : 'automatic';
 }
 
 /** The codes a kick answers for a standard agent that cannot run — the

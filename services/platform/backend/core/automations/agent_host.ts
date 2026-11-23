@@ -33,7 +33,11 @@ import { textTail } from '../../../lib/harnesses/projection';
 import { mergeTimelineParts } from '../../../lib/harnesses/timeline';
 import { agentLanguageGuidance } from '../../../lib/shared/agent-language';
 import { DEFAULT_HARNESS } from '../../../lib/shared/harness-offer';
-import { agentHarnessReason } from '../../../lib/shared/harness-reason';
+import {
+  agentHarnessReason,
+  type HarnessReason,
+  isHarnessReason,
+} from '../../../lib/shared/harness-reason';
 import {
   type AllowedModelRef,
   resolveGatewayRouting,
@@ -187,6 +191,10 @@ export interface WorkflowAgentKick {
    * vendor-native catalog id on the subscription lane. */
   gatewayModel: string;
   harness: string;
+  /** Why the turn runs on `harness`, as the kick decided it and recorded on
+   * the op it opened: the cursor keeps it, so a later turn of the same
+   * conversation (an answered question's resume) records the same. */
+  harnessReason?: HarnessReason;
 }
 
 /**
@@ -502,14 +510,20 @@ export function automationAgentHost(
               ),
             );
       const deadlineAt = Date.now() + startDelayMs + agentWorkTurnDeadlineMs();
+      // Why the turn runs on its harness: the step names it, or the serving
+      // put it there — a model only a subscription serves runs on the
+      // runtime that subscription is bound to, any other on the default.
+      // Decided here, where the harness is chosen, and handed to the cursor.
+      const harnessReason = agentHarnessReason(
+        request.harness !== undefined ? 'pinned' : 'automatic',
+        { harness, lane: serving.lane },
+      );
       // The op row exists BEFORE the start action is scheduled (the chat
       // lane's invariant): from this point, every death of the scheduled
       // start leaves a stale-heartbeat op the agent-turn watchdog settles,
       // instead of a turn no sweep can see or claim. The start's own upsert
-      // later merges the minted key onto this row. It records why the turn
-      // runs on its harness: the step names it, or the serving put it
-      // there — a model only a subscription serves runs on the runtime that
-      // subscription is bound to, any other on the default.
+      // later merges the minted key onto this row, which records the reason
+      // beside the harness.
       await ctx.runMutation(
         internal.sandbox.session_mutations.upsertSessionOp,
         {
@@ -520,10 +534,7 @@ export function automationAgentHost(
           status: 'running',
           modelRef: `${serving.providerSlug}/${execModel}`,
           harness,
-          harnessReason: agentHarnessReason(
-            request.harness !== undefined ? 'pinned' : 'automatic',
-            serving.lane,
-          ),
+          harnessReason,
           deadlineMs: deadlineAt,
           heartbeatAt: Date.now(),
         },
@@ -595,6 +606,7 @@ export function automationAgentHost(
         providerSlug: serving.providerSlug,
         gatewayModel: execModel,
         harness,
+        harnessReason,
       };
     },
     poll: async ({ runId, execId }) => {
@@ -2532,11 +2544,14 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
           status: 'running',
           modelRef: `${keys.providerSlug}/${keys.gatewayModel}`,
           harness: agent.harness,
-          // The asking turn's rule, read again for the serving resolved now.
-          harnessReason: agentHarnessReason(
-            typeof agent.input.harness === 'string' ? 'pinned' : 'automatic',
-            serving.lane,
-          ),
+          // Why the conversation runs on its harness is what the kick that
+          // began it decided, kept on the cursor — never read again now: a
+          // step on the default that began on Claude Code while it was the
+          // default is not on the default once Pi is. A cursor an earlier
+          // image wrote keeps none, and the turn records none.
+          ...(isHarnessReason(agent.harnessReason)
+            ? { harnessReason: agent.harnessReason }
+            : {}),
           deadlineMs: deadlineAt,
           heartbeatAt: Date.now(),
           ...(auth.mintedKeyId !== undefined

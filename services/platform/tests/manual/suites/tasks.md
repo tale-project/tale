@@ -228,10 +228,15 @@ the task's description: `e2e:make-file`, `e2e:make-spreadsheet` and
   standard agent's ran on the default agent runtime
   (`automations.runs.agentLog.harnessReason.default`), on the runtime a
   subscription works in when only that subscription serves its model
-  (`automations.runs.agentLog.harnessReason.subscriptionBound`), or on the
+  (`automations.runs.agentLog.harnessReason.subscriptionBound`), on the
   runtime its policy sets under Governance
-  (`automations.runs.agentLog.harnessReason.policy`). A run from before this
-  release shows no such sentence.
+  (`automations.runs.agentLog.harnessReason.policy`), or — with a model whose
+  tools need the Responses API pinned under Governance and the runtime left
+  automatic — on Codex, because the default agent runtime cannot run its
+  model (`automations.runs.agentLog.harnessReason.modelBound`). A comment
+  that restarts the run's turn says the same as the run's first turn, even
+  after an Admin changed the policy. A run from before this release shows no
+  such sentence.
 - [ ] `TASK-F14` · **Outputs & settle** — Let a run finish → The Run row flips
   to **Finished** (`tasks.agentRun.status.settled`); the result is posted as
   an agent comment and the task parks at **In review** (agents never complete

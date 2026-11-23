@@ -169,6 +169,7 @@ const HARNESS_REASON_KEYS: Readonly<Record<HarnessReason, string>> = {
   default: 'runs.agentLog.harnessReason.default',
   subscription_bound: 'runs.agentLog.harnessReason.subscriptionBound',
   policy: 'runs.agentLog.harnessReason.policy',
+  model_bound: 'runs.agentLog.harnessReason.modelBound',
 };
 
 /** A stamped ref is `provider/model`, and on the gateway lane the model half

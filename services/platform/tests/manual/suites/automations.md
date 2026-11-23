@@ -367,7 +367,10 @@ output:
       (`automations.runs.agentLog.harnessReason.default`), or, when only a
       subscription serves its model, on the runtime that subscription works
       in (`automations.runs.agentLog.harnessReason.subscriptionBound`). A
-      step that ran before this release shows no such sentence.
+      step that asks a question and is answered says the same after the
+      answer as before it. A step that ran before this release shows no such
+      sentence, and neither does the answer's turn of a step that asked
+      before it.
 - [ ] `AUTO-F253` · **A step on Default runs on Pi, or where its subscription
       works** — (env-gated: a Claude subscription credential and a directly
       served model) In an agent step, leave **Agent runtime**

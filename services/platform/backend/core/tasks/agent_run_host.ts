@@ -36,8 +36,8 @@ import {
   type AgentLanguageContext,
 } from '../../../lib/shared/agent-language';
 import {
-  agentHarnessReason,
   type HarnessReason,
+  isHarnessReason,
 } from '../../../lib/shared/harness-reason';
 import {
   type AllowedModelRef,
@@ -1035,6 +1035,36 @@ interface PreparedServing {
 }
 
 /**
+ * Why this turn runs on its harness, for its op (`harness_reason`): what the
+ * run's kick decided when it chose the harness — the agent's own runtime,
+ * the standard agent's policy, or its automatic choice (the default, a
+ * subscription's bound runtime, or a runtime that runs a model the default
+ * cannot). Read from the run, never decided again: a steer's restart of a
+ * run kicked before the default moved, or after an Admin edited the policy,
+ * runs on the harness that kick chose. A run an earlier image kicked records
+ * none. A label, never a gate: a read that fails leaves the reason out and
+ * the turn starts.
+ */
+async function turnHarnessReason(
+  ctx: ActionCtx,
+  args: { organizationId: string; runId: string },
+): Promise<HarnessReason | undefined> {
+  try {
+    const reason: unknown = await ctx.runQuery(
+      internal.tasks.agent_runs.getTaskAgentRunHarnessReason,
+      { organizationId: args.organizationId, runId: args.runId },
+    );
+    return isHarnessReason(reason) ? reason : undefined;
+  } catch (error) {
+    console.warn(
+      '[task-agent] could not read how the run got its harness — the turn records no reason:',
+      error,
+    );
+    return undefined;
+  }
+}
+
+/**
  * Mint what the resolved lane authenticates with — called late (after the
  * session ensure and staging) so a parked or failed start never leaks a
  * minted key. GATEWAY: the turn's model relay key over serving + vision
@@ -1046,39 +1076,6 @@ interface PreparedServing {
  * meter, and nothing to revoke at settle. Shared by the fresh start and the
  * steer restart so the two lanes can never drift.
  */
-/**
- * Why this turn runs on its harness, for its op (`harness_reason`): the
- * agent's own runtime, the standard agent's policy, or its automatic choice
- * — a model only a subscription serves runs on the runtime that
- * subscription is bound to, any other on the default. A label, never a
- * gate: a read that fails leaves the reason out and the turn starts.
- */
-async function turnHarnessReason(
-  ctx: ActionCtx,
-  args: { organizationId: string; agentId: string; harness: string },
-  lane: TaskServing['lane'],
-): Promise<HarnessReason | undefined> {
-  try {
-    const choice: unknown = await ctx.runQuery(
-      internal.projects.internal_queries.getAgentHarnessChoice,
-      {
-        organizationId: args.organizationId,
-        agentId: args.agentId,
-        harness: args.harness,
-      },
-    );
-    return choice === 'pinned' || choice === 'policy' || choice === 'automatic'
-      ? agentHarnessReason(choice, lane)
-      : undefined;
-  } catch (error) {
-    console.warn(
-      '[task-agent] could not read how the run got its harness — the turn records no reason:',
-      error,
-    );
-    return undefined;
-  }
-}
-
 async function mintTurnServing(
   ctx: ActionCtx,
   args: {
@@ -1087,9 +1084,9 @@ async function mintTurnServing(
     /** The exec the minted key serves — the reservation's op row. */
     execId: string;
     harness: string;
-    /** The run's agent: whose runtime it is decides why the turn runs on
-     * it ({@link turnHarnessReason}). */
-    agentId: string;
+    /** The run: its kick decided why the turn runs on its harness
+     * ({@link turnHarnessReason}). */
+    runId: string;
     /** Broker-token hashes the failure streak already burned — the vend
      * advances past them (`resolveProviderCredential`). */
     excludeBrokerTokenHashes?: string[];
@@ -1102,7 +1099,7 @@ async function mintTurnServing(
 ): Promise<PreparedServing> {
   // The reservation opens the turn's op: it records why the turn runs on
   // its harness beside the harness itself.
-  const harnessReason = await turnHarnessReason(ctx, args, resolved.lane);
+  const harnessReason = await turnHarnessReason(ctx, args);
   if (resolved.lane === 'gateway') {
     // Claude Code + a connector with a native Anthropic harness endpoint
     // (DeepSeek) rides that endpoint's distinct record; the flag must reach the

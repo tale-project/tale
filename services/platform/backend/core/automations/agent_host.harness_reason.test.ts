@@ -106,6 +106,9 @@ describe('the op an automation agent step opens', () => {
       });
 
       expect(kicked.harness).toBe(ranOn);
+      // The cursor keeps what the kick decided, for the conversation's later
+      // turns (an answered question's resume).
+      expect(kicked.harnessReason).toBe(reason);
       expect(opens).toHaveLength(1);
       expect(opens[0]).toMatchObject({
         kind: 'workflow-agent',

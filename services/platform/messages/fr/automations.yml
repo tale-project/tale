@@ -1010,15 +1010,16 @@ runs:
     retry: Réessayer
     servedBy: 'Ce tour a tourné sur {model}.'
     visionModel: 'Les images de cette exécution ont été lues par {model}.'
-    # Pourquoi le tour a tourné sur son environnement d’agent, tel que l’hôte
-    # qui l’a ouvert l’a noté (`lib/shared/harness-reason.ts`). `owner` est
-    # qui désigne un environnement : un agent sur une tâche, une étape dans
-    # une automatisation.
+    # Pourquoi le tour a tourné sur son environnement d’agent, tel que le
+    # lancement qui a choisi l’environnement l’a décidé et que le tour l’a noté
+    # (`lib/shared/harness-reason.ts`). `owner` est qui désigne un
+    # environnement : un agent sur une tâche, une étape dans une automatisation.
     harnessReason:
       pinned: 'Ce tour a tourné sur {runtime}, l’environnement d’agent que {owner, select, agent {cet agent} other {cette étape}} désigne.'
       default: 'Ce tour a tourné sur {runtime}, l’environnement d’agent par défaut.'
       subscriptionBound: 'Ce tour a tourné sur {runtime}, car seul un abonnement sert son modèle et cet abonnement ne fonctionne que dans {runtime}.'
       policy: 'Ce tour a tourné sur {runtime}, l’environnement d’agent défini pour l’agent standard de l’organisation dans Gouvernance.'
+      modelBound: 'Ce tour a tourné sur {runtime}, car l’environnement d’agent par défaut ne peut pas exécuter son modèle.'
   approval:
     title: 'En attente de ton approbation : {operation}'
     node: 'Demandé par le nœud « {node} » — approuver le laisse agir immédiatement ; rejeter le fait échouer.'

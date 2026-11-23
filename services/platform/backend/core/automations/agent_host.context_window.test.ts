@@ -1515,3 +1515,71 @@ describe("the organization's Custom instructions", () => {
     );
   });
 });
+
+describe('the reason an answered question’s resume records', () => {
+  /** The op the resume opens for its own exec. */
+  function resumedOp(
+    mutations: ReturnType<typeof makeCtx>['mutations'],
+  ): Record<string, unknown> | undefined {
+    return mutations.find(
+      (m) =>
+        m.name === 'sandbox/session_mutations:upsertSessionOp' &&
+        m.args.execId !== 'exec-asking',
+    )?.args;
+  }
+
+  it.each([
+    [
+      'what the kick decided for a step that names its runtime',
+      {
+        harnessReason: 'pinned',
+        input: { ...WAITING_CURSOR.cursor.agent.input, harness: 'claude-code' },
+      },
+      'pinned',
+    ],
+    [
+      'what the kick decided, though the model is served directly now',
+      // The kick ran the step on Claude Code because only a subscription
+      // served its model; the resume re-resolves the serving (on the relay
+      // now), and the conversation stays where the kick put it, and why.
+      { harnessReason: 'subscription_bound' },
+      'subscription_bound',
+    ],
+  ] as const)('keeps %s', async (_label, agent, reason) => {
+    servesWindow(200_000);
+    const { ctx, mutations } = makeCtx({
+      ...WAITING_CURSOR,
+      cursor: {
+        ...WAITING_CURSOR.cursor,
+        agent: { ...WAITING_CURSOR.cursor.agent, ...agent },
+      },
+    });
+
+    await resumeWorkflowAgentTurnWithAnswerImpl(ctx, {
+      organizationId: 'org-1',
+      askId: 'ask-1',
+    } as never);
+
+    expect(resumedOp(mutations)).toMatchObject({
+      status: 'running',
+      harness: 'claude-code',
+      harnessReason: reason,
+    });
+  });
+
+  it('records none for a conversation whose kick recorded none, never the default it is not on', async () => {
+    servesWindow(200_000);
+    // A step on Default that began on Claude Code while Claude Code was the
+    // default, under an image that kept no reason on the cursor.
+    const { ctx, mutations } = makeCtx(WAITING_CURSOR);
+
+    await resumeWorkflowAgentTurnWithAnswerImpl(ctx, {
+      organizationId: 'org-1',
+      askId: 'ask-1',
+    } as never);
+
+    const opened = resumedOp(mutations);
+    expect(opened).toMatchObject({ status: 'running', harness: 'claude-code' });
+    expect(opened).not.toHaveProperty('harnessReason');
+  });
+});

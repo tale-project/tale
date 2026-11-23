@@ -211,6 +211,31 @@ describe('AgentExecutionLog', () => {
     },
   );
 
+  // The standard agent runs a model the default cannot run (its tools need
+  // the Responses API) where it can, and the reader is told it was not the
+  // default that ran it.
+  it('says why a task turn ran off the default when the default cannot run its model', () => {
+    render(
+      <ExecutionLogView
+        op={{
+          execId: 'e1',
+          status: 'completed',
+          liveTimeline: [{ type: 'text', text: 'working' }],
+          harness: 'codex',
+          harnessLabel: 'Codex',
+          harnessReason: 'model_bound',
+        }}
+        hideHeader
+        runtimeOwner="agent"
+      />,
+    );
+    expect(
+      screen.getByText(
+        'This turn ran on Codex because the default agent runtime cannot run its model.',
+      ),
+    ).toBeInTheDocument();
+  });
+
   // A turn recorded before hosts kept the reason has nothing to say.
   it('stays silent about the runtime when the turn recorded no reason', () => {
     state.data = {

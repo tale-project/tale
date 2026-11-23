@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AppError } from '../../../lib/shared/errors/app-error';
 import { functionRefName } from '../../../lib/shared/handlers/function-refs';
+import type { HarnessReason } from '../../../lib/shared/harness-reason';
 import {
   SANDBOX_WORKSPACE_DESTROYED_CODE,
   SANDBOX_WORKSPACE_DESTROYED_MESSAGE,
@@ -50,11 +51,13 @@ function parkedAttempt(overrides: Partial<AgentCursor>): AgentCursor {
   };
 }
 
-/** `kickedHarness` is the harness the host resolves for the re-kick. */
+/** `kickedHarness` is the harness the host resolves for the re-kick, and
+ * `kickedReason` why it put the re-kick there. */
 function harness(
   parked: AgentCursor,
   executions = 1,
   kickedHarness = 'claude-code',
+  kickedReason?: HarnessReason,
 ) {
   const kicks: KickArgs[] = [];
   const suspended: Array<Record<string, unknown>> = [];
@@ -69,6 +72,7 @@ function harness(
         providerSlug: 'anthropic',
         gatewayModel: 'claude-sonnet',
         harness: kickedHarness,
+        ...(kickedReason !== undefined ? { harnessReason: kickedReason } : {}),
       };
     },
     poll: async () => null,
@@ -252,9 +256,11 @@ describe('the stepper re-kicking a failed agent attempt', () => {
   it('starts fresh when the re-kick resolves another harness than the conversation ran on', async () => {
     // A step on the default that began on Claude Code, retried after the
     // default moved: the host resolves Pi, which cannot continue Claude
-    // Code's conversation, so the cursor records no resume.
+    // Code's conversation, so the cursor records no resume — and the
+    // re-kick's own reason, not the failed attempt's.
     const { ctx, kicks, suspended } = harness(
       parkedAttempt({
+        harnessReason: 'subscription_bound',
         result: {
           errored: true,
           reason: 'API Error: 502 upstream connect error',
@@ -266,13 +272,14 @@ describe('the stepper re-kicking a failed agent attempt', () => {
       }),
       1,
       'pi',
+      'default',
     );
 
     await stepRunImpl(ctx, RUN);
 
     expect(kicks).toHaveLength(1);
     const cursor = parkedCursor(suspended);
-    expect(cursor).toMatchObject({ harness: 'pi' });
+    expect(cursor).toMatchObject({ harness: 'pi', harnessReason: 'default' });
     expect(cursor).not.toHaveProperty('resumedFrom');
     expect(cursor).not.toHaveProperty('resumeReason');
   });

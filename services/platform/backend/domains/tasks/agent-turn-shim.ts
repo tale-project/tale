@@ -7,7 +7,10 @@ import {
 } from '../../../lib/harnesses/timeline';
 import type { AgentRunWaitingReason } from '../../../lib/shared/agent-run-waiting';
 import { AppError } from '../../../lib/shared/errors/app-error';
-import type { HarnessReason } from '../../../lib/shared/harness-reason';
+import {
+  type HarnessReason,
+  isHarnessReason,
+} from '../../../lib/shared/harness-reason';
 import { readSkillBundleForViewer } from '../../core/skills/file_actions.ts';
 import type { MentionSource } from '../../core/tasks/mentions.ts';
 import { toJson } from '../../db/sql.ts';
@@ -15,7 +18,6 @@ import { addJobInTx } from '../../jobs/enqueue.ts';
 import type { ShimHandlers, ShimScheduler } from '../../lib/ctx-shim.ts';
 import { orgAdapterShimHandlers } from '../../lib/org-config.ts';
 import { governanceShimHandlers } from '../governance/shim.ts';
-import { agentHarnessChoice } from '../projects/standard-agent.ts';
 import { credentialShimHandlers } from '../provider_credentials/service.ts';
 import { resolveSessionOpAttribution } from '../sandbox/op-attribution.ts';
 import {
@@ -147,6 +149,27 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
         FROM app.project_agent_runs WHERE id = ${args.runId} LIMIT 1
       `;
       return rows[0] ?? null;
+    },
+
+    /**
+     * Why the run's kick chose its harness (`harness_reason`, migration
+     * 0241), for the op each of its turns opens — the fresh start and a
+     * steer's restart alike record what the kick decided. Null for a run an
+     * earlier image kicked, and for one that is gone.
+     */
+    'tasks/agent_runs:getTaskAgentRunHarnessReason': async (
+      raw,
+    ): Promise<HarnessReason | null> => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
+      const args = raw as { organizationId: string; runId: string };
+      const rows = await sql<{ harnessReason: string | null }[]>`
+        SELECT harness_reason AS "harnessReason"
+        FROM app.project_agent_runs
+        WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+        LIMIT 1
+      `;
+      const reason = rows[0]?.harnessReason;
+      return isHarnessReason(reason) ? reason : null;
     },
 
     /**
@@ -942,18 +965,6 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
       const args = raw as { agentId: string; runId?: string };
       return readProjectAgentSkillScope(sql, args.agentId, args.runId);
-    },
-
-    // How the run got its runtime — the agent's own, the standard agent's
-    // policy, or its automatic choice — for the reason the turn's op keeps.
-    'projects/internal_queries:getAgentHarnessChoice': async (raw) => {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
-      const args = raw as {
-        organizationId: string;
-        agentId: string;
-        harness: string;
-      };
-      return agentHarnessChoice(sql, args);
     },
 
     // Skill bundles for staging — the reused file layer.

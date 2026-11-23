@@ -250,7 +250,6 @@ interface HandlerNames {
   projects: FunctionRef & {
     internal_queries: FunctionRef & {
       assertProjectAccessForChat: FunctionRef;
-      getAgentHarnessChoice: FunctionRef;
       getProjectAgentSkillScope: FunctionRef;
       getProjectForInjection: FunctionRef;
       getProjectIdForThread: FunctionRef;
@@ -348,6 +347,7 @@ interface HandlerNames {
       getAgentLanguageContext: FunctionRef;
       getTaskAgentRunAuthority: FunctionRef;
       getTaskAgentRunForDrive: FunctionRef;
+      getTaskAgentRunHarnessReason: FunctionRef;
       getTaskBriefForAgentRun: FunctionRef;
       listStaleTaskInputMirrors: FunctionRef;
       markTaskAgentRunFailed: FunctionRef;

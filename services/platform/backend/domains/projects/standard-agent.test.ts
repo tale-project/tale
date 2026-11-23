@@ -61,7 +61,6 @@ vi.mock('./service.ts', () => {
 
 import { ProjectError } from './service.ts';
 import {
-  agentHarnessChoice,
   chooseStandardAgentServing,
   ensureStandardAgent,
   readStandardAgentAvailability,
@@ -133,6 +132,7 @@ describe('chooseStandardAgentServing — what runs the standard agent', () => {
       modelProvider: 'anthropic',
       source: 'preferred',
       engine: 'native',
+      harnessReason: 'default',
     });
   });
 
@@ -151,6 +151,7 @@ describe('chooseStandardAgentServing — what runs the standard agent', () => {
       harness: 'claude-code',
       model: 'claude-sonnet-5',
       engine: 'harness',
+      harnessReason: 'subscription_bound',
     });
   });
 
@@ -207,6 +208,7 @@ describe('chooseStandardAgentServing — what runs the standard agent', () => {
       ok: true,
       harness: 'codex',
       model: 'gpt-5.5',
+      harnessReason: 'policy',
     });
   });
 
@@ -225,6 +227,7 @@ describe('chooseStandardAgentServing — what runs the standard agent', () => {
       modelProvider: 'openai',
       source: 'pinned',
       engine: 'native',
+      harnessReason: 'default',
     });
     expect(
       chooseStandardAgentServing(
@@ -239,6 +242,7 @@ describe('chooseStandardAgentServing — what runs the standard agent', () => {
       source: 'pinned',
       // A subscription's model runs only on its own runtime: no native path.
       engine: 'harness',
+      harnessReason: 'subscription_bound',
     });
   });
 
@@ -264,7 +268,19 @@ describe('chooseStandardAgentServing — what runs the standard agent', () => {
       source: 'pinned',
       // Served directly, so the native engine runs it — on the Responses API.
       engine: 'native',
+      // Not the default runtime, and no subscription: the default cannot
+      // run the model.
+      harnessReason: 'model_bound',
     });
+    // The same model with Codex pinned by the policy: the policy's runtime.
+    expect(
+      chooseStandardAgentServing(
+        [responsesOnly],
+        { harness: 'codex', providerSlug: 'openai', modelId: 'gpt-6.1-sol' },
+        ELIGIBLE,
+        FITS,
+      ),
+    ).toMatchObject({ ok: true, harness: 'codex', harnessReason: 'policy' });
     // Pinned onto a runtime that cannot carry it: refused, never swapped.
     expect(
       chooseStandardAgentServing(
@@ -531,6 +547,8 @@ describe('standardAgentServingForKick — the policy, at every start', () => {
       model: 'stale-model',
       modelProvider: 'openai',
       engine: 'harness',
+      // The agent names its runtime: every turn of the run says so.
+      harnessReason: 'pinned',
     });
     expect(readGovernancePolicyForOrg).not.toHaveBeenCalled();
     expect(alignManagedProjectAgent).not.toHaveBeenCalled();
@@ -545,6 +563,7 @@ describe('standardAgentServingForKick — the policy, at every start', () => {
       model: 'claude-sonnet-5',
       modelProvider: 'anthropic',
       engine: 'native',
+      harnessReason: 'default',
     });
     expect(listGovernedChatModels).toHaveBeenCalledWith(expect.anything(), {
       organizationId: 'org-1',
@@ -561,6 +580,32 @@ describe('standardAgentServingForKick — the policy, at every start', () => {
         instructions: STANDARD_AGENT_DEFAULT_INSTRUCTIONS,
       },
     );
+  });
+
+  it('hands the run why it gets its runtime: the policy’s pin, or what the standard agent chose', async () => {
+    const { tx } = fakeTx(managedRow);
+    readGovernancePolicyForOrg.mockResolvedValue({
+      enabled: true,
+      harness: 'claude-code',
+    });
+    await expect(standardAgentServingForKick(tx, args)).resolves.toMatchObject({
+      harness: 'claude-code',
+      harnessReason: 'policy',
+    });
+    // A model only Codex runs, pinned with no runtime: Codex, because the
+    // default cannot run it — never told as the default.
+    readGovernancePolicyForOrg.mockResolvedValue({
+      enabled: true,
+      providerSlug: 'openai',
+      modelId: 'gpt-6.1-sol',
+    });
+    listGovernedChatModels.mockResolvedValue([
+      option('gpt-6.1-sol', 'openai', { toolCallingApi: 'responses' }),
+    ]);
+    await expect(standardAgentServingForKick(tx, args)).resolves.toMatchObject({
+      harness: 'codex',
+      harnessReason: 'model_bound',
+    });
   });
 
   it('resolves a scheduled start for the agent’s creator, and carries the policy’s instructions', async () => {
@@ -725,49 +770,5 @@ describe('ensureStandardAgent — the door a Member hands a project work through
     await expect(
       ensureStandardAgent(fakeTx(() => []).tx, auth, 'project-1'),
     ).rejects.toMatchObject({ code: 'PROJECT_ARCHIVED' });
-  });
-});
-
-describe('agentHarnessChoice — how a run got its runtime', () => {
-  const args = { organizationId: 'org-1', agentId: 'agent-1', harness: 'pi' };
-  const agentRow = (managed: boolean) => (query: string) =>
-    query.includes('FROM app.project_agents') ? [{ managed }] : [];
-
-  it('says an agent of the project’s own names its runtime', async () => {
-    await expect(
-      agentHarnessChoice(fakeTx(agentRow(false)).tx, args),
-    ).resolves.toBe('pinned');
-    // A deleted agent: nothing the platform chose.
-    await expect(agentHarnessChoice(fakeTx(() => []).tx, args)).resolves.toBe(
-      'pinned',
-    );
-    expect(readGovernancePolicyForOrg).not.toHaveBeenCalled();
-  });
-
-  it('says the standard agent runs on what its policy pins, when the policy pins that runtime', async () => {
-    readGovernancePolicyForOrg.mockResolvedValue({
-      enabled: true,
-      harness: 'pi',
-    });
-    await expect(
-      agentHarnessChoice(fakeTx(agentRow(true)).tx, args),
-    ).resolves.toBe('policy');
-  });
-
-  it('says the standard agent chose its runtime itself otherwise', async () => {
-    // No pin: Automatic.
-    readGovernancePolicyForOrg.mockResolvedValue({ enabled: true });
-    await expect(
-      agentHarnessChoice(fakeTx(agentRow(true)).tx, args),
-    ).resolves.toBe('automatic');
-    // An Admin pinned another runtime after the kick: the run's own runtime
-    // was not the policy's.
-    readGovernancePolicyForOrg.mockResolvedValue({
-      enabled: true,
-      harness: 'codex',
-    });
-    await expect(
-      agentHarnessChoice(fakeTx(agentRow(true)).tx, args),
-    ).resolves.toBe('automatic');
   });
 });
