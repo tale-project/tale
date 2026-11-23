@@ -81,6 +81,31 @@ describe('classifyYtDlpStderr', () => {
     ).toBe('rateLimited');
   });
 
+  // Verbatim stderr from the live test on 2026-11-23 (job 137648848544),
+  // against "Never Gonna Give You Up" from a datacenter runner: every player
+  // client was refused, and `--no-warnings` left only this line. As
+  // `transient` it burned three retries against the block.
+  it('classifies a player response refused to every client as the bot wall', () => {
+    expect(
+      classifyYtDlpStderr(
+        'ERROR: [youtube] dQw4w9WgXcQ: Failed to extract any player response; please report this issue on  https://<redacted> , filling out the appropriate issue template. Confirm you are on the latest version using  yt-dlp -U\n',
+      ),
+    ).toBe('botDetection');
+    expect(
+      classifyYtDlpStderr(
+        'ERROR: [youtube] dQw4w9WgXcQ: All player responses are invalid. Your IP is likely being blocked by Youtube',
+      ),
+    ).toBe('botDetection');
+  });
+
+  it('keeps a failed subtitle download transient', () => {
+    // A zero-byte download says nothing about who refused it: a genuinely
+    // empty track (yt-dlp #13443) reads the same.
+    expect(
+      classifyYtDlpStderr('\n\nERROR: Did not get any data blocks\n'),
+    ).toBe('transient');
+  });
+
   it('keeps a removed video unavailable beside the session wall', () => {
     expect(
       classifyYtDlpStderr(

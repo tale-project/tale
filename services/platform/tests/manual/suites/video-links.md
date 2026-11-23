@@ -73,7 +73,9 @@ provider/configuration refusals from browser failures.
   `YOUTUBE_LIVE_TEST=1 bunx vitest --run --project server backend/core/video_links/ytdlp_live.test.ts`
   from `services/platform` with network access → The suite retrieves real
   metadata and a non-empty transcript, or explicitly skips a bot-wall/rate-limit
-  outcome. Other failures are investigated as regressions.
+  outcome or a case whose yt-dlp runs YouTube left unanswered past the case's
+  deadline (each skip logged with its reason). Other failures are investigated
+  as regressions.
 - [ ] `VID-F8` · **Deduplication across chats** — In an existing chat A
   (not the new-chat page, whose pastes are never deduplicated) paste the
   captioned URL, open existing chat B and paste it there, then return to chat
