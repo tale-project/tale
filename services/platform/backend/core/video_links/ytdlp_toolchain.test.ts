@@ -197,6 +197,23 @@ function holdDeadlines(): void {
 }
 
 /**
+ * {@link holdDeadlines}, and the module's clock (`performance.now()`) with
+ * them: a stage's elapsed time then moves only as the test advances it, so
+ * what one child of a stage leaves the next is exact.
+ */
+function holdDeadlinesAndClock(): void {
+  vi.useFakeTimers({
+    toFake: [
+      'setTimeout',
+      'clearTimeout',
+      'setInterval',
+      'clearInterval',
+      'performance',
+    ],
+  });
+}
+
+/**
  * Wait, on real time, until `count` fake processes have recorded themselves in
  * `file` and the last of them has exec'd its `sleep` (its trap and `setsid`
  * done) or is already gone. Each is left to the cleanup as soon as it is seen:
@@ -879,7 +896,7 @@ describe('provisionToolchain bounds', () => {
       const pids = await startedIn(aptPid, 1, hidden);
       const err = await expire(pending, FAST.packageInstallMs);
       expect(await readFile(argv, 'utf8')).toBe(
-        'timeout -k 0.2s 2s apt-get install -y ffmpeg\n',
+        'timeout -k 0.2s 2s apt-get install -y --no-install-recommends ffmpeg\n',
       );
       expect((err as Error).message).toMatch(
         /^\[video-toolchain\] ffmpeg not found and could not be auto-installed \(\[video-toolchain\] ffmpeg install \(apt-get\): timed out after \d+ ms \(deadline 2000 ms\)\)/,
@@ -887,6 +904,208 @@ describe('provisionToolchain bounds', () => {
       expect(await waitUntilGone(pids)).toEqual([]);
     },
   );
+
+  // A hosted runner image whose package lists name a version the archive no
+  // longer serves fails `apt-get install` with "Unable to fetch some
+  // archives, maybe run apt-get update" — apt's own failure, exit 100
+  // (ubuntu24/20261116.376, 2026-11).
+  describe.skipIf(!ON_LINUX)('ffmpeg through apt', () => {
+    /** The commands sudo was asked to run, one each, in order. */
+    async function commands(argv: string): Promise<string[]> {
+      return (await readFile(argv, 'utf8')).trimEnd().split('\n');
+    }
+
+    /**
+     * An apt whose package lists are stale: `install` fails as apt does
+     * (exit 100) until `update` has refreshed them, then puts ffmpeg on
+     * PATH. `which` finds apt-get, and ffmpeg once installed; sudo writes
+     * down each command it runs (`argv`) and runs it, `timeout` included.
+     * `update`: what the refresh does — refresh the lists, fail on apt, or
+     * exit 0 with the lists as stale as before.
+     */
+    async function staleLists(
+      update: 'refreshes' | 'fails' | 'changes nothing',
+    ): Promise<string> {
+      const argv = join(scratch, 'sudo.argv');
+      const fresh = join(scratch, 'lists.fresh');
+      const installed = join(scratch, 'ffmpeg.installed');
+      await fakeOnPath(
+        'which',
+        [
+          'case "$1" in',
+          '  apt-get) echo /usr/bin/apt-get ;;',
+          `  ffmpeg) [ -e '${installed}' ] || exit 1; echo /opt/fake/ffmpeg ;;`,
+          '  *) exit 1 ;;',
+          'esac',
+        ].join('\n'),
+      );
+      await fakeOnPath(
+        'sudo',
+        [
+          '[ "$1" = "-n" ] && shift',
+          `echo "$*" >> '${argv}'`,
+          'exec "$@"',
+        ].join('\n'),
+      );
+      const refresh = {
+        refreshes: `touch '${fresh}'`,
+        fails: 'exit 100',
+        'changes nothing': 'exit 0',
+      }[update];
+      await fakeOnPath(
+        'apt-get',
+        [
+          'case "$1" in',
+          `  update) ${refresh} ;;`,
+          `  install) [ -e '${fresh}' ] || exit 100; touch '${installed}' ;;`,
+          'esac',
+        ].join('\n'),
+      );
+      return argv;
+    }
+
+    /** Room for three quick children on a loaded runner. */
+    const deadlines = { ...FAST, packageInstallMs: 10_000 };
+
+    it('refreshes the package lists and installs once more', async () => {
+      const cacheDir = await warmCache();
+      const argv = await staleLists('refreshes');
+      await expect(
+        provisionToolchain({ cacheDir, deadlines }),
+      ).resolves.toMatchObject({ ffmpegLocation: '/opt/fake/ffmpeg' });
+      expect(await commands(argv)).toEqual([
+        'timeout -k 0.2s 10s apt-get install -y --no-install-recommends ffmpeg',
+        expect.stringMatching(/^timeout -k 0\.2s [\d.]+s apt-get update$/),
+        expect.stringMatching(
+          /^timeout -k 0\.2s [\d.]+s apt-get install -y --no-install-recommends ffmpeg$/,
+        ),
+      ]);
+    });
+
+    it.each([
+      {
+        failing: 'the refresh',
+        update: 'fails',
+        stage: 'ffmpeg install (apt-get update)',
+        command: 'apt-get update',
+        ran: 2,
+      },
+      {
+        failing: 'the second install',
+        update: 'changes nothing',
+        stage: 'ffmpeg install (apt-get, after update)',
+        command: 'apt-get install -y --no-install-recommends ffmpeg',
+        ran: 3,
+      },
+    ] as const)(
+      'stops at $failing failing on apt, and reports it',
+      async ({ update, stage, command, ran }) => {
+        const cacheDir = await warmCache();
+        const argv = await staleLists(update);
+        const err = await provisionToolchain({ cacheDir, deadlines }).catch(
+          (e: unknown) => e,
+        );
+        expect((err as Error).message).toMatch(
+          /^\[video-toolchain\] ffmpeg not found and could not be auto-installed \(/,
+        );
+        expect((err as Error).cause).toBeInstanceOf(VideoToolchainError);
+        expect((err as Error).cause).toMatchObject({ stage, exitCode: 100 });
+        expect(((err as Error).cause as Error).message).toMatch(
+          new RegExp(
+            `'sudo -n timeout -k 0\\.2s [\\d.]+s ${command}' exited 100$`,
+          ),
+        );
+        const ranCommands = await commands(argv);
+        expect(ranCommands).toHaveLength(ran);
+        expect(ranCommands.at(-1)).toMatch(new RegExp(` ${command}$`));
+      },
+    );
+
+    it('refreshes nothing when the install fails before apt does (control)', async () => {
+      const cacheDir = await warmCache();
+      const argv = await staleLists('refreshes');
+      // `sudo -n` with no rule to run it without a password.
+      await fakeOnPath(
+        'sudo',
+        `echo "$*" >> '${argv}'\necho 'sudo: a password is required' >&2\nexit 1`,
+      );
+      const err = await provisionToolchain({ cacheDir, deadlines }).catch(
+        (e: unknown) => e,
+      );
+      expect((err as Error).cause).toMatchObject({
+        stage: 'ffmpeg install (apt-get)',
+        exitCode: 1,
+      });
+      expect(await commands(argv)).toEqual([
+        '-n timeout -k 0.2s 10s apt-get install -y --no-install-recommends ffmpeg',
+      ]);
+    });
+
+    it('holds one deadline across the install and the refresh', async () => {
+      const cacheDir = await warmCache();
+      const argv = join(scratch, 'sudo.argv');
+      const aptPids = join(scratch, 'apt.pids');
+      const failNow = join(scratch, 'fail-now');
+      await fakeOnPath(
+        'which',
+        'case "$1" in apt-get) echo /usr/bin/apt-get ;; *) exit 1 ;; esac',
+      );
+      // sudo writes its command down and runs it without the `timeout`, so
+      // only this side's (held) deadline ends the stalled refresh.
+      await fakeOnPath(
+        'sudo',
+        [
+          '[ "$1" = "-n" ] && shift',
+          `echo "$*" >> '${argv}'`,
+          'shift 4',
+          'exec "$@"',
+        ].join('\n'),
+      );
+      // The install fails on apt once the test says so; the refresh stalls.
+      await fakeOnPath(
+        'apt-get',
+        [
+          `echo $$ >> '${aptPids}'`,
+          '[ "$1" = update ] && exec sleep 30',
+          `while [ ! -e '${failNow}' ]; do sleep 0.01; done`,
+          'exit 100',
+        ].join('\n'),
+      );
+      holdDeadlinesAndClock();
+      let settled = false;
+      const pending = provisionToolchain({ cacheDir, deadlines: FAST })
+        .catch((e: unknown) => e)
+        .finally(() => {
+          settled = true;
+        });
+      /** The apt-gets started so far, once `count` have, or the stage is over. */
+      const aptGets = async (count: number): Promise<number[]> => {
+        let pids = await recorded(aptPids);
+        while (pids.length < count) {
+          if (settled) break;
+          await pause(10);
+          pids = await recorded(aptPids);
+        }
+        pids.forEach(own);
+        return pids;
+      };
+      await aptGets(1);
+      // The install spends 1500 ms of its 2000, then fails on apt.
+      await vi.advanceTimersByTimeAsync(1_500);
+      await writeFile(failNow, '');
+      const pids = await aptGets(2);
+      // What it left: 500 ms, on this side and on the privileged one.
+      const err = await expire(pending, 500);
+      expect(await commands(argv)).toEqual([
+        'timeout -k 0.2s 2s apt-get install -y --no-install-recommends ffmpeg',
+        'timeout -k 0.2s 0.5s apt-get update',
+      ]);
+      expect((err as Error).message).toMatch(
+        /^\[video-toolchain\] ffmpeg not found and could not be auto-installed \(\[video-toolchain\] ffmpeg install \(apt-get update\): timed out after 2000 ms \(deadline 2000 ms\)\)/,
+      );
+      expect(await waitUntilGone(pids)).toEqual([]);
+    });
+  });
 
   it('returns the resolved toolchain when every stage answers (control)', async () => {
     const cacheDir = await warmCache();
