@@ -34,6 +34,18 @@ to a stable HOME path so `--resume <id>` (Pi `--session <id>`) finds prior
 turns. Global skills keep working because Pi also loads ~/.agents/skills, a
 homedir path independent of the config-dir override.
 
+Before Pi starts, the wrapper waits for every remote server the turn mounts
+(the bridge) to answer a JSON-RPC ping, for at most BRIDGE_WAIT_SECONDS in
+all. Pi connects to an HTTP server three times in about a second and a quarter
+(1.6.0: at once, then 250 ms and 1 s later), and a server it could not reach
+then stays failed for the whole turn: the stdio relay it replaced answered
+`initialize` and `tools/list` itself, so a bridge out of reach for a moment
+cost a turn nothing. The wait asks what Pi will ask, where Pi asks it: the
+server's URL and headers, `${VAR}` resolved from this process's environment,
+with no proxy. An answer Pi would not try again (anything but 408, 429 and a
+5xx other than 501) ends the wait; past the bound Pi starts anyway, and the
+wait is logged on stderr.
+
 The prompt itself rides the CLI's stdin — Pi's native headless prompt
 source — never argv (process lists leak argv, and a leading-dash prompt would
 parse as a flag). `--approve` trusts the workspace's project-local files for
@@ -59,6 +71,7 @@ start also removes every config dir whose pid no longer runs.
 from __future__ import annotations
 
 import argparse
+import http.client
 import json
 import os
 import re
@@ -66,6 +79,9 @@ import shutil
 import signal
 import sys
 import tempfile
+import time
+import urllib.error
+import urllib.request
 import uuid
 from typing import NoReturn
 
@@ -171,6 +187,89 @@ def remove_ended_stage_dirs(tmp: str) -> None:
             continue
         except OSError as exc:
             print(f"[tale-pi-run] config cleanup failed: {exc}", file=sys.stderr)
+
+
+# The most a turn's start waits for the remote MCP servers it mounts, all
+# of them together, and for one ping of one of them.
+BRIDGE_WAIT_SECONDS = 10.0
+BRIDGE_PING_TIMEOUT_SECONDS = 2.0
+# What a server answers when it is up: Pi asks for no more to connect.
+BRIDGE_PING = json.dumps(
+    {"jsonrpc": "2.0", "id": "tale-pi-run", "method": "ping"}
+).encode("utf-8")
+ENV_TEMPLATE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
+# The bridge is reached as Pi reaches it, never through the egress proxy.
+DIRECT = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+
+def resolved_headers(headers: object) -> dict[str, str]:
+    """A server's headers with each `${VAR}` in a value resolved from this
+    process's environment, as Pi resolves them when it connects."""
+    if not isinstance(headers, dict):
+        return {}
+    return {
+        name: ENV_TEMPLATE.sub(lambda m: os.environ.get(m.group(1), ""), value)
+        for name, value in headers.items()
+        if isinstance(name, str) and isinstance(value, str)
+    }
+
+
+def tried_again(status: int) -> bool:
+    """Whether Pi tries a server again after this status (its
+    isTransientError): a server restarting or overloaded, or not up behind a
+    proxy yet."""
+    return status in (408, 429) or (status >= 500 and status != 501)
+
+
+def answers(url: str, headers: dict[str, str], timeout: float) -> bool:
+    """Whether the server answers a ping now with an answer Pi would not
+    try again: it is up, whatever it thinks of the ping."""
+    request = urllib.request.Request(
+        url,
+        data=BRIDGE_PING,
+        method="POST",
+        headers={
+            "content-type": "application/json",
+            "accept": "application/json, text/event-stream",
+            **headers,
+        },
+    )
+    try:
+        with DIRECT.open(request, timeout=timeout) as response:
+            return not tried_again(response.status)
+    except urllib.error.HTTPError as exc:
+        return not tried_again(exc.code)
+    except (OSError, ValueError, http.client.HTTPException):
+        # Not reachable yet (refused, unresolved, timed out, an answer cut
+        # off): ask again.
+        return False
+
+
+def wait_for_remote_servers(servers: dict) -> None:
+    """Wait until every server with a `url` answers, for at most
+    BRIDGE_WAIT_SECONDS in all, asking again at 0.25 s, then twice as long
+    each time up to 2 s. Past the bound Pi starts anyway, and says what it
+    could not reach; the wait never fails the turn."""
+    deadline = time.monotonic() + BRIDGE_WAIT_SECONDS
+    for name, server in servers.items():
+        if not isinstance(server, dict) or not isinstance(server.get("url"), str):
+            continue
+        url = server["url"]
+        headers = resolved_headers(server.get("headers"))
+        pause = 0.25
+        while True:
+            left = deadline - time.monotonic()
+            if left <= 0:
+                print(
+                    f"[tale-pi-run] MCP server {name!r} did not answer within "
+                    f"{BRIDGE_WAIT_SECONDS:g} s; starting Pi anyway",
+                    file=sys.stderr,
+                )
+                return
+            if answers(url, headers, min(BRIDGE_PING_TIMEOUT_SECONDS, left)):
+                break
+            time.sleep(min(pause, max(0.0, deadline - time.monotonic())))
+            pause = min(pause * 2, 2.0)
 
 
 def stdin_from(prompt: str) -> None:
@@ -303,6 +402,9 @@ def main() -> int:
         # not exist as literal text.
         if instructions is not None:
             cmd += ["--append-system-prompt", instructions]
+
+        if mcp is not None:
+            wait_for_remote_servers(mcp["mcpServers"])
 
         # stdout/stderr stay as they are: the CLI's JSON event stream goes
         # straight to the platform's stdout reader; human noise stays on

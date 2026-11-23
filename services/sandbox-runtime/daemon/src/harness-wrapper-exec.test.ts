@@ -17,6 +17,7 @@ import {
   readdirSync,
   realpathSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -119,6 +120,8 @@ function start(
     exit?: number;
     prompt?: string;
     body?: string;
+    /** More of the exec's environment, as the platform sets it. */
+    env?: Record<string, string>;
   } = {},
 ) {
   if (PYTHON === null) throw new Error('python3 is missing');
@@ -137,20 +140,26 @@ function start(
         FAKE_RECORD: join(root, 'records', run),
         FAKE_WAIT: options.wait === true ? '1' : '',
         FAKE_EXIT: String(options.exit ?? 0),
+        ...options.env,
       },
     },
   );
   let stdout = '';
+  let stderr = '';
   child.stdout?.on('data', (chunk: Buffer) => {
     stdout += chunk.toString('utf8');
+  });
+  child.stderr?.on('data', (chunk: Buffer) => {
+    stderr += chunk.toString('utf8');
   });
   child.stdin?.end(payload(wrapper, options.prompt ?? 'p', options.body));
   const exited = new Promise<{
     code: number | null;
     signal: NodeJS.Signals | null;
     stdout: string;
+    stderr: string;
   }>((done) =>
-    child.on('close', (code, signal) => done({ code, signal, stdout })),
+    child.on('close', (code, signal) => done({ code, signal, stdout, stderr })),
   );
   const pid = child.pid;
   if (pid === undefined) throw new Error('the wrapper never started');
@@ -322,6 +331,152 @@ describe('tale-pi-run stages the MCP servers Pi reads', () => {
       });
       expect((await run.exited).code).toBe(0);
       expect(record('a', 'agentdir').split('\n')).not.toContain('mcp.json');
+    },
+    20_000,
+  );
+});
+
+describe('tale-pi-run waits for the bridge before Pi starts', () => {
+  const pi = WRAPPERS[1];
+  /** A stand-in for the platform's bridge: it refuses the first `refusals`
+   * pings with 503, as a proxy does while the bridge is not up, then
+   * answers each with `status`. It records every request and when it first
+   * answered. */
+  function bridge(refusals: number, status = 200) {
+    const pings: { authorization: string | null; method: unknown }[] = [];
+    let answeredAt: number | undefined;
+    const server = Bun.serve({
+      port: 0,
+      hostname: '127.0.0.1',
+      fetch: async (request) => {
+        const body: unknown = await request.json();
+        pings.push({
+          authorization: request.headers.get('authorization'),
+          method:
+            typeof body === 'object' && body !== null && 'method' in body
+              ? body.method
+              : undefined,
+        });
+        if (pings.length <= refusals) {
+          return new Response('the bridge is not up', { status: 503 });
+        }
+        answeredAt ??= Date.now();
+        return Response.json(
+          { jsonrpc: '2.0', id: 'tale-pi-run', result: {} },
+          { status },
+        );
+      },
+    });
+    const mounted = JSON.stringify({
+      prompt: 'p',
+      mcp: {
+        mcpServers: {
+          'tale-connectors': {
+            url: `http://127.0.0.1:${server.port}/mcp`,
+            headers: { Authorization: 'Bearer ${TALE_GATEWAY_TOKEN}' },
+            exposure: 'direct',
+          },
+        },
+      },
+    });
+    return {
+      server,
+      pings,
+      mounted,
+      answeredAt: () => answeredAt,
+    };
+  }
+  const env = { TALE_GATEWAY_TOKEN: 'tale-st-session-token' };
+
+  pyTest(
+    'starts Pi once the bridge answers, asking it as Pi will, with the session token',
+    async () => {
+      installCli(pi);
+      // Refused three times: Pi's own three tries, a second and a quarter
+      // apart at most, would all have failed and left the turn without
+      // Tale's tools.
+      const theBridge = bridge(3);
+      try {
+        const run = start(pi, 'a', { body: theBridge.mounted, env });
+        const done = await run.exited;
+        expect(done.code).toBe(0);
+        expect(theBridge.pings).toHaveLength(4);
+        for (const ping of theBridge.pings) {
+          expect(ping).toEqual({
+            authorization: 'Bearer tale-st-session-token',
+            method: 'ping',
+          });
+        }
+        // Pi started after the bridge answered, not before.
+        const answeredAt = theBridge.answeredAt();
+        expect(answeredAt).toBeDefined();
+        expect(
+          statSync(join(root, 'records', 'a.started')).mtimeMs,
+        ).toBeGreaterThanOrEqual((answeredAt ?? 0) - 50);
+        expect(done.stderr).not.toContain('did not answer');
+      } finally {
+        await theBridge.server.stop(true);
+      }
+    },
+    20_000,
+  );
+
+  pyTest(
+    'starts Pi at once on an answer Pi would not ask again, even a refusal',
+    async () => {
+      installCli(pi);
+      const theBridge = bridge(0, 401);
+      try {
+        const since = Date.now();
+        const run = start(pi, 'a', { body: theBridge.mounted, env });
+        expect((await run.exited).code).toBe(0);
+        expect(theBridge.pings).toHaveLength(1);
+        expect(Date.now() - since).toBeLessThan(5_000);
+      } finally {
+        await theBridge.server.stop(true);
+      }
+    },
+    20_000,
+  );
+
+  pyTest(
+    'starts Pi anyway once the wait is spent, and says so',
+    async () => {
+      installCli(pi);
+      const theBridge = bridge(Number.POSITIVE_INFINITY);
+      try {
+        const since = Date.now();
+        const run = start(pi, 'a', { body: theBridge.mounted, env });
+        const done = await run.exited;
+        expect(done.code).toBe(0);
+        expect(existsSync(join(root, 'records', 'a.started'))).toBe(true);
+        expect(done.stderr).toContain(
+          "MCP server 'tale-connectors' did not answer within 10 s; starting Pi anyway",
+        );
+        // Bounded: ten seconds of waiting, not one more ping after them.
+        expect(Date.now() - since).toBeGreaterThanOrEqual(9_500);
+        expect(Date.now() - since).toBeLessThan(15_000);
+        expect(theBridge.pings.length).toBeGreaterThan(3);
+      } finally {
+        await theBridge.server.stop(true);
+      }
+    },
+    30_000,
+  );
+
+  pyTest(
+    'waits for no server of a turn that mounts only local ones',
+    async () => {
+      installCli(pi);
+      const since = Date.now();
+      const run = start(pi, 'a', {
+        body: JSON.stringify({
+          prompt: 'p',
+          mcp: { mcpServers: { browser: { command: 'tale-playwright-mcp' } } },
+        }),
+      });
+      expect((await run.exited).code).toBe(0);
+      expect(Date.now() - since).toBeLessThan(5_000);
     },
     20_000,
   );
