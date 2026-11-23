@@ -1625,7 +1625,9 @@ Restore any toggled setting after the run.
   **Add credential**, with no provider or credential saved (the table is
   unchanged). Add it → the row shows no `catalogUnavailable` line. Add a
   second, non-default credential with another key → its **Check models**
-  toasts the count that key lists, not the default's. In DevTools, no
+  toasts the count that key lists, not the default's; disable that credential
+  → **Check models** still toasts its count, never
+  `settings.credentials.errors.disabledDefault`. In DevTools, no
   request URL carries the key; the backend log's `[catalog]` lines name the
   status and whether a key went, never the key.
 

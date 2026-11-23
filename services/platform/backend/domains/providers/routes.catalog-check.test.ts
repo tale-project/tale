@@ -272,6 +272,47 @@ describe('POST /catalog-check — a listing with the key the caller names', () =
     );
   });
 
+  it('sends no key to a source that is not its own /models endpoint, typed or saved [PROV-R5]', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    credentialBearer.mockResolvedValue('sk-right');
+    const router = {
+      ...draft,
+      name: 'my-router',
+      catalog: { source: 'openrouter-api' },
+    };
+    await check({ definition: router, secret: 'sk-right' });
+    const saved = await app().request(
+      `/definitions/my-router?orgId=${caller.orgId}`,
+      {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ config: router, expectedHash: null }),
+      },
+    );
+    expect(saved.status).toBe(200);
+    await check({ name: 'my-router', credentialId: 'cred-2' });
+    // The saved credential was never even read for it.
+    expect(credentialBearer).not.toHaveBeenCalled();
+    expect(mockedFetch).toHaveBeenCalled();
+    expect(sentAuthorizations().every((value) => value === undefined)).toBe(
+      true,
+    );
+    expect(JSON.stringify(mockedFetch.mock.calls)).not.toContain('sk-right');
+  });
+
+  it('refuses a body over 256 KiB before reading it', async () => {
+    const response = await check({
+      definition: { ...draft, displayName: 'x'.repeat(300 * 1024) },
+      secret: 'sk-right',
+    });
+    expect(response.status).toBe(413);
+    expect(await response.json()).toEqual({
+      error: 'PROVIDER_DEFINITION_TOO_LARGE',
+    });
+    expect(userLimit).not.toHaveBeenCalled();
+    expect(mockedFetch).not.toHaveBeenCalled();
+  });
+
   it('refuses a member, a malformed request, a forbidden endpoint and a spent budget before anything goes out', async () => {
     caller.role = 'member';
     expect(

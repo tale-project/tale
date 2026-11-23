@@ -94,6 +94,10 @@ export interface ResolveCredentialArgs {
   readonly excludeBrokerTokenHashes?: readonly string[];
   /** Set by a harness whose vendor protocol requires an account header. */
   readonly requireBrokerAccountId?: boolean;
+  /** Resolve a disabled credential too. Only for a person's own check of
+   * that very credential (its model listing) — never for serving, which a
+   * disabled credential must not do. */
+  readonly includeDisabled?: boolean;
 }
 
 export type ResolvedProviderCredential =
@@ -622,7 +626,7 @@ export async function resolveProviderCredential(
       ? undefined
       : brokerTransportDeadline(brokerTransport);
   const row = await loadRow(ctx, args);
-  if (row.status === 'disabled') {
+  if (row.status === 'disabled' && args.includeDisabled !== true) {
     throw credentialError(
       'CREDENTIAL_DISABLED',
       `Credential "${row.name}" is disabled — enable it in Settings → AI providers, or pick another credential.`,

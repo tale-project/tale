@@ -124,13 +124,14 @@ export function createProviderSettingRoutes(deps: {
 }): Hono<OrgEnv> {
   const app = new Hono<OrgEnv>();
   app.use(requireSession(deps.auth), requireOrgMember(deps.sql));
-  app.use(
-    '/definitions/*',
-    bodyLimit({
-      maxSize: 256 * 1024,
-      onError: (c) => c.json({ error: 'PROVIDER_DEFINITION_TOO_LARGE' }, 413),
-    }),
-  );
+  // A definition — saved, or drafted for a listing — is a small document;
+  // anything larger is refused before its body is read.
+  const definitionBodyLimit = bodyLimit({
+    maxSize: 256 * 1024,
+    onError: (c) => c.json({ error: 'PROVIDER_DEFINITION_TOO_LARGE' }, 413),
+  });
+  app.use('/definitions/*', definitionBodyLimit);
+  app.use('/catalog-check', definitionBodyLimit);
 
   const requireDeveloper = (c: Context<OrgEnv>): Response | null =>
     mayManageProviders(c.get('orgMember').role)
@@ -268,7 +269,9 @@ export function createProviderSettingRoutes(deps: {
    * One provider's live model listing, with the key the caller names rather
    * than the organization's default: the key typed into the dialog that is
    * setting the provider up (before anything is saved), or a saved
-   * credential's — the row's **Check models**, an edit — default or not.
+   * credential's — the row's **Check models**, an edit — default or not,
+   * enabled or not. A key goes only to the provider's own `/models`; any
+   * other source is read keyless, the ordinary cached way.
    * Fetched once and uncached: the answer is this caller's alone, never
    * served to another caller, organization or key, and a failure is not
    * remembered. A refused or missing key says which by its code
@@ -324,8 +327,13 @@ export function createProviderSettingRoutes(deps: {
         return rateLimitedResponse(c, error);
       throw error;
     }
-    let bearerToken: string | undefined = secret;
-    if (credentialId !== undefined) {
+    // A key goes only to the provider's own `/models` endpoint — as
+    // `resolveCatalogBearer` sends one. Any other source is a public listing
+    // (OpenRouter's catalog, a static file) that takes no key: it is read
+    // the ordinary way, shared and cached, and no key leaves for it.
+    const keyed = provider.catalog.source === 'models-endpoint';
+    let bearerToken: string | undefined = keyed ? secret : undefined;
+    if (keyed && credentialId !== undefined) {
       try {
         bearerToken = await resolveCredentialListingBearer(
           deps.sql,
@@ -342,11 +350,16 @@ export function createProviderSettingRoutes(deps: {
     try {
       return c.json(
         {
-          models: await getProviderCatalog(provider, {
-            uncached: true,
-            maxAttempts: 1,
-            ...(bearerToken !== undefined ? { bearerToken } : {}),
-          }),
+          models: await getProviderCatalog(
+            provider,
+            keyed
+              ? {
+                  uncached: true,
+                  maxAttempts: 1,
+                  ...(bearerToken !== undefined ? { bearerToken } : {}),
+                }
+              : {},
+          ),
         },
         200,
         { 'cache-control': 'no-store' },

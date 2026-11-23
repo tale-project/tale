@@ -46,7 +46,9 @@ the definition it had is kept in the history.
 
 While a provider is being set up, its models can be listed with the key typed beside it, or
 with one saved key the person names. The answer is never kept or shown to anyone else, and a
-refused listing says whether a key was sent.
+refused listing says whether a key was sent. A key goes only to the provider's own model
+listing, never to a public catalog the provider reads instead, and a saved key lists even
+while its credential is disabled.
 
 - **Example**: Ada types a gateway's address and her key, then lists its models → she sees
   the models her key may use. Noah, in another organization, lists the same gateway without
