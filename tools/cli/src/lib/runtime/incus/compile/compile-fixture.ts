@@ -1,8 +1,5 @@
 import { expect } from 'bun:test';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import { CliError, ExitCode } from '../../../../utils/fail';
 import { buildColorCompose } from '../../../compose/generators/generate-color-compose';
@@ -305,32 +302,6 @@ export function compileInput(
   };
 }
 
-const GOLDEN_DIRECTORY = join(
-  dirname(fileURLToPath(import.meta.url)),
-  '__golden__',
-);
-
-/**
- * Hold `value` to `__golden__/<name>.json`. `TALE_UPDATE_GOLDEN=1` rewrites
- * the file instead (then `bun run format`); review its diff like any other
- * change.
- */
-export function expectGolden(name: string, value: unknown): void {
-  const file = join(GOLDEN_DIRECTORY, `${name}.json`);
-  const text = `${JSON.stringify(value, null, 2)}\n`;
-  if (process.env.TALE_UPDATE_GOLDEN === '1') {
-    mkdirSync(GOLDEN_DIRECTORY, { recursive: true });
-    writeFileSync(file, text);
-    return;
-  }
-  expect(
-    existsSync(file),
-    `${file} is missing; run with TALE_UPDATE_GOLDEN=1`,
-  ).toBe(true);
-  // Parsed, so the formatter's layout of the file never matters.
-  expect(value).toEqual(JSON.parse(readFileSync(file, 'utf8')));
-}
-
 /** One refusal of a service's `labels`: the Traefik edge reads them, and the
  * Incus runtime does not run that edge yet. */
 function labelsRefusal(service: string): string {
@@ -381,10 +352,7 @@ function thrownBy(run: () => unknown): unknown {
 
 /** The error `requireStackTarget` raises for `lines`: a precondition error,
  * held to its exit code, its summary, and every line of its cause. */
-export function expectRefusalError(
-  error: unknown,
-  lines: readonly string[],
-): void {
+function expectRefusalError(error: unknown, lines: readonly string[]): void {
   expect(error).toBeInstanceOf(CliError);
   const info = (error as CliError).info;
   expect(info.code).toBe(ExitCode.Precondition);
@@ -410,7 +378,7 @@ export function expectEdgeRefusal(
 
 /** The sentence a managed prepare raises for the repository's own source,
  * whose edge is Traefik. */
-export const MANAGED_EDGE_REFUSAL =
+const MANAGED_EDGE_REFUSAL =
   'This revision runs its edge on Traefik, which the managed runtime cannot prepare yet (tale-project/tale#5282); select a v0.5 Tale revision.';
 
 /** Hold a managed prepare's error to the Traefik edge's refusal. */
