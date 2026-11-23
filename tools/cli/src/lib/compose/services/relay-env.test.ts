@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 
 import { setProjectId } from '../../project/project-context';
+import { SPLIT, THREE_WAY, UNIFIED } from '../app-tier';
+import { buildColorCompose } from '../generators/generate-color-compose';
 import type { ServiceConfig } from '../types';
 import {
   createBackendApiService,
@@ -48,4 +50,48 @@ describe('where the model relay listens', () => {
       }).environment,
     ).not.toHaveProperty('SANDBOX_NETWORK_SUBNET');
   });
+});
+
+/**
+ * A session calls the relay at `backend-api:8080`, a name both colours answer
+ * on the sandbox network while a deploy flips them, so Docker hands the
+ * session the addresses of both. Its HTTP client moves on from an address
+ * that refuses the connection to the next one, which is why the first deploy
+ * of the relay loses no call: the colour of the earlier release refuses port
+ * 8080 at once, having no relay. Within a colour no process may answer that
+ * name without a relay of its own, or it would refuse a share of the calls
+ * for as long as it runs. Sessions are never handed a colour's own name
+ * instead: a turn outlives the colour that started it, a session's
+ * `NO_PROXY` exempts `backend-api` alone, and a connected device answers
+ * only the names it joined with.
+ */
+describe('who answers the relay name on the sandbox network', () => {
+  for (const tier of [UNIFIED, SPLIT, THREE_WAY]) {
+    for (const colour of ['blue', 'green'] as const) {
+      test(`${tier.shape}, ${colour}: exactly the processes that serve the API, each with its relay`, () => {
+        const { services } = buildColorCompose(
+          { ...config, appTier: tier, sandboxNetworkSubnet: '172.30.0.0/16' },
+          colour,
+        );
+        const answering: string[] = [];
+        const serving: string[] = [];
+        for (const [name, service] of Object.entries(services)) {
+          const networks = Array.isArray(service.networks)
+            ? {}
+            : (service.networks ?? {});
+          if (networks.sandbox?.aliases?.includes('backend-api'))
+            answering.push(name);
+          const role = service.environment?.TALE_ROLE;
+          if (role === 'api' || role === 'all') serving.push(name);
+        }
+        expect(answering).not.toEqual([]);
+        expect(answering.sort()).toEqual(serving.sort());
+        for (const name of answering) {
+          expect(services[name]?.environment).toMatchObject({
+            SANDBOX_NETWORK_SUBNET: '172.30.0.0/16',
+          });
+        }
+      });
+    }
+  }
 });

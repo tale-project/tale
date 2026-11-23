@@ -30,6 +30,18 @@ it. Where no sandbox network is named it listens beside the API, and its keys ar
 - **Example**: Omar sends a request to the relay's port from the server's public address → the
   connection is refused. His agent's turn, in a sandbox, reaches it.
 
+### RELAY-R12 · A turn reaches a relay while a deploy changes the application's colours
+
+A session calls the relay by the one name every process that serves the API answers in the
+sandbox network, in both colours of a deployment, never by one colour's own name: a turn goes on
+after the colour that started it is gone. While a deploy runs both colours, a session is given the
+addresses of both and moves on from one that refuses; on the first deploy of the release that
+brought the relay, the earlier release's colour has none and refuses at once.
+
+- **Example**: Omar deploys the release that brings the relay, and while the earlier release
+  drains Lena starts her task agent → its calls reach the new release's relay, though the earlier
+  release still answers the same name.
+
 ## Which model
 
 ### RELAY-R3 · A turn calls only the models it was given
