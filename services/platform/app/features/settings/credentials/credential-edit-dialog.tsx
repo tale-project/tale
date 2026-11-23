@@ -171,6 +171,7 @@ export function CredentialEditDialog<
           disabled={update.isPending}
           method={credential.authMethod}
           editing
+          organizationId={organizationId}
         />
       )}
     </FormDialog>

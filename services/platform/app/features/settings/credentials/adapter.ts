@@ -201,6 +201,15 @@ export interface CredentialExtraModule<V, Cred, Extra> {
     /** True in the edit dialog: a field set once, when the credential was
      * added, is shown without being editable. */
     editing?: boolean;
+    /** The organization the credential is authored in, for a field that
+     * asks the server (the providers' model listing). */
+    organizationId?: string;
+    /** In the add dialog: the secret arguments the form would send right
+     * now (`secret.buildArgs`), once the secret is complete — for a field
+     * that checks something with the key before it is saved (the providers'
+     * model listing). Absent while the key is incomplete, and in the edit
+     * dialog, which holds no secret. */
+    secretArgs?: Record<string, unknown>;
   }> | null;
 }
 

@@ -188,9 +188,14 @@ describe('mapProviderDefinitionError', () => {
     expect(
       mapProviderDefinitionError(t, failed('PROVIDER_CATALOG_NOT_FOUND')),
     ).toBe('providers.custom.errors.catalogNotFound');
+    // A key the listing sent and the endpoint refused, apart from a listing
+    // that sent none to an endpoint that wants one.
     expect(
       mapProviderDefinitionError(t, failed('PROVIDER_CATALOG_KEY_REFUSED')),
     ).toBe('providers.custom.errors.catalogKeyRefused');
+    expect(
+      mapProviderDefinitionError(t, failed('PROVIDER_CATALOG_KEY_REQUIRED')),
+    ).toBe('providers.custom.errors.catalogKeyRequired');
     expect(
       mapProviderDefinitionError(t, failed('PROVIDER_CATALOG_UPSTREAM_ERROR')),
     ).toBe('providers.custom.errors.catalogUpstreamError');
@@ -224,8 +229,13 @@ describe('catalogFailureText', () => {
   it.each([
     [
       'PROVIDER_CATALOG_KEY_REFUSED',
-      'catalog fetch returned HTTP 401',
+      'catalog fetch returned HTTP 401 for the API key sent',
       'providers.custom.errors.catalogKeyRefused',
+    ],
+    [
+      'PROVIDER_CATALOG_KEY_REQUIRED',
+      'catalog fetch returned HTTP 401 without an API key',
+      'providers.custom.errors.catalogKeyRequired',
     ],
     [
       'PROVIDER_CATALOG_UPSTREAM_ERROR',

@@ -1741,6 +1741,27 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
       ).then((body) => body.models),
     invalidate: invalidateProviderReads,
   },
+  // A listing with the key the dialog or the row names — in the body, never
+  // the URL. It changes nothing, so it invalidates nothing.
+  'lib/providers/definition_actions:listProviderCatalogWithKey': {
+    run: (args, ctx) =>
+      backendFetch<{ models: ProviderCatalogItem['models'] }>(
+        '/providers/catalog-check',
+        {
+          orgId: requireOrg(args, ctx),
+          body: {
+            ...(typeof args.name === 'string' ? { name: args.name } : {}),
+            ...(args.definition !== undefined
+              ? { definition: args.definition }
+              : {}),
+            ...(typeof args.secret === 'string' ? { secret: args.secret } : {}),
+            ...(typeof args.credentialId === 'string'
+              ? { credentialId: args.credentialId }
+              : {}),
+          },
+        },
+      ).then((body) => body.models),
+  },
   // A read on the write lane: the edit flow fetches the definition right
   // before saving, to carry the fields its form has no input for — and
   // only while it is still the version the dialog showed.

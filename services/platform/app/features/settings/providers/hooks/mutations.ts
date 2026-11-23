@@ -103,6 +103,17 @@ function useProviderDefinitionWrite<
   });
 }
 
+/** List one provider's models with the key the caller names — the key a
+ * dialog holds before anything is saved, or a saved credential's — rather
+ * than the organization's default. Changes nothing; the caller reports a
+ * failure inline or in its own toast. */
+export function useListProviderCatalogWithKey() {
+  return useBackendAction(
+    'lib/providers/definition_actions:listProviderCatalogWithKey',
+    { errorToast: false },
+  );
+}
+
 /** Fetch one custom provider's live model listing anew — the reachability
  * check for a freshly defined endpoint. */
 export function useCheckProviderDefinitionCatalog(organizationId: string) {

@@ -3,14 +3,18 @@
 import {
   providerBaseUrlSchema,
   SECRETS_ENV_PREFIX,
+  type ProviderDefinition,
 } from '@tale/shared/schemas/providers';
+import { Alert } from '@tale/ui/alert';
+import { Button } from '@tale/ui/button';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Input } from '@tale/ui/input';
 import { Stack } from '@tale/ui/layout';
 import { RadioGroup } from '@tale/ui/radio-group';
+import { Text } from '@tale/ui/text';
 import { useToast } from '@tale/ui/use-toast';
 import { RefreshCw } from 'lucide-react';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 import {
   looseMutation,
@@ -32,6 +36,7 @@ import {
   sameList,
 } from './components/model-allowlist-field';
 import {
+  buildCustomProviderDefinition,
   catalogFailureText,
   CUSTOM_VENDOR_KEY,
   emptyCustomProviderFacts,
@@ -47,9 +52,11 @@ import {
 import {
   useCheckProviderDefinitionCatalog,
   useDeleteCredential,
+  useListProviderCatalogWithKey,
   useSetDefaultCredential,
 } from './hooks/mutations';
 import {
+  type CatalogModel,
   type MaskedCredential,
   type ProviderCatalog,
   useCredentialDependents,
@@ -268,6 +275,11 @@ export interface ProviderCredentialExtras {
   /** For an organization-defined provider's credential: the versions the
    * form was seeded at, which its Save names. Never edited. */
   reviewed?: ReviewedVersions;
+  /** For an organization-defined provider's credential: the credential its
+   * model listing uses, and the provider facts as saved — the listing goes
+   * to the saved endpoint only, never to one the form has not saved yet.
+   * Never edited. */
+  saved?: { credentialId: string; facts: CustomProviderFacts };
 }
 
 const sameFacts = (a: CustomProviderFacts, b: CustomProviderFacts) =>
@@ -275,19 +287,155 @@ const sameFacts = (a: CustomProviderFacts, b: CustomProviderFacts) =>
   a.baseUrl === b.baseUrl &&
   a.catalogSource === b.catalogSource;
 
+/** The slug a provider being set up lists under: it is not saved, so it
+ * names nothing — no shipped provider carries it. */
+const DRAFT_PROVIDER_SLUG = 'custom-provider-draft';
+
+/** What a listing from the dialog goes out with: the provider being set up
+ * and the key typed beside it, or a saved provider and its credential.
+ * `null` while there is nothing to list yet — a base URL the schema refuses,
+ * or an edit whose endpoint differs from the saved one. */
+function listingArgs(
+  facts: CustomProviderFacts,
+  value: ProviderCredentialExtras,
+  secretArgs: Record<string, unknown> | undefined,
+): {
+  definition?: ProviderDefinition;
+  name?: string;
+  secret?: string;
+  credentialId?: string;
+} | null {
+  if (value.saved !== undefined) {
+    return sameFacts(facts, value.saved.facts)
+      ? {
+          name: value.saved.facts.providerSlug,
+          credentialId: value.saved.credentialId,
+        }
+      : null;
+  }
+  const built = buildCustomProviderDefinition({
+    name: DRAFT_PROVIDER_SLUG,
+    displayName: DRAFT_PROVIDER_SLUG,
+    apiFormat: facts.apiFormat,
+    baseUrl: facts.baseUrl,
+    catalogSource: 'models-endpoint',
+  });
+  if (!built.ok) return null;
+  const secret = secretArgs?.secret;
+  return {
+    definition: built.config,
+    ...(typeof secret === 'string' && secret !== '' ? { secret } : {}),
+  };
+}
+
+/**
+ * **List models** under a custom provider's facts: the endpoint's `/models`
+ * read with the key this dialog holds — typed beside the facts while the
+ * provider is being added, the credential's own in an edit — before
+ * anything is saved, so a key-gated gateway lists its models here instead
+ * of refusing the organization's default key, or none. The result fills the
+ * allowlist picker; a failure says, inline, whether a key went.
+ */
+function ModelListing({
+  organizationId,
+  facts,
+  value,
+  secretArgs,
+  disabled,
+  onListed,
+}: {
+  organizationId: string;
+  facts: CustomProviderFacts;
+  value: ProviderCredentialExtras;
+  secretArgs: Record<string, unknown> | undefined;
+  disabled?: boolean;
+  onListed: (models: CatalogModel[] | null) => void;
+}) {
+  const { t } = useT('settings');
+  const list = useListProviderCatalogWithKey();
+  const [outcome, setOutcome] = useState<
+    { ok: true; count: number } | { ok: false; message: string } | null
+  >(null);
+  const args = listingArgs(facts, value, secretArgs);
+
+  const handleList = () => {
+    if (args === null) return;
+    setOutcome(null);
+    list.mutateAsync({ organizationId, ...args }).then(
+      (models) => {
+        onListed(models);
+        setOutcome({ ok: true, count: models.length });
+      },
+      (err: unknown) => {
+        console.error(
+          'providers: model listing with the dialog key failed',
+          err,
+        );
+        onListed(null);
+        setOutcome({
+          ok: false,
+          message: t('providers.custom.listModelsFailed', {
+            error: mapProviderDefinitionError(t, err),
+          }),
+        });
+      },
+    );
+  };
+
+  return (
+    <Stack gap={2}>
+      <div>
+        <Button
+          type="button"
+          variant="secondary"
+          icon={RefreshCw}
+          onClick={handleList}
+          disabled={disabled === true || args === null}
+          isLoading={list.isPending}
+        >
+          {t('providers.custom.listModels')}
+        </Button>
+      </div>
+      <Text as="p" variant="muted" className="text-sm">
+        {t('providers.custom.listModelsHelp')}
+      </Text>
+      <div aria-live="polite">
+        {outcome?.ok === true && (
+          <Text as="p" className="text-sm">
+            {t('providers.custom.listModelsOk', { count: outcome.count })}
+          </Text>
+        )}
+      </div>
+      {outcome?.ok === false && (
+        <Alert variant="destructive" description={outcome.message} />
+      )}
+    </Stack>
+  );
+}
+
 function ProviderExtraFields({
   vendor,
   value,
   onChange,
   disabled,
+  organizationId,
+  secretArgs,
 }: {
   vendor: ProviderVendor;
   value: ProviderCredentialExtras;
   onChange: (next: ProviderCredentialExtras) => void;
   disabled?: boolean;
+  organizationId?: string;
+  secretArgs?: Record<string, unknown>;
 }) {
   const { t } = useT('settings');
   const showsFacts = isCustomEntry(vendor) || value.custom !== undefined;
+  // What the dialog's own listing answered, and for which endpoint: a
+  // changed base URL or format shows the provider's listing again.
+  const [listed, setListed] = useState<{
+    facts: CustomProviderFacts;
+    models: CatalogModel[];
+  } | null>(null);
 
   // The custom entry starts from blank facts. Seeded here rather than in
   // `empty`, so a shipped vendor's extras never carry facts it has no say in.
@@ -325,6 +473,10 @@ function ProviderExtraFields({
   const facts = value.custom ?? emptyCustomProviderFacts();
   const setFacts = (patch: Partial<CustomProviderFacts>) =>
     onChange({ ...value, custom: { ...facts, ...patch } });
+  const listedModels =
+    listed !== null && sameFacts(listed.facts, facts)
+      ? listed.models
+      : vendor.catalog.models;
 
   return (
     <Stack gap={4}>
@@ -389,14 +541,30 @@ function ProviderExtraFields({
           onValueChange={setAllowlist}
           disabled={disabled}
         />
-      ) : vendor.catalog.models.length > 0 || value.allowlist.length > 0 ? (
-        <ModelAllowlistField
-          models={vendor.catalog.models}
-          value={value.allowlist}
-          onValueChange={setAllowlist}
-          disabled={disabled}
-        />
-      ) : null}
+      ) : (
+        <>
+          {organizationId !== undefined && (
+            <ModelListing
+              organizationId={organizationId}
+              facts={facts}
+              value={value}
+              secretArgs={secretArgs}
+              disabled={disabled}
+              onListed={(models) =>
+                setListed(models === null ? null : { facts, models })
+              }
+            />
+          )}
+          {listedModels.length > 0 || value.allowlist.length > 0 ? (
+            <ModelAllowlistField
+              models={listedModels}
+              value={value.allowlist}
+              onValueChange={setAllowlist}
+              disabled={disabled}
+            />
+          ) : null}
+        </>
+      )}
     </Stack>
   );
 }
@@ -410,7 +578,11 @@ const providerExtras: CredentialExtraModule<
   fromCredential: (credential, vendor) => ({
     allowlist: credential.modelAllowlist ?? [],
     ...(vendor !== undefined && isOrgDefined(vendor)
-      ? { custom: factsOf(vendor), ...reviewedOf(credential, vendor) }
+      ? {
+          custom: factsOf(vendor),
+          ...reviewedOf(credential, vendor),
+          saved: { credentialId: credential.id, facts: factsOf(vendor) },
+        }
       : {}),
   }),
   // Blank facts count as the untouched baseline: the custom entry seeds
@@ -587,11 +759,14 @@ export const providerCredentialAdapter: CredentialAdapter<
     );
   },
 
-  // "Check models" on a custom provider's row: list its endpoint afresh, with
-  // this organization's key, and say how many models answered.
-  useExtraActions: ({ t, vendor, organizationId, busy }) => {
+  // "Check models" on a custom provider's row: list its endpoint afresh with
+  // THIS row's key, and say how many models answered. The default's check
+  // refreshes the listing every reader shares; another credential's is
+  // asked with its own key and answers this row alone.
+  useExtraActions: ({ t, credential, vendor, organizationId, busy }) => {
     const { toast } = useToast();
     const check = useCheckProviderDefinitionCatalog(organizationId);
+    const listWithKey = useListProviderCatalogWithKey();
     if (
       vendor === null ||
       !isOrgDefined(vendor) ||
@@ -601,10 +776,14 @@ export const providerCredentialAdapter: CredentialAdapter<
     }
     const handleCheck = async () => {
       try {
-        const models = await check.mutateAsync({
-          organizationId,
-          name: vendor.key,
-        });
+        const models =
+          credential.isDefault && credential.status === 'active'
+            ? await check.mutateAsync({ organizationId, name: vendor.key })
+            : await listWithKey.mutateAsync({
+                organizationId,
+                name: vendor.key,
+                credentialId: credential.id,
+              });
         toast({
           title: t('providers.custom.checkOk', {
             name: vendor.displayName,
@@ -628,7 +807,7 @@ export const providerCredentialAdapter: CredentialAdapter<
         label: t('providers.custom.check'),
         icon: RefreshCw,
         onClick: () => void handleCheck(),
-        disabled: busy || check.isPending,
+        disabled: busy || check.isPending || listWithKey.isPending,
       },
     ];
   },

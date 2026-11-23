@@ -1036,6 +1036,12 @@ providers:
     modelsManual: Saisir les ID de modèles
     modelsManualHelp: Pour un endpoint qui ne sait pas lister ses modèles.
     check: Vérifier les modèles
+    listModels: Lister les modèles
+    listModelsHelp: >-
+      Lit la liste /models de l'endpoint avec la clé de cet identifiant (celle
+      saisie ci-dessus lors de l'ajout) avant tout enregistrement.
+    listModelsOk: "{count, plural, =0 {L'endpoint ne liste aucun modèle.} one {L'endpoint liste # modèle.} other {L'endpoint liste # modèles.}}"
+    listModelsFailed: 'Impossible de lister les modèles : {error}'
     checkOk: '{name} : {count, plural, =0 {aucun modèle listé} one {# modèle listé} other {# modèles listés}}'
     checkFailed: 'Impossible de lister les modèles de {name} : {error}'
     deleteRetires: >-
@@ -1064,9 +1070,13 @@ providers:
       catalogUnreachable: >-
         L'endpoint est injoignable ou n'a pas répondu à temps. Vérifie qu'il
         fonctionne et que ce déploiement peut le joindre.
+      catalogKeyRequired: >-
+        L'endpoint exige une clé API, et la requête n'en a envoyé aucune.
+        Saisis la clé, ou donne au fournisseur un identifiant par défaut avec
+        sa clé.
       catalogKeyRefused: >-
-        L'endpoint a refusé la clé API, ou en exige une. Vérifie les
-        identifiants par défaut du fournisseur et leur clé.
+        L'endpoint a refusé la clé API envoyée. Vérifie que la clé est correcte
+        et qu'elle peut lister les modèles.
       catalogUpstreamError: L'endpoint a répondu par une erreur serveur. Réessaie plus tard.
   catalogs:
     emptyBody: >-

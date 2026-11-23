@@ -891,6 +891,31 @@ export async function resolveCatalogBearer(
   }
 }
 
+/**
+ * The bearer one named credential lists its provider's models with: its
+ * api-key or env secret, `undefined` for a method that is no bearer (a
+ * subscription, a broker). For the listing a person asks of that very
+ * credential — the row's **Check models**, an edit dialog — whether or not
+ * it is the default. Refuses a credential of another organization or
+ * another provider (`CREDENTIAL_NOT_FOUND` / `CREDENTIAL_PROVIDER_MISMATCH`)
+ * and a disabled one. INTERNAL ONLY: the secret never leaves the listing.
+ */
+export async function resolveCredentialListingBearer(
+  sql: Sql,
+  organizationId: string,
+  provider: ProviderDefinition,
+  credentialId: string,
+): Promise<string | undefined> {
+  const resolved = await resolveProviderCredential(sql, {
+    organizationId,
+    providerSlug: provider.name,
+    credentialId,
+  });
+  return resolved.authMethod === 'api-key' || resolved.authMethod === 'env'
+    ? resolved.secret
+    : undefined;
+}
+
 /** What in the organization resolves its key through a credential. */
 export type CredentialDependent = 'embedding';
 

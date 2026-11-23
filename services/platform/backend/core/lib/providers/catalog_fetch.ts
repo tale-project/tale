@@ -27,9 +27,15 @@
  * surfaces its own failure: an operator pressed the button to learn the
  * truth, not to be shown the stale count as success.
  *
- * Both live endpoints are public, unauthenticated catalog listings; no
- * credential material is ever attached to these requests.
+ * OpenRouter's listing is public and goes out without a key. A provider's
+ * own `/models` may want one: its callers pass the organization's key for it
+ * as the bearer, which is never logged, never part of an error, and keys the
+ * failure memory and the shared in-flight fetch only through a keyed
+ * fingerprint ({@link bearerFingerprint}) — an anonymous refusal never
+ * answers a caller with a key, nor one key's refusal another key.
  */
+
+import { createHmac, randomBytes } from 'node:crypto';
 
 import { isPrivateIp } from '@tale/shared/net/private-ip';
 import {
@@ -118,17 +124,19 @@ const liveCatalogCache = new Map<string, CachedCatalog>();
 interface RememberedFailure {
   failedAt: number;
   error: Error;
-  /** Whether the failed attempt carried a bearer. An anonymous refusal (a
-   * 401 from an endpoint that wants a key) must not hold back the first
-   * attempt that brings one. */
-  authenticated: boolean;
 }
 
-/** The last failed fetch per cache key, honoured until the back-off lapses. */
-const liveCatalogFailures = new Map<string, RememberedFailure>();
+/** The last failed fetch per cache key AND bearer fingerprint, honoured
+ * until the back-off lapses. Per bearer, because the failure is an answer
+ * to that question: an anonymous 401 from an endpoint that wants a key says
+ * nothing of the first attempt that brings one, and a refused key nothing
+ * of the key typed in its place. */
+const liveCatalogFailures = new Map<string, Map<string, RememberedFailure>>();
 
-/** Fetches currently in flight per cache key — a second caller joins the
- * first's promise instead of starting its own retry ladder. */
+/** Fetches currently in flight per cache key and bearer fingerprint — a
+ * second caller asking the same question joins the first's promise instead
+ * of starting its own retry ladder; a caller with another key (or none)
+ * never gets the answer to someone else's. */
 const liveCatalogInFlight = new Map<string, Promise<ModelCatalogEntry[]>>();
 
 function liveCatalogCacheKey(
@@ -136,6 +144,21 @@ function liveCatalogCacheKey(
   urls: readonly string[],
 ): string {
   return `${providerName}\n${urls.join('\n')}`;
+}
+
+/** The per-process key the bearer fingerprints are made with: a fingerprint
+ * names a key in this process's maps and nowhere else, and holds nothing a
+ * dump of them could be checked against offline. */
+const FINGERPRINT_KEY = randomBytes(32);
+
+/**
+ * What tells one listing bearer from another in the failure memory and the
+ * in-flight map: `anonymous` without one, else a keyed digest of it. Never
+ * the bearer itself, never logged.
+ */
+export function bearerFingerprint(bearerToken: string | undefined): string {
+  if (bearerToken === undefined) return 'anonymous';
+  return `key:${createHmac('sha256', FINGERPRINT_KEY).update(bearerToken).digest('hex').slice(0, 32)}`;
 }
 
 /** Test seam: drop every cached live catalog and remembered failure. */
@@ -158,10 +181,19 @@ export interface CatalogFetchOptions extends LoadSystemConfigOptions {
    * Sent as the listing request's bearer. Most hosted OpenAI-compatible APIs
    * refuse an anonymous `/models` (a custom provider is exactly such an
    * endpoint), so the callers that hold the organization's credential for
-   * the provider list with it. Never logged; never part of the cache key —
-   * a listing is the provider's catalog whoever fetched it.
+   * the provider list with it. Never logged. The served catalog is the
+   * provider's whoever fetched it; the failure memory and the in-flight
+   * fetch are per bearer ({@link bearerFingerprint}).
    */
   readonly bearerToken?: string;
+  /**
+   * List once, outside every shared memory: the cached catalog is neither
+   * read nor written, no failure is remembered and no fetch in flight is
+   * joined. For a key the organization has not saved — the one a dialog
+   * holds while its provider is being set up — whose listing answers that
+   * dialog alone and never another caller.
+   */
+  readonly uncached?: boolean;
 }
 
 const sleep = (ms: number): Promise<void> =>
@@ -177,9 +209,11 @@ const sleep = (ms: number): Promise<void> =>
  *   its root path) or HTTP 404. Both usually mean the base URL is not the
  *   API root, so each code names that fix to whoever reads it. The server
  *   answers the same way every time, so neither is retried.
- * - `PROVIDER_CATALOG_KEY_REFUSED`: HTTP 401 or 403 — the endpoint refused
- *   the key the listing carried, or wants one. Not retried either: the same
- *   key gets the same answer.
+ * - `PROVIDER_CATALOG_KEY_REQUIRED`: HTTP 401 or 403 to a listing that
+ *   carried NO key — the endpoint wants one. Not retried: the same question
+ *   gets the same answer.
+ * - `PROVIDER_CATALOG_KEY_REFUSED`: HTTP 401 or 403 to a listing that
+ *   carried a key — the endpoint refused that key. Not retried either.
  * - `PROVIDER_CATALOG_UPSTREAM_ERROR`: HTTP 5xx — the endpoint failed on
  *   its side, which the next attempt may not; retried.
  * - `PROVIDER_CATALOG_UNREACHABLE`: no answer at all — the host does not
@@ -194,6 +228,7 @@ const sleep = (ms: number): Promise<void> =>
 export type CatalogListingFailureCode =
   | 'PROVIDER_CATALOG_NOT_JSON'
   | 'PROVIDER_CATALOG_NOT_FOUND'
+  | 'PROVIDER_CATALOG_KEY_REQUIRED'
   | 'PROVIDER_CATALOG_KEY_REFUSED'
   | 'PROVIDER_CATALOG_UPSTREAM_ERROR'
   | 'PROVIDER_CATALOG_UNREACHABLE';
@@ -278,10 +313,17 @@ async function fetchListingPayload(
         );
       }
       if (response.status === 401 || response.status === 403) {
-        throw new CatalogListingError(
-          'PROVIDER_CATALOG_KEY_REFUSED',
-          `catalog fetch returned HTTP ${response.status}`,
-        );
+        // Whether a key went with the listing is the whole diagnosis: none
+        // means the endpoint wants one, one means it refused that key.
+        throw bearerToken === undefined
+          ? new CatalogListingError(
+              'PROVIDER_CATALOG_KEY_REQUIRED',
+              `catalog fetch returned HTTP ${response.status} without an API key`,
+            )
+          : new CatalogListingError(
+              'PROVIDER_CATALOG_KEY_REFUSED',
+              `catalog fetch returned HTTP ${response.status} for the API key sent`,
+            );
       }
       if (response.status >= 500) {
         throw new CatalogListingError(
@@ -538,7 +580,21 @@ async function cachedLiveCatalog(
     requiredCapability === undefined
       ? shipped
       : shipped?.filter((entry) => entry.tags.includes(requiredCapability));
+  if (options.uncached) {
+    const { entries } = await fetchLiveCatalog(
+      urls,
+      providerName,
+      options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS,
+      allowedHosts,
+      options.bearerToken,
+      normalizeOptions,
+    );
+    return mergeWithDefaults(entries, defaults);
+  }
   const cacheKey = liveCatalogCacheKey(providerName, urls);
+  // The failure memory and the in-flight fetch answer one bearer's question.
+  const fingerprint = bearerFingerprint(options.bearerToken);
+  const questionKey = `${cacheKey}\u0000${fingerprint}`;
   const cached = liveCatalogCache.get(cacheKey);
   const fresh =
     cached !== undefined && Date.now() - cached.fetchedAt < CATALOG_TTL_MS;
@@ -549,20 +605,16 @@ async function cachedLiveCatalog(
   // A remembered failure is served as the failure it was — stale catalog,
   // shipped defaults, or the error — without another retry ladder, until
   // the back-off lapses. A forced refresh is the operator asking anew.
-  const remembered = liveCatalogFailures.get(cacheKey);
-  const authenticated = options.bearerToken !== undefined;
+  const remembered = liveCatalogFailures.get(cacheKey)?.get(fingerprint);
   if (
     remembered !== undefined &&
     !options.forceRefresh &&
-    // A bearer-carrying attempt is a different question from the anonymous
-    // one that failed: it goes out, and its own outcome is what is remembered.
-    (remembered.authenticated || !authenticated) &&
     Date.now() - remembered.failedAt < CATALOG_FAILURE_BACKOFF_MS
   ) {
     return serveDegraded(cached, defaults, remembered.error);
   }
 
-  let inFlight = liveCatalogInFlight.get(cacheKey);
+  let inFlight = liveCatalogInFlight.get(questionKey);
   if (inFlight === undefined) {
     inFlight = fetchLiveCatalog(
       urls,
@@ -584,23 +636,26 @@ async function cachedLiveCatalog(
             : Date.now() - CATALOG_TTL_MS + CATALOG_FAILURE_BACKOFF_MS,
           entries,
         });
+        // A listing that answered settles every bearer's remembered failure:
+        // the catalog it serves is the provider's whoever asked.
         liveCatalogFailures.delete(cacheKey);
         return entries;
       })
       .catch((err: unknown) => {
         const error = err instanceof Error ? err : new Error(String(err));
-        liveCatalogFailures.set(cacheKey, {
-          failedAt: Date.now(),
-          error,
-          authenticated,
-        });
+        let failures = liveCatalogFailures.get(cacheKey);
+        if (failures === undefined) {
+          failures = new Map();
+          liveCatalogFailures.set(cacheKey, failures);
+        }
+        failures.set(fingerprint, { failedAt: Date.now(), error });
         warnRememberedFailure(providerName, cached, defaults, error);
         throw error;
       })
       .finally(() => {
-        liveCatalogInFlight.delete(cacheKey);
+        liveCatalogInFlight.delete(questionKey);
       });
-    liveCatalogInFlight.set(cacheKey, inFlight);
+    liveCatalogInFlight.set(questionKey, inFlight);
   }
 
   try {

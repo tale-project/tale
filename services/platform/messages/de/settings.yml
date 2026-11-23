@@ -1011,6 +1011,13 @@ providers:
     modelsManual: Modell-IDs eingeben
     modelsManualHelp: Für einen Endpunkt, der seine Modelle nicht auflisten kann.
     check: Modelle prüfen
+    listModels: Modelle abrufen
+    listModelsHelp: >-
+      Liest die /models-Liste des Endpunkts mit dem Schlüssel dieser
+      Zugangsdaten (beim Hinzufügen dem oben eingegebenen), bevor etwas
+      gespeichert wird.
+    listModelsOk: '{count, plural, =0 {Der Endpunkt listet keine Modelle.} one {Der Endpunkt listet # Modell.} other {Der Endpunkt listet # Modelle.}}'
+    listModelsFailed: 'Die Modelle konnten nicht abgerufen werden: {error}'
     checkOk: '{name}: {count, plural, =0 {keine Modelle gelistet} one {# Modell gelistet} other {# Modelle gelistet}}'
     checkFailed: 'Die Modelle von {name} konnten nicht abgerufen werden: {error}'
     deleteRetires: >-
@@ -1039,9 +1046,13 @@ providers:
         Der Endpunkt ist nicht erreichbar oder hat nicht rechtzeitig
         geantwortet. Prüfe, ob er läuft und ob diese Bereitstellung ihn
         erreicht.
+      catalogKeyRequired: >-
+        Der Endpunkt braucht einen API-Schlüssel, und die Abfrage hat keinen
+        gesendet. Gib den Schlüssel ein oder hinterlege für den Anbieter
+        Standard-Zugangsdaten mit seinem Schlüssel.
       catalogKeyRefused: >-
-        Der Endpunkt hat den API-Schlüssel abgelehnt oder braucht einen. Prüfe
-        die Standard-Zugangsdaten des Anbieters und ihren Schlüssel.
+        Der Endpunkt hat den gesendeten API-Schlüssel abgelehnt. Prüfe, ob der
+        Schlüssel stimmt und Modelle auflisten darf.
       catalogUpstreamError: Der Endpunkt hat mit einem Serverfehler geantwortet. Versuche es später erneut.
   catalogs:
     emptyBody: >-

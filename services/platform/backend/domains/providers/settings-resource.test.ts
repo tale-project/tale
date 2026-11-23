@@ -299,9 +299,16 @@ describe('refreshing a provider’s catalog', () => {
       [
         new CatalogListingError(
           'PROVIDER_CATALOG_KEY_REFUSED',
-          'catalog fetch returned HTTP 401',
+          'catalog fetch returned HTTP 401 for the API key sent',
         ),
-        'default credential (kind provider-credential',
+        'refused the key the listing sent',
+      ],
+      [
+        new CatalogListingError(
+          'PROVIDER_CATALOG_KEY_REQUIRED',
+          'catalog fetch returned HTTP 401 without an API key',
+        ),
+        'none was sent',
       ],
       [
         new SafeFetchError('timeout', 'Request timed out after 20000ms'),

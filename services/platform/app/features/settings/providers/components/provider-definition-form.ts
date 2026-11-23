@@ -132,6 +132,10 @@ const LISTING_FAILURES = {
     sentenceKey: 'providers.custom.errors.catalogNotFound',
     showsDetail: false,
   },
+  PROVIDER_CATALOG_KEY_REQUIRED: {
+    sentenceKey: 'providers.custom.errors.catalogKeyRequired',
+    showsDetail: true,
+  },
   PROVIDER_CATALOG_KEY_REFUSED: {
     sentenceKey: 'providers.custom.errors.catalogKeyRefused',
     showsDetail: true,

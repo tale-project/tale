@@ -6,6 +6,7 @@ import {
   SettingsHeaderActionsSetter,
   type SettingsHeaderAction,
 } from '@/app/features/settings/components/settings-secondary-action-context';
+import { BackendApiError } from '@/app/lib/backend/api-client';
 import { i18n } from '@/lib/i18n/i18n';
 import { AppError } from '@/lib/shared/errors/app-error';
 import { checkAccessibility } from '@/tests/utils/a11y';
@@ -36,6 +37,7 @@ const deleteCredential = vi.hoisted(() => vi.fn());
 const setDefaultCredential = vi.hoisted(() => vi.fn());
 const refreshCatalogs = vi.hoisted(() => vi.fn());
 const checkCatalog = vi.hoisted(() => vi.fn());
+const listWithKey = vi.hoisted(() => vi.fn());
 const toastSpy = vi.hoisted(() => vi.fn());
 const urlState = vi.hoisted(() => ({ provider: null as string | null }));
 const setUrlState = vi.hoisted(() => vi.fn());
@@ -142,6 +144,10 @@ vi.mock('../hooks/mutations', () => ({
   }),
   useCheckProviderDefinitionCatalog: () => ({
     mutateAsync: checkCatalog,
+    isPending: false,
+  }),
+  useListProviderCatalogWithKey: () => ({
+    mutateAsync: listWithKey,
     isPending: false,
   }),
 }));
@@ -1443,6 +1449,108 @@ describe('ProvidersSettings', () => {
           retireUnusedCustomProvider: true,
         }),
       );
+    });
+
+    it('lists the models with the key typed into the add dialog, before anything is saved', async () => {
+      listWithKey.mockResolvedValue([model('gpt-5.5'), model('gpt-5.5-mini')]);
+      const { user } = renderPage();
+      const dialog = await pickCustom(user);
+      const list = dialog.getByRole('button', { name: 'List models' });
+      // Nothing to list until the base URL is one the schema takes.
+      expect(list).toBeDisabled();
+      await user.click(dialog.getByRole('textbox', { name: /^Base URL/ }));
+      await user.paste('https://ai.gateway.example.test/v1');
+      await user.type(
+        dialog.getByLabelText(/^API key/, { selector: 'input' }),
+        'sk-typed',
+      );
+      await user.click(list);
+      await waitFor(() =>
+        expect(listWithKey).toHaveBeenCalledExactlyOnceWith({
+          organizationId: 'org-1',
+          definition: expect.objectContaining({
+            name: 'custom-provider-draft',
+            apiFormat: 'openai',
+            baseUrl: 'https://ai.gateway.example.test/v1',
+            catalog: { source: 'models-endpoint' },
+          }),
+          secret: 'sk-typed',
+        }),
+      );
+      expect(
+        await dialog.findByText('The endpoint lists 2 models.'),
+      ).toBeInTheDocument();
+      // Nothing was saved to list them.
+      expect(createCredential).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      [
+        'PROVIDER_CATALOG_KEY_REQUIRED',
+        'The endpoint needs an API key, and the listing sent none.',
+      ],
+      [
+        'PROVIDER_CATALOG_KEY_REFUSED',
+        'The endpoint refused the API key the listing sent.',
+      ],
+    ])(
+      'says inline whether the refused listing carried a key (%s)',
+      async (code, sentence) => {
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        listWithKey.mockRejectedValue(
+          new BackendApiError(
+            502,
+            'The selected provider catalog is unavailable.',
+            code,
+          ),
+        );
+        const { user } = renderPage();
+        const dialog = await pickCustom(user);
+        await user.click(dialog.getByRole('textbox', { name: /^Base URL/ }));
+        await user.paste('https://ai.gateway.example.test/v1');
+        await user.click(dialog.getByRole('button', { name: 'List models' }));
+        expect(
+          await dialog.findByText(
+            new RegExp(`^Couldn't list the models: ${sentence}`),
+          ),
+        ).toBeInTheDocument();
+        // One report, inline: no toast besides it.
+        expect(toastSpy).not.toHaveBeenCalled();
+      },
+    );
+
+    it('checks a credential that is not the default with its own key', async () => {
+      fixtures.catalogs = [anthropicProvider, customVendor];
+      fixtures.credentials = [
+        customCredential,
+        credential({
+          id: 'c10',
+          name: 'Qwen CN team',
+          providerSlug: 'qwen-cn',
+          isDefault: false,
+        }),
+      ];
+      listWithKey.mockResolvedValue([model('qwen-max')]);
+      const { user } = renderPage();
+      await user.click(
+        screen.getByRole('button', { name: 'Actions for Qwen CN team' }),
+      );
+      await user.click(
+        within(await screen.findByRole('menu')).getByRole('menuitem', {
+          name: 'Check models',
+        }),
+      );
+      await waitFor(() =>
+        expect(listWithKey).toHaveBeenCalledWith({
+          organizationId: 'org-1',
+          name: 'qwen-cn',
+          credentialId: 'c10',
+        }),
+      );
+      expect(checkCatalog).not.toHaveBeenCalled();
+      expect(toastSpy).toHaveBeenCalledWith({
+        title: 'Qwen CN: 1 model listed',
+      });
     });
 
     it('lists the provider’s models afresh from the row menu', async () => {
