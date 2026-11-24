@@ -78,7 +78,7 @@
     "@hookform/resolvers": "5.2.2",
     "@tailwindcss/postcss": "4.2.2",
     "@tanstack/react-router": "1.168.10",
-    "i18next": "26.0.4",
+    "i18next": "26.3.4",
     "lucide-react": "1.8.0",
     "react": "19.2.5",
     "react-dom": "19.2.5",

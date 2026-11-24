@@ -539,7 +539,7 @@
     "dompurify": "3.4.17",
     "elkjs": "0.11.1",
     "framer-motion": "12.38.0",
-    "i18next": "26.0.4",
+    "i18next": "26.3.4",
     "i18next-icu": "2.4.3",
     "jsdom": "29.0.2",
     "katex": "0.18.2",
