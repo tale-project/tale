@@ -22,8 +22,10 @@
  * provisioning + network calls never fire in the normal suite.
  */
 import { spawn } from 'node:child_process';
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { mkdtemp } from 'node:fs/promises';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -32,6 +34,8 @@ import { beforeAll, describe, expect, it, type TestContext } from 'vitest';
 import {
   YtDlpError,
   buildSpawnPath,
+  captionRunArgs,
+  ffmpegLocationFlags,
   ytdlpJson,
   ytdlpWriteSubs,
   type YtDlpMetadata,
@@ -373,6 +377,97 @@ describe.skipIf(!LIVE)(
       ).toBeTruthy();
       expect(headerLine).not.toContain('none');
       expect(headerLine).toContain('yt_dlp_plugins');
+    }, 60_000);
+
+    // A page may offer an address no format to download while it still serves
+    // the captions, as YouTube answers a walled datacenter address (#5507).
+    // Offline: the toolchain's yt-dlp reads a video's description
+    // (`--load-info-json`) whose only format is a storyboard and fetches its
+    // subtitle from loopback, with the caption run's own arguments.
+    it('takes the captions of a video whose page offers no format', async () => {
+      const dir = await mkdtemp(join(tmpdir(), 'ytlive-no-formats-'));
+      const cue = 'Never gonna give you up';
+      const server = createServer((_request, response) => {
+        response.writeHead(200, { 'content-type': 'text/vtt' });
+        response.end(`WEBVTT\n\n00:00:00.000 --> 00:00:02.000\n${cue}\n`);
+      });
+      await new Promise<void>((resolve) =>
+        server.listen(0, '127.0.0.1', resolve),
+      );
+      const { port } = server.address() as AddressInfo;
+      try {
+        const info = join(dir, 'probe.info.json');
+        await writeFile(
+          info,
+          JSON.stringify({
+            _type: 'video',
+            id: 'probe',
+            title: 'probe',
+            extractor: 'generic',
+            extractor_key: 'Generic',
+            webpage_url: 'https://example.invalid/probe',
+            original_url: 'https://example.invalid/probe',
+            duration: 2,
+            formats: [
+              {
+                format_id: 'sb0',
+                format_note: 'storyboard',
+                ext: 'mhtml',
+                protocol: 'mhtml',
+                vcodec: 'none',
+                acodec: 'none',
+                url: `http://127.0.0.1:${port}/sb0`,
+                fragments: [
+                  { url: `http://127.0.0.1:${port}/sb0-1`, duration: 2 },
+                ],
+                width: 48,
+                height: 27,
+              },
+            ],
+            subtitles: {
+              en: [{ ext: 'vtt', url: `http://127.0.0.1:${port}/en.vtt` }],
+            },
+          }),
+        );
+        const stderr = await new Promise<string>((resolve, reject) => {
+          const proc = spawn(
+            'yt-dlp',
+            [
+              '--no-config',
+              '--ignore-config',
+              '--no-update',
+              ...ffmpegLocationFlags(process.env),
+              '--load-info-json',
+              info,
+              ...captionRunArgs('en', dir),
+            ],
+            {
+              stdio: ['ignore', 'ignore', 'pipe'],
+              env: {
+                PATH: buildSpawnPath(process.env),
+                HOME: dir,
+                LANG: 'C.UTF-8',
+              },
+            },
+          );
+          let out = '';
+          proc.stderr.on('data', (d) => {
+            out += d.toString();
+          });
+          proc.on('close', (code) =>
+            code === 0
+              ? resolve(out)
+              : reject(new Error(`yt-dlp exited ${code}: ${out.slice(-400)}`)),
+          );
+          proc.on('error', reject);
+        });
+        expect(stderr).not.toContain('ERROR');
+        expect(await readFile(join(dir, 'probe.en.vtt'), 'utf8')).toContain(
+          cue,
+        );
+      } finally {
+        server.close();
+      }
     }, 60_000);
 
     it(

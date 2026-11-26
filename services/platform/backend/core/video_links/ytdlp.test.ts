@@ -693,6 +693,70 @@ describe('a video through the outbound proxies [VID-R7]', () => {
   });
 });
 
+describe("a video's captions when its page offers no format (#5507)", () => {
+  // A stand-in yt-dlp on VIDEO_INGEST_BIN_DIR that answers a caption run as
+  // the real one does for a page with no format to download: it ends on
+  // yt-dlp's own error unless the run passes --ignore-no-formats-error, and
+  // then writes the captions into its HOME (the job dir), where it also keeps
+  // the run's argv.
+  const root = mkdtempSync(join(tmpdir(), 'tale-ytdlp-no-formats-'));
+  const bin = join(root, 'bin');
+  mkdirSync(bin);
+  writeFileSync(
+    join(bin, 'yt-dlp'),
+    [
+      '#!/bin/sh',
+      'case "$1" in --help) exit 0 ;; --version) echo 2099.01.01; exit 0 ;; esac',
+      'printf "%s\\n" "$@" > "$HOME/args"',
+      'for arg in "$@"; do',
+      '  if [ "$arg" = --ignore-no-formats-error ]; then',
+      `    printf 'WEBVTT\\n\\n00:00:00.000 --> 00:00:01.000\\nNever gonna give you up\\n' > "$HOME/x.en.vtt"`,
+      '    exit 0',
+      '  fi',
+      'done',
+      'echo "ERROR: [youtube] x: Requested format is not available. Use --list-formats for a list of available formats" >&2',
+      'exit 1',
+      '',
+    ].join('\n'),
+    { mode: 0o755 },
+  );
+  const saved = {
+    bin: process.env.VIDEO_INGEST_BIN_DIR,
+    pool: process.env.OUTBOUND_PROXY_URLS,
+    override: process.env.VIDEO_INGEST_PROXY_URL,
+  };
+
+  afterAll(() => {
+    for (const [name, value] of [
+      ['VIDEO_INGEST_BIN_DIR', saved.bin],
+      ['OUTBOUND_PROXY_URLS', saved.pool],
+      ['VIDEO_INGEST_PROXY_URL', saved.override],
+    ] as const) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+    resetOutboundProxiesForTests();
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it('writes the captions it was asked for, with no format to download', async () => {
+    process.env.VIDEO_INGEST_BIN_DIR = bin;
+    delete process.env.OUTBOUND_PROXY_URLS;
+    delete process.env.VIDEO_INGEST_PROXY_URL;
+    resetOutboundProxiesForTests();
+    const jobDir = mkdtempSync(join(root, 'job-'));
+
+    await expect(
+      ytdlpWriteSubs('https://www.youtube.com/watch?v=x', 'en', jobDir, {
+        timeoutMs: 10_000,
+      }),
+    ).resolves.toBe(join(jobDir, 'x.en.vtt'));
+    const argv = readFileSync(join(jobDir, 'args'), 'utf8').split('\n');
+    expect(argv).toContain('--ignore-no-formats-error');
+    expect(argv).toContain('--skip-download');
+  });
+});
+
 describe('youtubeExtractorArgsFromEnv', () => {
   it('uses the resilient default player-client list', () => {
     expect(youtubeExtractorArgsFromEnv({})).toEqual([
