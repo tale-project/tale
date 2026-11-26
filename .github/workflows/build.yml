@@ -1079,7 +1079,9 @@ jobs:
     permissions:
       contents: read
       packages: read
-    timeout-minutes: 15
+    # As the fork-PR job: a slow registry pull on a loaded runner can take
+    # half of a 15-minute limit and leave the runtime probe too little.
+    timeout-minutes: 25
 
     steps:
       - name: Checkout
@@ -1139,13 +1141,23 @@ jobs:
       # Both suites reuse the accepted images and own isolated containers.
       # Overlap metadata/document checks with runtime conformance without
       # another image download; retain both verdicts and their complete logs.
+      # Each probe's lines stream as they come, marked with its probe, so a
+      # job its limit stops still shows how far each probe got. A probe runs
+      # in a subshell of its own, whose status is the probe's (pipefail), not
+      # that of the marking filter.
       - name: Run image validation and sandbox runtime behavior
         run: |
           set -euo pipefail
           LOG_DIR=$(mktemp -d "${RUNNER_TEMP}/image-validation.XXXXXX")
-          PULL_POLICY=never bun services/platform/tests/integration/container-image-test.ts > "${LOG_DIR}/images.log" 2>&1 &
+          (
+            PULL_POLICY=never bun services/platform/tests/integration/container-image-test.ts 2>&1 |
+              tee "${LOG_DIR}/images.log" | sed -u 's/^/[images] /'
+          ) &
           IMAGES_PID=$!
-          IMAGE=tale-sandbox-runtime:latest bun services/platform/tests/integration/container-sandbox-runtime-test.ts > "${LOG_DIR}/runtime.log" 2>&1 &
+          (
+            IMAGE=tale-sandbox-runtime:latest bun services/platform/tests/integration/container-sandbox-runtime-test.ts 2>&1 |
+              tee "${LOG_DIR}/runtime.log" | sed -u 's/^/[runtime] /'
+          ) &
           RUNTIME_PID=$!
           FAILED=0
           if ! wait "$IMAGES_PID"; then FAILED=1; fi
