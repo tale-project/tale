@@ -6,13 +6,18 @@ import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { Tooltip } from '@tale/ui/tooltip';
 import { useFormatDate } from '@tale/ui/use-format-date';
-import { Clock, AlertCircle, Paperclip, Download } from 'lucide-react';
+import { Clock, AlertCircle, Paperclip, Download, Eye } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import { Image } from '@/app/components/image';
 import { AttachmentFileChip } from '@/app/features/shared/files/attachment-file-chip';
 import { formatFileSize } from '@/app/features/shared/files/file-displays';
+import {
+  ImagePreviewDialog,
+  type GalleryImage,
+} from '@/app/features/shared/markdown/image-preview-dialog';
 import { useT } from '@/lib/i18n/client';
+import { isImage } from '@/lib/shared/file-types';
 
 import type { Message as MessageType } from '../types';
 import { MessageTimestamp } from './conversation-message-layout';
@@ -121,9 +126,15 @@ interface AttachmentCardProps {
     url?: string;
     unavailable?: boolean;
   };
+  /** Open this image in the shared preview. Absent for non-images and for
+   * chips whose bytes were never stored. */
+  onPreview?: () => void;
 }
 
-function AttachmentCard({ attachment }: AttachmentCardProps) {
+const attachmentActionClass =
+  'text-muted-foreground hover:text-foreground focus-visible:ring-ring flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md hover:bg-gray-100 focus-visible:ring-2 focus-visible:outline-none';
+
+function AttachmentCard({ attachment, onPreview }: AttachmentCardProps) {
   const { t } = useT('conversations');
 
   // A download is offered ONLY when the message carries a real, servable URL
@@ -131,21 +142,36 @@ function AttachmentCard({ attachment }: AttachmentCardProps) {
   // never captured shows metadata alone — no affordance that would 404.
   const downloadUrl = attachment.url;
 
-  const trailing = downloadUrl ? (
-    <button
-      type="button"
-      onClick={() => {
-        const a = document.createElement('a');
-        a.href = downloadUrl;
-        a.download = attachment.filename;
-        a.click();
-      }}
-      className="text-muted-foreground hover:text-foreground flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md hover:bg-gray-100"
-      aria-label={`${t('attachment.download')} ${attachment.filename}`}
-    >
-      <Download className="size-3.5" />
-    </button>
-  ) : undefined;
+  const trailing =
+    onPreview || downloadUrl ? (
+      <span className="flex shrink-0 items-center">
+        {onPreview && (
+          <button
+            type="button"
+            onClick={onPreview}
+            className={attachmentActionClass}
+            aria-label={`${t('attachment.preview')} ${attachment.filename}`}
+          >
+            <Eye className="size-3.5" aria-hidden="true" />
+          </button>
+        )}
+        {downloadUrl && (
+          <button
+            type="button"
+            onClick={() => {
+              const a = document.createElement('a');
+              a.href = downloadUrl;
+              a.download = attachment.filename;
+              a.click();
+            }}
+            className={attachmentActionClass}
+            aria-label={`${t('attachment.download')} ${attachment.filename}`}
+          >
+            <Download className="size-3.5" aria-hidden="true" />
+          </button>
+        )}
+      </span>
+    ) : undefined;
 
   return (
     <AttachmentFileChip
@@ -219,6 +245,30 @@ export function Message({
     [message.attachments, referencedCids],
   );
 
+  // Image chips open the same zoomable preview chat and tasks use. Several
+  // images on one message are one gallery, so next and previous move between
+  // them. A file that is not an image, or whose bytes were never stored,
+  // stays a chip with no preview.
+  const previewImages = useMemo(() => {
+    const images: Array<GalleryImage & { id: string }> = [];
+    for (const att of displayAttachments) {
+      if (att.url && isImage(att.contentType)) {
+        images.push({ id: att.id, src: att.url, alt: att.filename });
+      }
+    }
+    return images;
+  }, [displayAttachments]);
+  const galleryImages = useMemo(
+    () => previewImages.map(({ src, alt }) => ({ src, alt })),
+    [previewImages],
+  );
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const previewIndex = previewImages.findIndex(
+    (image) => image.id === previewId,
+  );
+  const activePreview =
+    previewIndex >= 0 ? previewImages[previewIndex] : undefined;
+
   return (
     <Stack gap={0}>
       <div
@@ -281,7 +331,15 @@ export function Message({
                 </Row>
                 <Stack gap={1}>
                   {displayAttachments.map((att: Attachment) => (
-                    <AttachmentCard key={att.id} attachment={att} />
+                    <AttachmentCard
+                      key={att.id}
+                      attachment={att}
+                      onPreview={
+                        previewImages.some((image) => image.id === att.id)
+                          ? () => setPreviewId(att.id)
+                          : undefined
+                      }
+                    />
                   ))}
                 </Stack>
               </div>
@@ -358,6 +416,22 @@ export function Message({
           )}
         </div>
       </div>
+      {activePreview && (
+        <ImagePreviewDialog
+          isOpen
+          onOpenChange={(open) => {
+            if (!open) setPreviewId(null);
+          }}
+          src={activePreview.src}
+          alt={activePreview.alt}
+          images={galleryImages}
+          activeIndex={previewIndex}
+          onActiveIndexChange={(index) => {
+            const next = previewImages[index];
+            if (next) setPreviewId(next.id);
+          }}
+        />
+      )}
     </Stack>
   );
 }

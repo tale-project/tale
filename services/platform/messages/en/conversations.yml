@@ -157,6 +157,7 @@ editor:
   send: Send message
 attachment:
   download: Download
+  preview: Preview
   unavailable: No longer available
   attachments: '{count, plural, one {# attachment} other {# attachments}}'
 panel:
