@@ -714,6 +714,7 @@ def request_path(settings, workdir):
 base = {
     "security": {"auth": {"selectedType": "gemini-api-key"}},
     "privacy": {"usageStatisticsEnabled": False},
+    "advanced": {"ignoreLocalEnv": True},
     "model": {"maxSessionTurns": 200},
     "tools": {"exclude": ["google_web_search", "web_fetch"]},
     "experimental": {"dynamicModelConfiguration": True},
