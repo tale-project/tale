@@ -470,11 +470,11 @@ of it. Remote manifest inspections have three workers.
 Image validation resolves Compose once and reads one validated metadata snapshot per
 image, including the sandbox LLM gateway. Failed inspection, missing image references,
 disabled health checks, root users with group suffixes and concealed secret values fail
-the gate. Summaries report the actual verdict. On a pull request the two probes stream their
-lines as they run, each marked with its probe, and their complete logs follow grouped once
-both verdicts are in, so a job its limit stops still shows how far each probe got. That
-limit is 25 minutes, as the fork-PR job's: a slow registry pull on a loaded runner took 8 of
-the 15 minutes the job had and left the runtime probe too little to finish.
+the gate. Summaries report the actual verdict. The two probes stream their lines as they
+run, each marked with its probe, and their complete logs follow grouped once both verdicts
+are in, so a job its limit stops still shows how far each probe got. That limit is 25
+minutes, as the fork-PR job's: a slow registry pull on a loaded runner took 8 of the 15
+minutes the job had and left the runtime probe too little to finish.
 
 CLI publication downloads exactly five binary artifacts, validates the complete nonempty
 set and refuses symlinks before checksumming. It rechecks the prepared release source
