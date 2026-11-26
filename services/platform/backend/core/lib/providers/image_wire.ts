@@ -254,13 +254,23 @@ export interface ImageReplyCharge {
 /** A reply that carries no usable image, or a provider refusal. The message
  * is the provider's own words where it gave any — never the payload. The
  * charge is what the same reply reported it cost: a provider bills a request
- * it answered, whether or not the image it returned can be stored. */
+ * it answered, whether or not the image it returned can be stored.
+ * `withoutImage` marks an image API's reply whose list held no image at all
+ * — no image data, no link, no format the platform refused: the shape in
+ * which a gateway that translates the images API for a chat-only upstream
+ * relays an answer that drew nothing, dropping whatever the model wrote. */
 export class ImageReplyError extends Error {
   readonly charge: ImageReplyCharge;
-  constructor(message: string, charge: ImageReplyCharge = {}) {
+  readonly withoutImage: boolean;
+  constructor(
+    message: string,
+    charge: ImageReplyCharge = {},
+    options: { withoutImage?: boolean } = {},
+  ) {
     super(message);
     this.name = 'ImageReplyError';
     this.charge = charge;
+    this.withoutImage = options.withoutImage === true;
   }
 }
 
@@ -518,7 +528,7 @@ function readChatTokenUsage(value: unknown): ImageTokenUsage | undefined {
 
 function decodeBase64Image(raw: string): Uint8Array | null {
   // The field is raw base64 in the image APIs; a data URL is tolerated.
-  const comma = raw.startsWith('data:') ? raw.indexOf(',') : -1;
+  const comma = /^data:/i.test(raw) ? raw.indexOf(',') : -1;
   const encoded = comma >= 0 ? raw.slice(comma + 1) : raw;
   const bytes = Buffer.from(encoded, 'base64');
   return bytes.length > 0 ? new Uint8Array(bytes) : null;
@@ -659,6 +669,8 @@ export function parseImageReply(
   if (refusal !== undefined) throw new ImageReplyError(refusal, charge);
   let encoded: string[];
   let chat: ChatReplyImages | undefined;
+  /** Images an image API's reply links to instead of sending. */
+  let links = 0;
   if (wire === 'chat-images') {
     chat = readChatReplyImages(payload);
     if (chat === undefined) {
@@ -675,11 +687,17 @@ export function parseImageReply(
         charge,
       );
     }
-    encoded = payload.data.flatMap((item: unknown) =>
-      isRecord(item) && typeof item.b64_json === 'string'
-        ? [item.b64_json]
-        : [],
-    );
+    encoded = [];
+    for (const item of payload.data as unknown[]) {
+      if (!isRecord(item)) continue;
+      if (typeof item.b64_json === 'string' && item.b64_json !== '') {
+        encoded.push(item.b64_json);
+      } else if (typeof item.url === 'string') {
+        // The images APIs send a link here; a data URL is the image itself.
+        if (/^data:/i.test(item.url)) encoded.push(item.url);
+        else if (item.url.trim() !== '') links += 1;
+      }
+    }
   }
   const images: GeneratedImage[] = [];
   let refusedFormats = 0;
@@ -698,13 +716,27 @@ export function parseImageReply(
     images.push({ bytes, mediaType, ...size });
   }
   if (images.length === 0) {
+    if (refusedFormats > 0) {
+      throw new ImageReplyError(
+        'the model returned an image format the platform does not store (PNG, JPEG, WebP and GIF are); pick a raster image model',
+        charge,
+      );
+    }
+    if (chat !== undefined) {
+      throw new ImageReplyError(chatReplyWithoutImage(chat), charge);
+    }
+    if (links > 0) {
+      throw new ImageReplyError(
+        'the provider answered with a link to an image rather than the image itself, and the platform fetches no address a provider names',
+        charge,
+      );
+    }
+    // Only a list that carried nothing at all: image data that does not
+    // decode was still sent, and billed.
     throw new ImageReplyError(
-      refusedFormats > 0
-        ? 'the model returned an image format the platform does not store (PNG, JPEG, WebP and GIF are); pick a raster image model'
-        : chat !== undefined
-          ? chatReplyWithoutImage(chat)
-          : 'the provider answered without an image',
+      'the provider answered without an image',
       charge,
+      { withoutImage: encoded.length === 0 },
     );
   }
   return { images, refusedFormats, ...charge };
