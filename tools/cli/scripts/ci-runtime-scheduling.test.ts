@@ -215,7 +215,20 @@ exit "$result"
           'start runtime',
         ]);
         expect(events.slice(2)).toEqual(['finish images', 'finish runtime']);
-        expect(stdout).toBe(
+        // Each probe's lines streamed as they came, marked with its probe
+        // (the two probes' lines may interleave), then the complete logs.
+        const groups = stdout.indexOf('::group::');
+        const streamed = stdout.slice(0, groups).split('\n').filter(Boolean);
+        expect(streamed).toHaveLength(4);
+        for (const suite of ['images', 'runtime']) {
+          expect(
+            streamed.filter((line) => line.startsWith(`[${suite}] `)),
+          ).toEqual([
+            `[${suite}] ${suite} stdout complete`,
+            `[${suite}] ${suite} stderr complete`,
+          ]);
+        }
+        expect(stdout.slice(groups)).toBe(
           '::group::Container image validation\nimages stdout complete\nimages stderr complete\n::endgroup::\n' +
             '::group::Sandbox runtime conformance\nruntime stdout complete\nruntime stderr complete\n::endgroup::\n',
         );
@@ -240,5 +253,83 @@ exit "$result"
         await rm(directory, { recursive: true, force: true });
       }
     },
+  );
+
+  test.skipIf(process.platform === 'win32')(
+    "actual workflow streams a probe's lines while the probe still runs",
+    async () => {
+      const job = (await workflow()).jobs['image-validate']!;
+      const probe = job.steps.find(
+        (step) =>
+          step.run?.includes(imageSuite) && step.run.includes(runtimeSuite),
+      )!;
+      const directory = await mkdtemp(
+        join(tmpdir(), 'tale-ci-runtime-streaming-'),
+      );
+      try {
+        // The runtime stand-in prints a line, then holds until the test has
+        // read that line from the step's own output: a step that shows the
+        // logs only once both probes end never releases it.
+        await writeFile(
+          join(directory, 'bun'),
+          `#!/bin/sh
+set -eu
+case "$1" in
+  */container-image-test.ts) echo 'images done'; exit 0 ;;
+  */container-sandbox-runtime-test.ts) ;;
+  *) exit 99 ;;
+esac
+echo 'runtime started'
+attempts=0
+while [ ! -f "$TEST_STATE/released" ]; do
+  attempts=$((attempts + 1))
+  [ "$attempts" -le 1000 ] || exit 98
+  sleep 0.01
+done
+echo 'runtime done'
+`,
+          { mode: 0o755 },
+        );
+        const child = Bun.spawn(
+          [
+            process.platform === 'darwin' ? '/bin/bash' : 'bash',
+            '-c',
+            probe.run!,
+          ],
+          {
+            cwd: directory,
+            env: {
+              PATH: `${directory}:${process.env.PATH}`,
+              RUNNER_TEMP: directory,
+              TEST_STATE: directory,
+              ...probe.env,
+            },
+            stdout: 'pipe',
+            stderr: 'pipe',
+          },
+        );
+        const reader = child.stdout.getReader();
+        const decoder = new TextDecoder();
+        let seen = '';
+        while (!seen.includes('[runtime] runtime started\n')) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          seen += decoder.decode(value, { stream: true });
+        }
+        expect(seen).toContain('[runtime] runtime started\n');
+        expect(seen).not.toContain('runtime done');
+        await writeFile(join(directory, 'released'), '');
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          seen += decoder.decode(value, { stream: true });
+        }
+        expect(await child.exited).toBe(0);
+        expect(seen).toContain('[runtime] runtime done\n');
+      } finally {
+        await rm(directory, { recursive: true, force: true });
+      }
+    },
+    20_000,
   );
 });
