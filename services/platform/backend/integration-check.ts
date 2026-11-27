@@ -62741,6 +62741,10 @@ async function checkWatchdogs(
     'render-wd-refused',
     'render',
   );
+  // A light sandbox's create the host refused settles the same way, through
+  // the session store the light lane writes with (SBX-R44): its id keeps its
+  // place in the host's line, and nothing may destroy it.
+  const refusedLightRowId = await reserveRefused('lt-wd-refused', 'light');
   await refusedTaskShim(sql)['sandbox/session_mutations:setSessionStatus']?.({
     rowId: refusedAgentRowId,
     status: 'failed',
@@ -62748,6 +62752,14 @@ async function checkWatchdogs(
   });
   await refusedRenderShim(sql)['sandbox/session_mutations:setSessionStatus']?.({
     rowId: refusedRenderRowId,
+    status: 'failed',
+    collected: true,
+  });
+  const { setSessionStatus: settleRefusedLight } =
+    await import('./domains/sandbox/sessions.ts');
+  await settleRefusedLight(sql, {
+    organizationId: orgId,
+    sessionId: 'lt-wd-refused',
     status: 'failed',
     collected: true,
   });
@@ -62778,17 +62790,18 @@ async function checkWatchdogs(
   >`
     SELECT id, status, destroyed_at_ms::float8 AS "destroyedAt"
     FROM app.sandbox_sessions
-    WHERE id = ANY(${[refusedAgentRowId, refusedRenderRowId]})
+    WHERE id = ANY(${[refusedAgentRowId, refusedRenderRowId, refusedLightRowId]})
   `;
   record(
     'a create the sandbox host refused leaves its row collected, and the COLLECT pass never destroys its id',
-    refusedAfter.length === 2 &&
+    refusedAfter.length === 3 &&
       refusedAfter.every(
         (row) => row.status === 'failed' && row.destroyedAt !== null,
       ) &&
       !refusedAsked.includes('pa-wd-refused') &&
-      !refusedAsked.includes('render-wd-refused'),
-    `rows=${refusedAfter.map((row) => `${row.status}/${row.destroyedAt === null ? 'unstamped' : 'stamped'}`).join(' ')} asked=${refusedAsked.filter((id) => id.endsWith('-wd-refused')).join(',') || 'none'} (want both failed/stamped, neither asked)`,
+      !refusedAsked.includes('render-wd-refused') &&
+      !refusedAsked.includes('lt-wd-refused'),
+    `rows=${refusedAfter.map((row) => `${row.status}/${row.destroyedAt === null ? 'unstamped' : 'stamped'}`).join(' ')} asked=${refusedAsked.filter((id) => id.endsWith('-wd-refused')).join(',') || 'none'} (want all three failed/stamped, none asked)`,
   );
 
   // What waiting for room leaves behind goes: the op rows of refused starts

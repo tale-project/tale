@@ -8,6 +8,7 @@ import {
   sessionDestroyIfIdle,
   sessionIsAlive,
   SpawnerBusyError,
+  type SpawnerQueuePlace,
   SpawnerUnreachableError,
 } from '../../core/node_only/sandbox/helpers/session_client.ts';
 import {
@@ -43,7 +44,10 @@ import {
  *    ({@link releaseIdleLightSessions}); the spawner's own idle stop is the
  *    backstop;
  *  - a light sandbox that vanished (a host restart, the OOM killer) is simply
- *    created again on the next call.
+ *    created again on the next call;
+ *  - a start the sandbox host has no room for keeps the place the host gave
+ *    it in its first-come line, and the caller (`run_code`) asks again when
+ *    the host says to.
  */
 
 /** The `sandbox_sessions.owner_type` of a light sandbox; its budget is
@@ -78,19 +82,27 @@ export function lightSessionId(
 
 /** No light sandbox could be had right now: the organization's light
  * budget is full of sandboxes in use (`budget`), or the sandbox host is at
- * its capacity (`host`). Either frees by itself. */
+ * its capacity (`host`). Either frees by itself. A host's refusal names, for
+ * the log, what the host is short of (`refusal`: `host_cpu`, `host_memory`,
+ * `session_quota`, …) and the place the start holds in the host's
+ * first-come line (`queue`), when it said. */
 export class LightSandboxBusyError extends Error {
   readonly retryAfterMs: number | undefined;
   readonly kind: 'budget' | 'host';
+  readonly refusal: string | undefined;
+  readonly queue: SpawnerQueuePlace | undefined;
   constructor(
     message: string,
     retryAfterMs?: number,
     kind: 'budget' | 'host' = 'budget',
+    host?: { refusal?: string; queue?: SpawnerQueuePlace },
   ) {
     super(message);
     this.name = 'LightSandboxBusyError';
     this.retryAfterMs = retryAfterMs;
     this.kind = kind;
+    this.refusal = host?.refusal;
+    this.queue = host?.queue;
   }
 }
 
@@ -148,6 +160,7 @@ function lightSandboxStartError(error: unknown): Error {
       'The sandbox host is busy right now.',
       error.retryAfterMs,
       'host',
+      { refusal: error.refusal, queue: error.queue },
     );
   }
   const kind =
@@ -269,22 +282,31 @@ async function acquireNow(
       ttlMs: LIGHT_SESSION_TTL_MS,
     });
   } catch (error) {
+    // A create the host refused (429) made nothing, so it destroys nothing
+    // and its row is settled as collected, as the render lane settles one.
+    // A destroy would also give up the place the refusal holds for this id
+    // in the host's first-come line: every later ask would start again at
+    // its back, behind each start that asked meanwhile.
+    const refused = error instanceof SpawnerBusyError;
     await setSessionStatus(sql, {
       organizationId: owner.organizationId,
       sessionId,
       status: 'failed',
+      ...(refused ? { collected: true } : {}),
     }).catch((settle: unknown) => {
       console.warn(
         `[light-session] settling the failed create of ${sessionId} failed:`,
         settle,
       );
     });
-    await spawner.destroy(sessionId).catch((cleanup: unknown) => {
-      console.warn(
-        `[light-session] cleaning up the failed create of ${sessionId} failed:`,
-        cleanup,
-      );
-    });
+    if (!refused) {
+      await spawner.destroy(sessionId).catch((cleanup: unknown) => {
+        console.warn(
+          `[light-session] cleaning up the failed create of ${sessionId} failed:`,
+          cleanup,
+        );
+      });
+    }
     throw lightSandboxStartError(error);
   }
   await setSessionStatus(sql, {

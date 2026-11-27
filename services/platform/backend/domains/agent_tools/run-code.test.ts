@@ -19,7 +19,11 @@ import {
   LightSandboxUnavailableError,
   touchLightSession,
 } from '../sandbox/light-sessions.ts';
-import { prewarmLightSandbox, runRunCode } from './run-code.ts';
+import {
+  HOST_ROOM_WAIT_MS,
+  prewarmLightSandbox,
+  runRunCode,
+} from './run-code.ts';
 import { FULL_LOADOUT, testScope } from './test-helpers.ts';
 
 vi.mock(
@@ -56,9 +60,23 @@ vi.mock('../../core/skills/file_actions.ts', () => ({
 vi.mock('../sandbox/light-sessions.ts', () => {
   class MockLightSandboxBusyError extends Error {
     readonly kind: 'budget' | 'host';
-    constructor(message: string, _retryAfterMs?: number, kind?: 'host') {
+    readonly retryAfterMs: number | undefined;
+    readonly refusal: string | undefined;
+    readonly queue: { position: number; waiting: number } | undefined;
+    constructor(
+      message: string,
+      retryAfterMs?: number,
+      kind?: 'host',
+      host?: {
+        refusal?: string;
+        queue?: { position: number; waiting: number };
+      },
+    ) {
       super(message);
       this.kind = kind ?? 'budget';
+      this.retryAfterMs = retryAfterMs;
+      this.refusal = host?.refusal;
+      this.queue = host?.queue;
     }
   }
   class MockLightSandboxUnavailableError extends Error {
@@ -679,18 +697,202 @@ describe('run_code', () => {
     ).resolves.toMatchObject({ status: 'busy', reason: 'sandboxes_busy' });
   });
 
-  it('tells a busy sandbox host from a full budget [CHAT-R30]', async () => {
-    vi.mocked(acquireLightSession).mockRejectedValueOnce(
+  describe('when the sandbox host has no room for a light sandbox', () => {
+    const hostBusy = (
+      host: {
+        refusal?: string;
+        queue?: { position: number; waiting: number };
+      } = {},
+    ) =>
       new LightSandboxBusyError(
         'The sandbox host is busy right now.',
         5_000,
         'host',
-      ),
-    );
-    const { scope } = testScope();
-    await expect(
-      runRunCode(scope, { language: 'python', code: 'print(1)' }),
-    ).resolves.toMatchObject({ status: 'busy', reason: 'sandbox_host_busy' });
+        host,
+      );
+    const PROGRAM = { language: 'python', code: 'print(1)' };
+
+    /** Whether `promise` has settled, read without waiting for it. */
+    function settledFlag(promise: Promise<unknown>): () => boolean {
+      let settled = false;
+      void promise.then(() => {
+        settled = true;
+      });
+      return () => settled;
+    }
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('tells a busy sandbox host from a full budget [CHAT-R30]', async () => {
+      vi.useFakeTimers();
+      const warn = vi
+        .spyOn(console, 'warn')
+        .mockImplementation(() => undefined);
+      vi.mocked(acquireLightSession).mockRejectedValue(hostBusy());
+      const { scope } = testScope();
+
+      const running = runRunCode(scope, PROGRAM);
+      await vi.advanceTimersByTimeAsync(HOST_ROOM_WAIT_MS);
+
+      await expect(running).resolves.toMatchObject({
+        status: 'busy',
+        reason: 'sandbox_host_busy',
+      });
+      warn.mockRestore();
+    });
+
+    it('waits its turn in a chat, asking again when the host says to, then runs the code [SBX-R44]', async () => {
+      vi.useFakeTimers();
+      const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+      vi.mocked(acquireLightSession)
+        .mockRejectedValueOnce(
+          hostBusy({ refusal: 'host_cpu', queue: { position: 1, waiting: 2 } }),
+        )
+        .mockRejectedValueOnce(
+          hostBusy({ refusal: 'host_cpu', queue: { position: 0, waiting: 2 } }),
+        )
+        .mockResolvedValueOnce({ sessionId: 'lt-1', created: true });
+      // A chat's scope: no patience of its own.
+      const { scope } = testScope();
+
+      const running = runRunCode(scope, PROGRAM);
+      await vi.advanceTimersByTimeAsync(4_999);
+      expect(acquireLightSession).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(acquireLightSession).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(5_000);
+
+      await expect(running).resolves.toMatchObject({ status: 'ok' });
+      expect(acquireLightSession).toHaveBeenCalledTimes(3);
+      expect(log).toHaveBeenCalledWith(
+        expect.stringContaining('after 10 s in the sandbox host'),
+      );
+      expect(log).toHaveBeenCalledWith(
+        expect.stringContaining('(host_cpu, place 1 of 2)'),
+      );
+      log.mockRestore();
+    });
+
+    it('gives up after a minute in a chat, saying so, and logs what the host was short of [SBX-R44]', async () => {
+      vi.useFakeTimers();
+      const warn = vi
+        .spyOn(console, 'warn')
+        .mockImplementation(() => undefined);
+      vi.mocked(acquireLightSession).mockRejectedValue(
+        hostBusy({
+          refusal: 'host_memory',
+          queue: { position: 2, waiting: 4 },
+        }),
+      );
+      const { scope } = testScope();
+
+      const running = runRunCode(scope, PROGRAM);
+      const settled = settledFlag(running);
+      await vi.advanceTimersByTimeAsync(HOST_ROOM_WAIT_MS - 1);
+      expect(settled()).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+
+      const result = await running;
+      expect(result).toMatchObject({
+        status: 'busy',
+        reason: 'sandbox_host_busy',
+      });
+      expect((result as { message: string }).message).toMatch(
+        /in the 60 seconds this call waited/,
+      );
+      // At the five seconds the host named, and once more as the minute
+      // ends: twelve waits, thirteen asks.
+      expect(acquireLightSession).toHaveBeenCalledTimes(13);
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('(host_memory, place 3 of 4)'),
+      );
+      warn.mockRestore();
+    });
+
+    it('waits as long as its lane’s own patience where that is longer [SBX-R44]', async () => {
+      vi.useFakeTimers();
+      const warn = vi
+        .spyOn(console, 'warn')
+        .mockImplementation(() => undefined);
+      vi.mocked(acquireLightSession).mockRejectedValue(hostBusy());
+      const { scope } = testScope({ lightSandboxWaitMs: 90_000 });
+
+      const running = runRunCode(scope, PROGRAM);
+      const settled = settledFlag(running);
+      await vi.advanceTimersByTimeAsync(HOST_ROOM_WAIT_MS + 5_000);
+      expect(settled()).toBe(false);
+      await vi.advanceTimersByTimeAsync(25_000);
+
+      await expect(running).resolves.toMatchObject({
+        status: 'busy',
+        reason: 'sandbox_host_busy',
+      });
+      warn.mockRestore();
+    });
+
+    it('asks no more than once a second, whatever wait the host names [SBX-R44]', async () => {
+      vi.useFakeTimers();
+      const warn = vi
+        .spyOn(console, 'warn')
+        .mockImplementation(() => undefined);
+      vi.mocked(acquireLightSession).mockRejectedValue(
+        new LightSandboxBusyError(
+          'The sandbox host is busy right now.',
+          0,
+          'host',
+        ),
+      );
+      const { scope } = testScope();
+
+      const running = runRunCode(scope, PROGRAM);
+      await vi.advanceTimersByTimeAsync(5_000);
+      // At 0, 1, 2, 3, 4 and 5 seconds: not a tight loop of creates.
+      expect(acquireLightSession).toHaveBeenCalledTimes(6);
+      await vi.advanceTimersByTimeAsync(HOST_ROOM_WAIT_MS);
+
+      await expect(running).resolves.toMatchObject({
+        status: 'busy',
+        reason: 'sandbox_host_busy',
+      });
+      warn.mockRestore();
+    });
+
+    it('still answers a full budget at once in a chat, after a wait for the host [SBX-R23]', async () => {
+      vi.useFakeTimers();
+      vi.mocked(acquireLightSession)
+        .mockRejectedValueOnce(hostBusy())
+        .mockRejectedValueOnce(
+          new LightSandboxBusyError('All light sandboxes are in use.'),
+        );
+      const { scope } = testScope();
+
+      const running = runRunCode(scope, PROGRAM);
+      await vi.advanceTimersByTimeAsync(5_000);
+
+      await expect(running).resolves.toMatchObject({
+        status: 'busy',
+        reason: 'sandboxes_busy',
+      });
+      expect(acquireLightSession).toHaveBeenCalledTimes(2);
+    });
+
+    it('stops waiting for the host the moment the reply is stopped [CHAT-R25]', async () => {
+      vi.useFakeTimers();
+      vi.mocked(acquireLightSession).mockRejectedValue(hostBusy());
+      const { scope } = testScope();
+      const stop = new AbortController();
+
+      const running = runRunCode(scope, PROGRAM, { signal: stop.signal });
+      await vi.advanceTimersByTimeAsync(2_000);
+      stop.abort();
+      await vi.advanceTimersByTimeAsync(0);
+
+      await expect(running).resolves.toMatchObject({ status: 'cancelled' });
+      // Not the minute it would have waited, and no timer left behind.
+      expect(vi.getTimerCount()).toBe(0);
+    });
   });
 
   describe('when no light sandbox can start [CHAT-R30]', () => {

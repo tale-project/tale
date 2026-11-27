@@ -422,6 +422,22 @@ working sandbox. It is removed only once it has itself been unused for five minu
 - **Example**: Mia's chat could not start a sandbox at 10:00 (the host was busy) and got one at
   10:01, last used at 10:04 → at 10:06 the sandbox is still there, with its files.
 
+### SBX-R44 · A light sandbox the host has no room for waits its turn for a minute
+
+Unlike the organization's own limit (`SBX-R23`), the sandbox host keeps a first-come line. When
+the host has no room — it is full, short of memory, or under CPU pressure that lets one start in
+at a time — a new light sandbox waits its turn there, asking again when the host says to: a
+chat for up to a minute, a task run for up to its 90 seconds. A refused ask destroys nothing,
+so the sandbox keeps its place between asks. Stop, or the end of the step's five minutes, ends
+the wait. Only when the wait runs out does the step say that the sandbox host is busy, and the
+platform's log names what the host was short of.
+
+- **Example**: Mia's chat runs code while the host is under CPU pressure and lets one start in
+  every ten seconds → her step waits a few seconds longer, the sandbox starts, and her Word
+  document is made.
+- **Example**: The host stays short of memory for more than a minute → Mia's step reads that
+  the sandbox host is busy, and the reply tells her to try again in a few minutes.
+
 ## Current execution discovery
 
 ### SBX-R27 · Discovery binds self identity without changing grants

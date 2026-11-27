@@ -303,17 +303,26 @@ async function listSessionsForOrg(
 }
 
 /** Flip a live session's lifecycle status (creating → active on
- * runnerd-ready; → degraded/destroyed/expired/failed otherwise). */
+ * runnerd-ready; → degraded/destroyed/expired/failed otherwise).
+ * `collected` settles a row whose create the spawner refused: nothing exists
+ * under its id, so it is stamped as collected and no watchdog pass asks the
+ * spawner to remove anything for it — as the render lane settles one. */
 export async function setSessionStatus(
   sql: Sql,
-  args: { organizationId: string; sessionId: string; status: string },
+  args: {
+    organizationId: string;
+    sessionId: string;
+    status: string;
+    collected?: boolean;
+  },
 ): Promise<boolean> {
   const now = Date.now();
   const rows = await sql<{ id: string }[]>`
     UPDATE app.sandbox_sessions SET
       status = ${args.status},
       last_activity_at_ms = ${now},
-      destroyed_at_ms = CASE WHEN ${args.status} = 'destroyed'
+      destroyed_at_ms = CASE
+        WHEN ${args.status} = 'destroyed' OR ${args.collected === true}
         THEN ${now}::bigint ELSE destroyed_at_ms END
     WHERE session_id = ${args.sessionId} AND org_id = ${args.organizationId}
       AND status = ANY(${[...SANDBOX_SESSION_LIVE_STATUSES]})
