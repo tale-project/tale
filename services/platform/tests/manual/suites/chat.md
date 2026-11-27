@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 161 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 162 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -1199,6 +1199,17 @@ in chat (mode A: the mock's).
   sandboxes are in use and to try again in a minute, without a file; once
   chat one has finished and idled 30 seconds, chat two's retry succeeds.
   Restore the limit.
+- [ ] `CHAT-B34` · **A busy sandbox host makes the step wait** — Recreate the
+  spawner with `SANDBOX_MAX_SESSIONS=1`. Mode A with the sandbox service: in
+  chat one, send `e2e:make-spreadsheet` → its file arrives, and its light
+  sandbox now holds the host's only session. In chat two, send it again →
+  **Running Python in a light sandbox** keeps running instead of failing;
+  within the minute, **Destroy** chat one's light sandbox in Settings >
+  Sandboxes → chat two's file arrives a few seconds later. Send it in a third
+  chat and leave it → after about a minute the line under the step reads **The
+  sandbox host is busy** (`chat.thinking.outcome.sandboxHostBusy`), and the
+  platform's log names the refusal: `the sandbox host had no room for the
+  light sandbox of … (session_quota, …)`. Restore the setting.
 - [ ] `CHAT-B24` · **No images while image generation is off** — With image
   generation off (the default, GOV-F38), mode B: ask "Generate an image of a
   lighthouse at sunset" → no **Generating an image** step

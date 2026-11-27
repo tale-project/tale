@@ -63,7 +63,7 @@ A skill guides the assistant; it does not change what the assistant is allowed t
 
 ## Know the limits
 
-- A light sandbox belongs to one conversation. It keeps its files between the assistant’s steps and your follow-up messages, and after about five minutes without use it is removed; the next request starts a fresh one. When your organization’s light sandboxes are all in use, an idle one gives way; when none is idle, the assistant tells you to try again in a minute.
+- A light sandbox belongs to one conversation. It keeps its files between the assistant’s steps and your follow-up messages, and after about five minutes without use it is removed; the next request starts a fresh one. When your organization’s light sandboxes are all in use, an idle one gives way; when none is idle, the assistant tells you to try again in a minute. When the sandbox host itself has no room for a new one, the step waits its turn for up to a minute before it says **The sandbox host is busy**.
 - One run of code may take up to three minutes, and the tools of one step may run for at most five minutes together. At most 16 tools run in one step. Press **Stop generating** and a running program is cut off within seconds. A run attaches up to 10 files, each up to 20 MB; when a program writes many more, the reply names a few and counts the rest.
 - A file the assistant writes itself holds up to 1 MB of text.
 - When the assistant runs code with a skill, it copies the skill’s files into the light sandbox, each up to the 4 MB a [skill file](/platform/workspace/skills#import-an-existing-bundle) may hold. If one cannot be copied, the step says **A file couldn't be copied into the sandbox**, and the assistant is told which file it was and which limit stopped it.

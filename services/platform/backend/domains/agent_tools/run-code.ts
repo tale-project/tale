@@ -120,6 +120,23 @@ const PROGRAM_ENV = {
  * named no time of its own. */
 const BUSY_POLL_MS = 3_000;
 
+/** The shortest wait between two asks, whatever the host named: a hint of
+ * nothing (a `retry-after: 0`) must not turn the wait into a tight loop of
+ * creates against the host and the database. */
+const MIN_ASK_INTERVAL_MS = 1_000;
+
+/**
+ * How long every call waits, at the least, for a sandbox host that has no
+ * room for its light sandbox. The host keeps the refused start's place in
+ * its first-come line and says when to ask again: under CPU pressure it lets
+ * one start in every ten seconds, and memory frees as running programs end.
+ * A call that answered busy at once gave that place up over a wait of
+ * seconds, and a person asking again stood behind every start that asked
+ * meanwhile. A lane with more patience waits longer; Stop and the step's own
+ * time still end the wait.
+ */
+export const HOST_ROOM_WAIT_MS = 60_000;
+
 /** The reply was stopped, or the round's tools ran out of time, while this
  * call waited. */
 class StoppedWhileWaiting extends Error {}
@@ -218,26 +235,46 @@ function pause(ms: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
+/** A host's refusal as the log names it: what the host is short of, and the
+ * place the start holds in its line. */
+function hostRefusalLabel(error: LightSandboxBusyError): string {
+  const reason = error.refusal ?? 'no reason given';
+  return error.queue === undefined
+    ? reason
+    : `${reason}, place ${error.queue.position + 1} of ${error.queue.waiting}`;
+}
+
 /**
- * The owner's light sandbox, waiting up to the scope's patience when none can
- * be had now. Every sandbox of the organization running code frees within
- * the three minutes one call may take, and a host preparing its image is
- * ready soon after, so a lane with nobody to ask again (a task run) waits
- * rather than giving up on its first refusal.
+ * The owner's light sandbox, waiting when none can be had now. A sandbox
+ * host without room is waited out in every lane for at least {@link
+ * HOST_ROOM_WAIT_MS}, asking again when the host says to. Beyond that, a call
+ * waits up to the scope's patience: every sandbox of the organization running
+ * code frees within the three minutes one call may take, and a host
+ * preparing its image is ready soon after, so a lane with nobody to ask again
+ * (a task run) waits rather than giving up on its first refusal.
  */
 async function acquireLeased(
   scope: WorkToolScope,
   signal?: AbortSignal,
 ): Promise<LightSessionLease> {
-  const deadline = Date.now() + (scope.lightSandboxWaitMs ?? 0);
+  const startedAt = Date.now();
+  const patience = scope.lightSandboxWaitMs ?? 0;
+  const hostPatience = Math.max(patience, HOST_ROOM_WAIT_MS);
+  let hostRefusal: LightSandboxBusyError | undefined;
   for (;;) {
     if (signal?.aborted === true) throw new StoppedWhileWaiting();
     try {
-      return await acquireLightSession(scope.sql, {
+      const lease = await acquireLightSession(scope.sql, {
         organizationId: scope.organizationId,
         ownerKey: scope.sandboxOwnerKey,
         createdBy: scope.userId,
       });
+      if (hostRefusal !== undefined) {
+        console.log(
+          `[run_code] the light sandbox of ${scope.organizationId} started after ${Math.round((Date.now() - startedAt) / 1000)} s in the sandbox host's line (${hostRefusalLabel(hostRefusal)})`,
+        );
+      }
+      return lease;
     } catch (error) {
       if (
         !(error instanceof LightSandboxBusyError) &&
@@ -248,9 +285,25 @@ async function acquireLeased(
       ) {
         throw error;
       }
-      const left = deadline - Date.now();
-      if (left <= 0) throw error;
-      await pause(Math.min(error.retryAfterMs ?? BUSY_POLL_MS, left), signal);
+      const host =
+        error instanceof LightSandboxBusyError && error.kind === 'host';
+      if (host) hostRefusal = error;
+      const left = startedAt + (host ? hostPatience : patience) - Date.now();
+      if (left <= 0) {
+        if (host) {
+          console.warn(
+            `[run_code] the sandbox host had no room for the light sandbox of ${scope.organizationId} in ${Math.round((Date.now() - startedAt) / 1000)} s (${hostRefusalLabel(error)}); the call answers busy`,
+          );
+        }
+        throw error;
+      }
+      await pause(
+        Math.min(
+          Math.max(error.retryAfterMs ?? BUSY_POLL_MS, MIN_ASK_INTERVAL_MS),
+          left,
+        ),
+        signal,
+      );
     }
   }
 }
@@ -432,15 +485,23 @@ export async function runRunCode(
   }
 
   let lease: LightSessionLease;
+  const waitedFrom = Date.now();
   try {
     lease = await acquireLeased(scope, signal);
   } catch (error) {
     if (error instanceof StoppedWhileWaiting) return stopped();
+    if (error instanceof LightSandboxBusyError && error.kind === 'host') {
+      return failure(
+        'busy',
+        `The sandbox host had no room for a light sandbox in the ${Math.round((Date.now() - waitedFrom) / 1000)} seconds this call waited for one. You may call run_code once more; if the host is still busy, tell the user that code cannot run right now and to try again in a few minutes, and answer without running code.`,
+        'sandbox_host_busy',
+      );
+    }
     if (error instanceof LightSandboxBusyError) {
       return failure(
         'busy',
         `${error.message} Try again in a minute, or answer without running code.`,
-        error.kind === 'host' ? 'sandbox_host_busy' : 'sandboxes_busy',
+        'sandboxes_busy',
       );
     }
     if (error instanceof LightSandboxUnavailableError) {

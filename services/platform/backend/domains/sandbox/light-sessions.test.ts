@@ -36,10 +36,12 @@ import {
 vi.mock('../../core/node_only/sandbox/helpers/session_client.ts', () => {
   class MockSpawnerBusyError extends Error {
     readonly retryAfterMs: number | undefined;
+    readonly queue: unknown;
     readonly refusal: string | undefined;
-    constructor(retryAfterMs?: number, _queue?: unknown, refusal?: string) {
+    constructor(retryAfterMs?: number, queue?: unknown, refusal?: string) {
       super('busy');
       this.retryAfterMs = retryAfterMs;
+      this.queue = queue;
       this.refusal = refusal;
     }
   }
@@ -274,20 +276,71 @@ describe('acquireLightSession', () => {
     expect(spawner.create).not.toHaveBeenCalled();
   });
 
-  it('settles a create the host refused as busy and says so', async () => {
+  it('keeps the place a create the host refused holds in its line: it destroys nothing [SBX-R44]', async () => {
     const { sql } = fakeSql();
     const spawner = fakeSpawner({
-      create: vi.fn(() => Promise.reject(new SpawnerBusyError(5000))),
+      create: vi.fn(() =>
+        Promise.reject(
+          new SpawnerBusyError(5000, { position: 1, waiting: 3 }, 'host_cpu'),
+        ),
+      ),
     });
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
     await expect(acquireLightSession(sql, OWNER, spawner)).rejects.toThrow(
       LightSandboxBusyError,
     );
+    // Nothing was made: the row settles as collected, so no watchdog pass
+    // asks the spawner to remove anything for it either.
     expect(setSessionStatus).toHaveBeenCalledWith(
       sql,
-      expect.objectContaining({ status: 'failed' }),
+      expect.objectContaining({ status: 'failed', collected: true }),
     );
+    expect(spawner.destroy).not.toHaveBeenCalled();
+  });
+
+  it('names what the host is short of and the place the start holds [SBX-R44]', async () => {
+    const { sql } = fakeSql();
+    const spawner = fakeSpawner({
+      create: vi.fn(() =>
+        Promise.reject(
+          new SpawnerBusyError(
+            10_000,
+            { position: 0, waiting: 2 },
+            'host_memory',
+          ),
+        ),
+      ),
+    });
+
+    await expect(
+      acquireLightSession(sql, OWNER, spawner),
+    ).rejects.toMatchObject({
+      kind: 'host',
+      retryAfterMs: 10_000,
+      refusal: 'host_memory',
+      queue: { position: 0, waiting: 2 },
+    });
+  });
+
+  it('cleans up after a create that failed for any other cause', async () => {
+    const { sql } = fakeSql();
+    const spawner = fakeSpawner({
+      create: vi.fn(() =>
+        Promise.reject(new Error('sandbox session create failed (500)')),
+      ),
+    });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    await expect(acquireLightSession(sql, OWNER, spawner)).rejects.toThrow(
+      LightSandboxUnavailableError,
+    );
+    // The start may have left something under the id: its row waits for
+    // the destroy, uncollected.
+    expect(setSessionStatus).toHaveBeenCalledWith(sql, {
+      organizationId: ORG,
+      sessionId: lightSessionId(ORG, 'thread-1'),
+      status: 'failed',
+    });
     expect(spawner.destroy).toHaveBeenCalledOnce();
     warn.mockRestore();
   });
