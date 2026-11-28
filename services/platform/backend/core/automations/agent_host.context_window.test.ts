@@ -459,6 +459,43 @@ describe('an automation agent turn', () => {
     },
   );
 
+  it('delivers the device sign-in sentinel, never a secret, on the variable the provider names [PCRED-R8]', async () => {
+    io.reservation = { allowed: true, budgetCents: 0 };
+    vi.mocked(resolveProviderCredential).mockResolvedValue({
+      authMethod: 'device-login',
+      credentialId: 'credential-3',
+      name: 'Device sign-in',
+      harness: 'claude-code',
+      targetEnvVar: 'CLAUDE_CODE_OAUTH_TOKEN',
+    } as never);
+    const { ctx } = makeCtx({ status: 'running' });
+
+    await startWorkflowAgentTurnImpl(ctx, {
+      organizationId: 'org-1',
+      runId: 'run-1',
+      nodeId: 'book',
+      execId: 'exec-1',
+      sessionId: 'wf-run-1',
+      harness: 'claude-code',
+      lane: 'subscription',
+      providerSlug: 'anthropic',
+      modelId: 'claude-sonnet-4-6',
+      gatewayModel: 'claude-sonnet-4-6',
+      apiBaseUrl: 'https://api.anthropic.com',
+      deadlineAt: Date.now() + 60_000,
+      request: {
+        model: 'claude-sonnet-4-6',
+        prompt: 'Book the synthetic invoice.',
+      },
+    } as never);
+
+    expect(console.error).not.toHaveBeenCalled();
+    expect(io.starts).toHaveLength(1);
+    expect(io.starts[0]?.env).toMatchObject({
+      CLAUDE_CODE_OAUTH_TOKEN: 'tale-device-login:claude-code',
+    });
+  });
+
   it('starts Claude Code with the serving model’s window', async () => {
     servesWindow(32_768);
     const { ctx, queries, scheduled, mutations } = makeCtx({

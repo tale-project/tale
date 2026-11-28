@@ -136,6 +136,22 @@ describe('buildProviderProvision', () => {
     expect(mockedCatalog).not.toHaveBeenCalled();
   });
 
+  it('returns null for a device sign-in credential, which holds no key to serve [PCRED-R8]', async () => {
+    mockedResolve.mockResolvedValue({
+      authMethod: 'device-login',
+      credentialId: asCredId('cred-4'),
+      name: 'Device sign-in',
+      harness: 'claude-code',
+      targetEnvVar: 'CLAUDE_CODE_OAUTH_TOKEN',
+    });
+    await expect(
+      buildProviderProvision(fakeCtx(), {
+        organizationId: 'org_1',
+        providerSlug: 'anthropic',
+      }),
+    ).resolves.toBeNull();
+  });
+
   it('returns null for a subscription-broker credential (never gateway-served)', async () => {
     mockedResolve.mockResolvedValue({
       authMethod: 'subscription-broker',

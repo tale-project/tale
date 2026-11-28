@@ -68,6 +68,26 @@ describe('shipped providers', () => {
     });
   });
 
+  it('anthropic ships a device sign-in method mirroring its OAuth token entry', () => {
+    const anthropic = loadProviderDefinitions().find(
+      (c) => c.name === 'anthropic',
+    );
+    const device = anthropic?.auth.find((a) => a.method === 'device-login');
+    expect(device).toEqual({
+      method: 'device-login',
+      targetEnvVar: 'CLAUDE_CODE_OAUTH_TOKEN',
+      constraints: { execution: 'sandbox', harness: 'claude-code' },
+    });
+    // No other provider offers a device sign-in yet.
+    for (const provider of loadProviderDefinitions()) {
+      if (provider.name === 'anthropic') continue;
+      expect(
+        provider.auth.some((a) => a.method === 'device-login'),
+        provider.name,
+      ).toBe(false);
+    }
+  });
+
   it('OpenAI ships a pasted ChatGPT token method forcing Codex', () => {
     const openai = loadProviderDefinitions().find(
       (provider) => provider.name === 'openai',
@@ -82,12 +102,13 @@ describe('shipped providers', () => {
     });
   });
 
-  it('every subscription-key targetEnvVar is a variable its forced harness accepts', () => {
+  it('every subscription-key and device-login targetEnvVar is a variable its forced harness accepts', () => {
     const harnesses = loadHarnesses();
     for (const provider of loadProviderDefinitions()) {
       for (const auth of provider.auth) {
         if (
-          auth.method !== 'subscription-key' ||
+          (auth.method !== 'subscription-key' &&
+            auth.method !== 'device-login') ||
           auth.targetEnvVar === undefined
         ) {
           continue;
@@ -136,7 +157,8 @@ describe('shipped providers', () => {
       for (const auth of provider.auth) {
         if (
           auth.method !== 'subscription-broker' &&
-          auth.method !== 'subscription-key'
+          auth.method !== 'subscription-key' &&
+          auth.method !== 'device-login'
         ) {
           continue;
         }

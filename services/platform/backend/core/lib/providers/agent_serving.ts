@@ -92,6 +92,11 @@ export type AgentTurnServing =
        * vision polyfill. The hosts refuse an image-bearing turn on a blind
        * serving and tell the agent it cannot see otherwise. */
       vision: SubscriptionVision;
+      /** Set only when the serving credential is `device-login`: the harness
+       * slug whose device sign-in serves the turn. The hosts deliver the
+       * sentinel `tale-device-login:<harness>` instead of a secret. Absent for
+       * a static or brokered subscription. */
+      deviceLogin?: string;
     };
 
 export const AGENT_CREDENTIAL_AUTH_METHODS = [
@@ -99,6 +104,7 @@ export const AGENT_CREDENTIAL_AUTH_METHODS = [
   'env',
   'subscription-key',
   'subscription-broker',
+  'device-login',
 ] as const;
 export type AgentCredentialAuthMethodName =
   (typeof AGENT_CREDENTIAL_AUTH_METHODS)[number];
@@ -167,7 +173,7 @@ function neutralModelEntry(id: string, provider: string): ModelCatalogEntry {
  */
 export function sanctionSubscriptionHarnessTurn(args: {
   provider: ProviderDefinition;
-  authMethod: 'subscription-key' | 'subscription-broker';
+  authMethod: 'subscription-key' | 'subscription-broker' | 'device-login';
   /** The model id as the caller names it — identity only, for messages. */
   model: string;
   harness: string;
@@ -218,7 +224,7 @@ export function sanctionSubscriptionHarnessTurn(args: {
  */
 export function subscriptionApiBaseUrl(
   provider: ProviderDefinition,
-  authMethod: 'subscription-key' | 'subscription-broker',
+  authMethod: 'subscription-key' | 'subscription-broker' | 'device-login',
 ): string | undefined {
   const authEntry = provider.auth.find(
     (candidate) => candidate.method === authMethod,
@@ -231,6 +237,29 @@ export function subscriptionApiBaseUrl(
       ? authEntry.baseUrl
       : undefined) ?? provider.baseUrl
   );
+}
+
+/**
+ * The vision fact of one subscription serving. A device sign-in declares no
+ * `imageInputs` — it rides the vendor's own endpoint, which forwards image
+ * blocks — so only the model decides; the reason mirrors the one
+ * {@link subscriptionVisionCapability} gives a text-only model. Every other
+ * subscription reads its provider entry there.
+ */
+function servingVision(
+  connector: ProviderDefinition,
+  authMethod: 'subscription-key' | 'subscription-broker' | 'device-login',
+  entry: Pick<ModelCatalogEntry, 'id' | 'supportsVision'>,
+): SubscriptionVision {
+  if (authMethod !== 'device-login') {
+    return subscriptionVisionCapability(connector, authMethod, entry);
+  }
+  return entry.supportsVision
+    ? { readable: true }
+    : {
+        readable: false,
+        reason: `model "${entry.id}" is text-only and the subscription lane has no vision polyfill — image inputs fail on this lane`,
+      };
 }
 
 function describe(error: unknown): string {
@@ -544,7 +573,7 @@ export async function resolvePinnedAgentServing(
   // reach the model only if the vendor endpoint forwards them AND the model
   // reads them. The hosts act on this fact — refusing an image-bearing turn
   // or telling the agent plainly — because a blind 200 is worse than a 400.
-  const vision = subscriptionVisionCapability(connector, row.authMethod, entry);
+  const vision = servingVision(connector, row.authMethod, entry);
   if (!vision.readable) {
     console.warn(
       `[agent-serving] subscription serving ${pinned}/${entry.id} cannot see images: ${vision.reason}`,
@@ -564,6 +593,7 @@ export async function resolvePinnedAgentServing(
     modelId: entry.id,
     apiBaseUrl,
     vision,
+    ...(row.authMethod === 'device-login' ? { deviceLogin: args.harness } : {}),
   };
 }
 
@@ -627,7 +657,8 @@ export async function resolveWorkflowAgentServing(
     if (row === null || row.status !== 'active') continue;
     if (
       row.authMethod !== 'subscription-key' &&
-      row.authMethod !== 'subscription-broker'
+      row.authMethod !== 'subscription-broker' &&
+      row.authMethod !== 'device-login'
     ) {
       continue;
     }
@@ -670,11 +701,7 @@ export async function resolveWorkflowAgentServing(
       );
       continue;
     }
-    const vision = subscriptionVisionCapability(
-      connector,
-      row.authMethod,
-      entry,
-    );
+    const vision = servingVision(connector, row.authMethod, entry);
     if (!vision.readable) {
       console.warn(
         `[agent-serving] subscription serving ${connector.name}/${entry.id} cannot see images: ${vision.reason}`,
@@ -686,6 +713,9 @@ export async function resolveWorkflowAgentServing(
       modelId: entry.id,
       apiBaseUrl,
       vision,
+      ...(row.authMethod === 'device-login'
+        ? { deviceLogin: args.harness }
+        : {}),
     };
   }
 

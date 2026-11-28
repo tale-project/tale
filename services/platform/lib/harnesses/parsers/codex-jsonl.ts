@@ -295,7 +295,7 @@ class CodexJsonlParser implements HarnessEventParser {
 export function describeTurnFailure(message: string | undefined): {
   message: string;
   apiErrorStatus?: number;
-  providerErrorKind?: 'model_capacity';
+  providerErrorKind?: 'model_capacity' | 'usage_limit';
 } {
   const text = message?.trim() ?? '';
   if (text === '') return { message: 'Codex turn failed' };
@@ -330,7 +330,10 @@ export function describeTurnFailure(message: string | undefined): {
     ...(nativeStatus !== undefined ? { apiErrorStatus: nativeStatus } : {}),
     ...(exhaustedStatus === '429'
       ? { providerErrorKind: 'model_capacity' as const }
-      : {}),
+      : text.startsWith("You've hit your usage limit.")
+        ? // The ChatGPT plan's limit: another sign-in can take the run.
+          { providerErrorKind: 'usage_limit' as const }
+        : {}),
   };
   const start = text.indexOf('{');
   const end = text.lastIndexOf('}');

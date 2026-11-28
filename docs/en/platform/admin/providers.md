@@ -29,6 +29,7 @@ For **API key** or **Environment variable** credentials, open a chat and send a 
 | **Environment variable** | The name of a deployment variable | An operator manages the secret outside the UI. The name must start with `TALE_PROVIDER_KEY_`. |
 | **Subscription key** | A supported vendor subscription secret | Runs through the vendor's supported agent runtime in tasks and automations, never in chat. |
 | **Subscription broker** | A broker endpoint and token-response configuration | The deployment obtains usable subscription tokens from a broker for the vendor's agent runtime in tasks and automations, never in chat. |
+| **Sign-in on a sandbox device** | Nothing. The Claude Code sign-in stays on a connected sandbox device | Runs use that device's own sign-in in tasks and automations, never in chat. |
 
 Only methods supported by the selected provider appear. An environment reference does not create the variable: ask the operator to provision it using the [provider configuration guide](/self-hosted/configuration/providers).
 
@@ -39,6 +40,18 @@ A **Subscription key** or **Subscription broker** credential works only inside t
 Tale therefore runs a subscription in tasks and automations, where its runtime works in a sandbox. Chat offers only models that an **API key** or **Environment variable** credential serves. The app says so in three places: the add form shows **Tasks and automations only** when you choose a subscription method, every subscription row in the credentials table carries the same note, and the chat model list names the subscriptions it leaves out.
 
 To chat with a model you reach through a subscription, add an API key or environment-variable credential for the same provider, or connect a provider such as OpenRouter that serves the model.
+
+## Sign in on a sandbox device
+
+**Sign-in on a sandbox device** runs Anthropic models with the Claude Code sign-in that a connected sandbox device holds. Tale stores no secret for this method, and the token never leaves the device. Like a subscription, it serves tasks and automations, never chat.
+
+To add the sign-in to a device:
+
+1. On the device, run `claude setup-token` and follow the sign-in it opens. Claude prints a long-lived OAuth token.
+2. On the device, run `tale sandbox login claude-code` and paste the token. On an isolated raw device, which you [connected with `sudo`](/platform/admin/sandbox-devices#raw-devices), run the command with `sudo` too, so the token is stored for the device's own account.
+3. In **Settings > AI providers**, add an **Anthropic** credential with the method **Sign-in on a sandbox device**, and save it. The credential names no token, so there is nothing else to enter.
+
+Runs wait for a connected device that holds a sign-in. When a device's sign-in reaches its usage limit, the run moves to another connected device that holds one. When every device's sign-in is at its limit, the runs wait until the earliest one resets. The devices are listed on the [connected devices page](/platform/admin/sandbox-devices).
 
 ## Paste a Claude OAuth token
 

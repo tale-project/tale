@@ -4,6 +4,9 @@ import { Command, InvalidArgumentError, Option } from 'commander';
 
 import {
   connectSandboxDevice,
+  listSandboxDeviceLogins,
+  loginSandboxDevice,
+  logoutSandboxDevice,
   disconnectSandboxDevice,
   sandboxDeviceLogs,
   sandboxDeviceStatus,
@@ -269,6 +272,38 @@ Code, Codex, …) and no container or virtual machine:
           });
         },
       ),
+    );
+
+  sandbox
+    .command('login')
+    .description(
+      "Keep a harness's sign-in on this device, so the organization's runs on it use this machine's subscription",
+    )
+    .argument('<harness>', 'the harness to sign in (claude-code)')
+    .option('--token-file <path>', 'read the sign-in token from a file')
+    .action(
+      action(async (harness: string, opts: { tokenFile?: string }) => {
+        await loginSandboxDevice(harness, opts);
+      }),
+    );
+
+  sandbox
+    .command('logout')
+    .description("Remove a harness's sign-in from this device")
+    .argument('<harness>', 'the harness to sign out (claude-code)')
+    .action(
+      action(async (harness: string) => {
+        await logoutSandboxDevice(harness);
+      }),
+    );
+
+  sandbox
+    .command('logins')
+    .description('List the harness sign-ins this device holds')
+    .action(
+      action(async () => {
+        await listSandboxDeviceLogins();
+      }),
     );
 
   // A raw device itself: what its service runs (services/sandbox/docs/raw.md).

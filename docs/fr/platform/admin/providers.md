@@ -29,6 +29,7 @@ Pour des identifiants de type **Clé API** ou **Variable d'environnement**, envo
 | **Variable d'environnement** | Le nom d’une variable du déploiement | L’opérateur gère le secret hors de l’interface. Son nom doit commencer par `TALE_PROVIDER_KEY_`. |
 | **Clé d'abonnement** | Un secret d’abonnement pris en charge | Exécution dans l’environnement d’agent du fournisseur, dans les tâches et les automatisations, jamais dans le chat. |
 | **Courtier d'abonnement** | L’adresse du courtier et la configuration de sa réponse | Le déploiement obtient auprès du courtier des tokens d’abonnement pour l’environnement d’agent du fournisseur, dans les tâches et les automatisations, jamais dans le chat. |
+| **Connexion sur un appareil sandbox** | Rien. La connexion Claude Code reste sur un appareil sandbox connecté | Les exécutions utilisent la connexion propre à cet appareil, dans les tâches et les automatisations, jamais dans le chat. |
 
 Seules les méthodes du fournisseur sélectionné apparaissent. Référencer une variable ne la crée pas : demande à l’opérateur de la fournir selon le [guide de configuration des fournisseurs](/fr/self-hosted/configuration/providers).
 
@@ -39,6 +40,18 @@ Des identifiants de type **Clé d'abonnement** ou **Courtier d'abonnement** ne f
 Tale exécute donc un abonnement dans les tâches et les automatisations, où son environnement travaille dans une sandbox. Le chat ne propose que les modèles servis par des identifiants de type **Clé API** ou **Variable d'environnement**. L’application l’indique à trois endroits : le formulaire d’ajout affiche **Tâches et automatisations uniquement** quand tu choisis une méthode d’abonnement, chaque ligne d’abonnement du tableau des identifiants porte la même mention, et la liste des modèles du chat nomme les abonnements qu’elle laisse de côté.
 
 Pour discuter avec un modèle auquel tu accèdes par un abonnement, ajoute des identifiants par clé API ou variable d’environnement pour le même fournisseur, ou connecte un fournisseur comme OpenRouter qui sert ce modèle.
+
+## Connexion sur un appareil sandbox
+
+**Connexion sur un appareil sandbox** exécute les modèles Anthropic avec la connexion Claude Code que détient un appareil sandbox connecté. Tale ne conserve aucun secret pour cette méthode, et le jeton ne quitte jamais l’appareil. Comme un abonnement, elle ne sert que dans les tâches et les automatisations, jamais dans le chat.
+
+Pour ajouter la connexion à un appareil :
+
+1. Sur l’appareil, lance `claude setup-token` et suis la connexion qui s’ouvre. Claude affiche un jeton OAuth de longue durée.
+2. Sur l’appareil, lance `tale sandbox login claude-code` et colle le jeton. Sur un appareil brut isolé, que tu as [connecté avec `sudo`](/fr/platform/admin/sandbox-devices#raw-devices), lance aussi la commande avec `sudo`, pour que le jeton soit enregistré dans le compte propre à l’appareil.
+3. Dans **Paramètres > Fournisseurs IA**, ajoute un identifiant **Anthropic** avec la méthode **Connexion sur un appareil sandbox**, puis enregistre-le. L’identifiant ne nomme aucun jeton : il n’y a rien d’autre à saisir.
+
+Les exécutions attendent un appareil connecté qui détient une connexion. Quand la connexion d’un appareil atteint sa limite d’utilisation, l’exécution passe à un autre appareil connecté qui en détient une. Quand toutes les connexions ont atteint leur limite, les exécutions attendent la réinitialisation la plus proche. Les appareils sont listés sur la [page des appareils connectés](/fr/platform/admin/sandbox-devices).
 
 ## Coller un jeton OAuth Claude
 

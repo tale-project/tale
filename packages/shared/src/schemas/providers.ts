@@ -193,6 +193,13 @@ export type ExecutionConstraints = z.infer<typeof executionConstraintsSchema>;
  *  - `subscription-broker` — an external broker endpoint polled for ROTATING
  *    OAuth tokens (the credential row stores endpoint + mapping +
  *    selection); same forced-execution constraints.
+ *  - `device-login` — NO secret at all: the credential turns this provider
+ *    run on a connected sandbox device and uses that device's own harness
+ *    sign-in (`tale sandbox login <harness>`; the token never leaves the
+ *    device). Same forced-execution constraints and target variable as
+ *    `subscription-key`; a turn hands the harness the sentinel
+ *    `tale-device-login:<harness>` in that variable, which the device swaps
+ *    for its own token.
  *
  * Both subscription flavors may declare `imageInputs`: what the endpoint the
  * subscription rides DOES with image content blocks. `forwarded` (the
@@ -231,6 +238,16 @@ const providerAuthMethodSchema = z.discriminatedUnion('method', [
       /** Vendor account identity required by subscription runtimes such as Codex. */
       accountIdVar: envKeyNameSchema.optional(),
       imageInputs: subscriptionImageInputsSchema.optional(),
+      constraints: executionConstraintsSchema,
+    })
+    .strict(),
+  z
+    .object({
+      method: z.literal('device-login'),
+      /** The harness env var the device sign-in sentinel is delivered under,
+       * mirroring the `subscription-key` entry (Anthropic's OAuth token rides
+       * `CLAUDE_CODE_OAUTH_TOKEN`). */
+      targetEnvVar: envKeyNameSchema.optional(),
       constraints: executionConstraintsSchema,
     })
     .strict(),
@@ -378,6 +395,7 @@ export const providerCredentialCreateSchema = z.object({
     'env',
     'subscription-key',
     'subscription-broker',
+    'device-login',
   ]),
   name: z.string().min(1).max(120),
   secret: z.string().max(100_000).optional(),

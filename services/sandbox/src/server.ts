@@ -24,6 +24,8 @@
 // Every sandbox run is a session; the per-org session budgets live platform-side
 // (governance `sandbox_quota`), bounded by the host cap `SANDBOX_MAX_SESSIONS`.
 
+import { join } from 'node:path';
+
 import { loadBackends } from './backend/index.ts';
 import {
   HarnessInventory,
@@ -40,6 +42,7 @@ import { launchSelfUpdate } from './devices/apply.ts';
 import { loadDeviceConfig } from './devices/device-config.ts';
 import { DeviceAgent } from './devices/device.ts';
 import { DeviceHub, serveHub } from './devices/hub.ts';
+import { DeviceLogins } from './devices/logins.ts';
 import { launchRawSelfUpdate } from './devices/raw-update.ts';
 import { DockerDataDiskProbe, SandboxDiskProbe } from './docker-data-disk.ts';
 import {
@@ -967,6 +970,8 @@ async function main(): Promise<void> {
           };
     deviceAgent = new DeviceAgent({
       ...rawDevice,
+      // The device's own sign-ins (`tale sandbox login`), beside its config.
+      logins: new DeviceLogins(join(deviceConfig.stateDir, 'logins')),
       config: deviceConfig,
       version: spawnerVersion,
       maxRequestBodyBytes: cfg.maxRequestBodyBytes,

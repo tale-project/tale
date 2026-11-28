@@ -129,6 +129,8 @@ const WAITING_KEYS = {
   destroy_pending: 'agentRun.waiting.destroy_pending',
   exec_limit: 'agentRun.waiting.exec_limit',
   model_capacity: 'agentRun.waiting.model_capacity',
+  usage_limit: 'agentRun.waiting.usage_limit',
+  device_login: 'agentRun.waiting.device_login',
   unknown: 'agentRun.waiting.unknown',
 } as const;
 

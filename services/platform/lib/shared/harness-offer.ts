@@ -59,7 +59,7 @@ export interface ComposerModelListingRow {
   credential:
     | { authMethod: 'api-key' | 'env' }
     | {
-        authMethod: 'subscription-key' | 'subscription-broker';
+        authMethod: 'subscription-key' | 'subscription-broker' | 'device-login';
         constraints: { harness: string };
       };
 }
@@ -78,7 +78,8 @@ export function toModelOptions(
     };
     if (
       row.credential.authMethod === 'subscription-key' ||
-      row.credential.authMethod === 'subscription-broker'
+      row.credential.authMethod === 'subscription-broker' ||
+      row.credential.authMethod === 'device-login'
     ) {
       option.subscription = { harness: row.credential.constraints.harness };
     }

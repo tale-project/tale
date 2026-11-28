@@ -73,7 +73,10 @@ import {
 } from '../lib/providers/subscription_vision';
 import type { Id } from '../lib/rows';
 import { safePathSegment } from '../lib/safe_path_segment';
-import { ensureAgentSession } from '../node_only/sandbox/agent_session';
+import {
+  deviceLoginRequirement,
+  ensureAgentSession,
+} from '../node_only/sandbox/agent_session';
 import {
   isDestroyPendingRefusal,
   queuedWakeAfterMs,
@@ -356,12 +359,20 @@ async function ensureProjectAgentSession(
   agentId: string,
   sessionId: string,
   harness: string,
+  resolved: TaskServing,
 ): Promise<{ liveCreatedAt: number | undefined }> {
   return ensureAgentSession(ctx, {
     organizationId,
     sessionId,
     owner: { type: 'project_agent', agentId },
     agentKind: harness,
+    ...(resolved.lane === 'subscription' && resolved.deviceLogin !== undefined
+      ? await deviceLoginRequirement(ctx, {
+          organizationId,
+          providerSlug: resolved.providerSlug,
+          harness: resolved.deviceLogin,
+        })
+      : {}),
   });
 }
 
@@ -1149,17 +1160,22 @@ async function mintTurnServing(
   );
   if (
     credential.authMethod !== 'subscription-key' &&
-    credential.authMethod !== 'subscription-broker'
+    credential.authMethod !== 'subscription-broker' &&
+    credential.authMethod !== 'device-login'
   ) {
     // The default credential changed shape between resolution and redeem.
     throw new Error(
       `provider "${resolved.providerSlug}"'s default credential is no longer a subscription — retry the run`,
     );
   }
+  // A device sign-in carries no secret: the harness gets the sentinel, which
+  // the device swaps for its own token and the server refuses (safe).
   const secret =
-    credential.authMethod === 'subscription-broker'
-      ? credential.token
-      : credential.secret;
+    credential.authMethod === 'device-login'
+      ? `tale-device-login:${credential.harness}`
+      : credential.authMethod === 'subscription-broker'
+        ? credential.token
+        : credential.secret;
   const bridgeToken = `tale-sub-${randomBytes(24).toString('base64url')}`;
   return {
     serving: {
@@ -1173,7 +1189,8 @@ async function mintTurnServing(
       ...(credential.targetEnvVar !== undefined
         ? { targetEnvVar: credential.targetEnvVar }
         : {}),
-      ...(credential.accountId !== undefined
+      ...(credential.authMethod !== 'device-login' &&
+      credential.accountId !== undefined
         ? { accountId: credential.accountId }
         : {}),
     },
@@ -1409,6 +1426,7 @@ export async function startTaskAgentTurnImpl(
         args.agentId,
         args.sessionId,
         args.harness,
+        resolved,
       );
       // This turn's keys, carrying the incarnation it actually runs on — the
       // settle stamps it (with the conversation handle) for the NEXT kick's
@@ -2249,6 +2267,8 @@ async function continueOrSettle(
   const modelCapacity =
     ended?.providerErrorKind === 'model_capacity' ||
     classifiedProviderErrorKind === 'model_capacity';
+  // The subscription the turn ran on reached its usage limit (TASK-R87).
+  const usageLimit = ended?.providerErrorKind === 'usage_limit';
   // A SUCCESSFUL end with no final text is not a settle: the model emitted
   // a bare end-of-turn mid-work (observed live: a 1-completion-token
   // response at a 42k-token prompt ended the turn between two file reads),
@@ -2317,8 +2337,13 @@ async function continueOrSettle(
                   ? ('budget_exceeded' as const)
                   : modelCapacity
                     ? ('model_capacity' as const)
-                    : ('harness_error' as const),
+                    : usageLimit
+                      ? ('usage_limit' as const)
+                      : ('harness_error' as const),
         }
+      : {}),
+    ...(errored && usageLimit && ended?.usageLimitResetsAtMs !== undefined
+      ? { usageLimitResetsAtMs: ended.usageLimitResetsAtMs }
       : {}),
     // The harness-reported provider status (429/401/…) — absent for
     // mid-stream deaths and non-claude harnesses; stamped for observability.
@@ -2383,6 +2408,8 @@ async function settleTaskAgentTurn(
     retryAtMs?: number;
     /** The harness's own token totals, booked alongside the gateway spend. */
     usageTotals?: { inputTokens: number; outputTokens: number };
+    /** A `usage_limit` failure: when the limit resets, as the harness said. */
+    usageLimitResetsAtMs?: number;
     /** The turn's exec exited on its own before the settle, so the harvest
      * reads a box nothing is still writing to. */
     execExited?: boolean;
@@ -2513,6 +2540,14 @@ async function settleTaskAgentTurn(
         : {}),
       ...(result.retryAtMs !== undefined
         ? { retryAtMs: result.retryAtMs }
+        : {}),
+      ...(failureCode === 'usage_limit'
+        ? {
+            usageLimit:
+              result.usageLimitResetsAtMs !== undefined
+                ? { resetsAtMs: result.usageLimitResetsAtMs }
+                : {},
+          }
         : {}),
     });
     await releaseProjectAgentSlotAfterSettle(ctx, args);

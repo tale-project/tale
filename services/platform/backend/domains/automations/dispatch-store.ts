@@ -345,7 +345,8 @@ export function pgAutomationStore(
           const subscription = facts.some(
             (fact) =>
               fact.authMethod === 'subscription-key' ||
-              fact.authMethod === 'subscription-broker',
+              fact.authMethod === 'subscription-broker' ||
+              fact.authMethod === 'device-login',
           );
           if (subscription) return undefined;
         }

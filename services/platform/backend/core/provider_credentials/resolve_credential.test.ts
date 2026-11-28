@@ -765,3 +765,44 @@ describe('subscription-key delivery variable', () => {
     });
   });
 });
+
+describe('device-login credential [PCRED-R8]', () => {
+  function ctxServingDevice(providerSlug: string) {
+    // No secret on the row: a device sign-in stores none.
+    const row = {
+      _id: 'cred-device',
+      organizationId: ORG,
+      providerSlug,
+      authMethod: 'device-login',
+      name: 'Device sign-in',
+      status: 'active',
+    };
+    return { runQuery: vi.fn(async () => row) } as unknown as ActionCtx;
+  }
+
+  it('resolves to the forced harness and delivery variable, with no secret [PCRED-R8]', async () => {
+    const resolved = await resolveProviderCredential(
+      ctxServingDevice('anthropic'),
+      { organizationId: ORG, providerSlug: 'anthropic' },
+    );
+    expect(resolved).toEqual({
+      authMethod: 'device-login',
+      credentialId: 'cred-device',
+      name: 'Device sign-in',
+      harness: 'claude-code',
+      targetEnvVar: 'CLAUDE_CODE_OAUTH_TOKEN',
+    });
+    expect(resolved).not.toHaveProperty('secret');
+  });
+
+  it('refuses a device sign-in whose provider no longer declares the method [PCRED-R8]', async () => {
+    await expect(
+      resolveProviderCredential(ctxServingDevice('zai'), {
+        organizationId: ORG,
+        providerSlug: 'zai',
+      }),
+    ).rejects.toMatchObject({
+      data: { code: 'CREDENTIAL_SHAPE_INVALID' },
+    });
+  });
+});

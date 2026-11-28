@@ -51,7 +51,12 @@ const io = vi.hoisted(() => ({
   windows: [] as unknown[],
   subscription: undefined as
     | undefined
-    | { providerSlug: string; modelId: string; apiBaseUrl: string },
+    | {
+        providerSlug: string;
+        modelId: string;
+        apiBaseUrl: string;
+        deviceLogin?: string;
+      },
   /** What the session ensure throws, when it refuses. */
   sessionRefusal: undefined as Error | undefined,
   /** What the turn's budget reservation answers. */
@@ -142,6 +147,9 @@ vi.mock('../node_only/sandbox/agent_session', () => ({
     if (io.sessionRefusal !== undefined) throw io.sessionRefusal;
     return { liveCreatedAt: 1000 };
   },
+  deviceLoginRequirement: async (_ctx: unknown, args: { harness: string }) => ({
+    deviceLogin: { harness: args.harness, avoidDevices: [] },
+  }),
 }));
 vi.mock('./task_serving', () => ({
   resolveTaskServing: async () =>
@@ -650,6 +658,37 @@ describe('a task agent start', () => {
       );
     },
   );
+
+  it('delivers the device sign-in sentinel, never a secret, on the variable the provider names [PCRED-R8]', async () => {
+    io.subscription = {
+      providerSlug: 'anthropic',
+      modelId: 'claude-sonnet-4-6',
+      apiBaseUrl: 'https://api.anthropic.com',
+      deviceLogin: 'claude-code',
+    };
+    vi.mocked(resolveProviderCredential).mockResolvedValue({
+      authMethod: 'device-login',
+      credentialId: 'credential-3',
+      name: 'Device sign-in',
+      harness: 'claude-code',
+      targetEnvVar: 'CLAUDE_CODE_OAUTH_TOKEN',
+    } as never);
+    const { ctx } = makeCtx({ status: 'queued', execId: 'exec-1' });
+
+    await startTaskAgentTurnImpl(ctx, {
+      ...KEYS,
+      harness: 'claude-code',
+      model: 'claude-sonnet-4-6',
+      modelProvider: 'anthropic',
+      sweep: true,
+    } as never);
+
+    expect(console.error).not.toHaveBeenCalled();
+    expect(io.starts).toHaveLength(1);
+    expect(io.starts[0]?.env).toMatchObject({
+      CLAUDE_CODE_OAUTH_TOKEN: 'tale-device-login:claude-code',
+    });
+  });
 
   it('holds a subscription start as one request at no cost [GOV-R16]', async () => {
     io.subscription = {

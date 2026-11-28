@@ -368,7 +368,9 @@ export interface WorkflowAgentStart {
     | 'host'
     | 'destroy_pending'
     | 'exec_limit'
-    | 'model_capacity';
+    | 'model_capacity'
+    | 'usage_limit'
+    | 'device_login';
   /** The closed card's status (`closed`): done or cancelled. */
   taskStatus?: string;
   blockedBy?: string[];

@@ -88,7 +88,26 @@ const checkpointSchema = z.object({
   seenUsageMsgIds: z.array(z.string()),
 });
 
+/** The result text Claude Code ends a turn with when the subscription's
+ * usage limit is reached (code.claude.com/docs/en/errors: "You've hit your
+ * session limit · resets 3:45pm", and the weekly, Opus and Sonnet ones). */
+const USAGE_LIMIT_RESULT =
+  /^(?:You've hit your (?:session|weekly|opus|sonnet|usage) limit|Claude AI usage limit reached)\b/i;
+
+/** Older releases: "Claude AI usage limit reached|<epoch seconds>". */
+const LEGACY_USAGE_LIMIT = /^Claude AI usage limit reached\|(\d{9,11})$/;
+
+/** A reset time as the event gives it: epoch seconds (milliseconds when it
+ * is already that large). */
+function resetsAtMs(value: number): number {
+  return value < 1e12 ? Math.round(value * 1000) : Math.round(value);
+}
+
 class ClaudeStreamJsonParser implements HarnessEventParser {
+  /** A `rejected` rate-limit event came in this turn, and the reset it named
+   * (epoch ms): what the result reports as its usage limit. */
+  private usageLimitSeen = false;
+  private usageLimitResetsAtMs: number | undefined;
   private readonly lines = new LineReassembler();
   private readonly seenUsageMsgIds = new BoundedIdLedger();
 
@@ -144,6 +163,24 @@ class ClaudeStreamJsonParser implements HarnessEventParser {
       return [];
     }
     const type = asString(ev.type);
+
+    // The subscription's own rate-limit state, which the CLI reports before
+    // a call (`rate_limit_event`, Agent SDK `SDKRateLimitEvent`): `rejected`
+    // with a reset time is the usage limit the turn is about to end on. The
+    // latest one is kept for the result to name when the limit resets.
+    if (type === 'rate_limit_event') {
+      const info = asRecord(ev.rate_limit_info);
+      const status = asString(info?.status);
+      const resetsAt = asNumber(info?.resetsAt);
+      if (status === 'rejected') {
+        this.usageLimitResetsAtMs =
+          resetsAt !== undefined && resetsAt > 0
+            ? resetsAtMs(resetsAt)
+            : undefined;
+        this.usageLimitSeen = true;
+      }
+      return [{ type: 'raw', harness: this.slug, payload: ev }];
+    }
 
     if (type === 'system') {
       const subtype = asString(ev.subtype);
@@ -376,6 +413,26 @@ class ClaudeStreamJsonParser implements HarnessEventParser {
         (ev.api_error_status === 503 || ev.api_error_status === 529)
       ) {
         out.providerErrorKind = 'model_capacity';
+      }
+      // The subscription reached its usage limit: the CLI said so with a
+      // `rejected` rate-limit event before the refusal, or in the result's
+      // own words ("You've hit your session limit · resets 3:45pm"; older
+      // releases "Claude AI usage limit reached|<epoch seconds>"). Another
+      // sign-in can take the run; this one only after it resets.
+      const limitText = finalText?.trim() ?? '';
+      const legacyReset = LEGACY_USAGE_LIMIT.exec(limitText)?.[1];
+      if (
+        claudeRefusal &&
+        out.providerErrorKind === undefined &&
+        (this.usageLimitSeen ||
+          legacyReset !== undefined ||
+          USAGE_LIMIT_RESULT.test(limitText))
+      ) {
+        out.providerErrorKind = 'usage_limit';
+        const reset =
+          this.usageLimitResetsAtMs ??
+          (legacyReset !== undefined ? Number(legacyReset) * 1000 : undefined);
+        if (reset !== undefined) out.usageLimitResetsAtMs = reset;
       }
       if (typeof ev.duration_ms === 'number') out.durationMs = ev.duration_ms;
       // The turn's totals are the result's own: its `usage` counts every

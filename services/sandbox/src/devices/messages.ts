@@ -55,6 +55,12 @@ export interface DeviceResources {
   memory: { totalBytes: number | null; usedBytes: number | null };
 }
 
+/** A sign-in the device holds (logins.ts): the harness, and since when. */
+export interface DeviceLogin {
+  harness: string;
+  addedAtMs: number;
+}
+
 export interface DeviceHello {
   protocol: number;
   version: string;
@@ -62,6 +68,8 @@ export interface DeviceHello {
   platform: DevicePlatform;
   sessions: DeviceSessionReport[];
   update: DeviceUpdateReport;
+  /** The device's own sign-ins; none from a device older than them. */
+  logins: DeviceLogin[];
 }
 
 export interface DeviceStatus {
@@ -74,6 +82,8 @@ export interface DeviceStatus {
   /** A raw device's harnesses when they changed since its HELLO (one was
    * installed or removed while it ran); absent otherwise. */
   harnesses?: DeviceHarness[];
+  /** The device's sign-ins when they changed since it last reported them. */
+  logins?: DeviceLogin[];
 }
 
 export interface HubWelcome {
@@ -151,6 +161,25 @@ function parseUpdate(value: unknown): DeviceUpdateReport {
     error: str(field(value, 'error'), 500),
     atMs: measure(field(value, 'atMs')),
   };
+}
+
+/** A sign-in list; an unreadable one reads as none. */
+function parseLogins(value: unknown): DeviceLogin[] {
+  if (!Array.isArray(value) || value.length > MAX_HARNESSES) return [];
+  const out: DeviceLogin[] = [];
+  for (const entry of value) {
+    const harness = field(entry, 'harness');
+    const addedAtMs = measure(field(entry, 'addedAtMs'));
+    if (
+      typeof harness !== 'string' ||
+      !HARNESS_ID.test(harness) ||
+      addedAtMs === null
+    ) {
+      return [];
+    }
+    out.push({ harness, addedAtMs });
+  }
+  return out;
 }
 
 /** The most harnesses a device may report: there are a handful. */
@@ -240,6 +269,7 @@ export function parseHello(value: Record<string, unknown>): DeviceHello | null {
     sessions,
     platform: parsePlatform(platform, os, arch),
     update: parseUpdate(value.update),
+    logins: parseLogins(value.logins),
   };
 }
 
@@ -270,6 +300,9 @@ export function parseStatus(
     ...(value.harnesses === undefined
       ? {}
       : { harnesses: parseHarnesses(value.harnesses) ?? [] }),
+    ...(value.logins === undefined
+      ? {}
+      : { logins: parseLogins(value.logins) }),
   };
 }
 

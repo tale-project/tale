@@ -14,6 +14,12 @@
  *   capacity; every run of the organization on that model waits until it
  *   answers again (`domains/tasks/model-capacity-holds.ts`, migration 0205).
  *
+ * - `usage_limit` — the subscription the run works on reached its usage
+ *   limit, and no other sign-in can take the run: it waits until the limit
+ *   resets (`domains/tasks/usage-limit-holds.ts`, migration 0240).
+ * - `device_login` — the run works on a sandbox device's own sign-in, and
+ *   no connected device that holds one has room now.
+ *
  * A park written before the column, or one whose cause has no wording of
  * its own, has none: the reader shows the generic waiting state.
  *
@@ -25,6 +31,8 @@ export const AGENT_RUN_WAITING_REASONS = [
   'destroy_pending',
   'exec_limit',
   'model_capacity',
+  'usage_limit',
+  'device_login',
 ] as const;
 
 export type AgentRunWaitingReason = (typeof AGENT_RUN_WAITING_REASONS)[number];

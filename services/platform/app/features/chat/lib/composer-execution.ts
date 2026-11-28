@@ -50,7 +50,8 @@ export function resolveSandboxAffordance(
     locked: true,
     harness:
       credential.authMethod === 'subscription-key' ||
-      credential.authMethod === 'subscription-broker'
+      credential.authMethod === 'subscription-broker' ||
+      credential.authMethod === 'device-login'
         ? credential.constraints.harness
         : undefined,
   };

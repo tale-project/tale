@@ -264,7 +264,11 @@ describe('planning a credential change', () => {
   });
 
   it('sends a subscription to the flow that connects one, by its own code and not as a key entered in Tale [MCP-R36]', async () => {
-    for (const authMethod of ['subscription-key', 'subscription-broker']) {
+    for (const authMethod of [
+      'subscription-key',
+      'subscription-broker',
+      'device-login',
+    ]) {
       const created = await planSettings(contextOf('admin'), registry, [
         {
           kind: 'provider-credential',

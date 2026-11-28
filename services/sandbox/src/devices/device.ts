@@ -27,6 +27,11 @@ import { jsonResponse, sessionRequestBodyLimit } from '../http-util.ts';
 import { runDocker } from '../spawn-util.ts';
 import { readUpdateStatus, type DeviceConfig } from './device-config.ts';
 import {
+  withDeviceLogins,
+  type DeviceLoginReport,
+  type DeviceLogins,
+} from './logins.ts';
+import {
   isReleaseVersion,
   parseWelcome,
   type DeviceHarness,
@@ -168,6 +173,10 @@ export interface DeviceAgentOptions {
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
   platform?: () => Promise<DevicePlatform>;
+  /** The device's own sign-ins (logins.ts): reported with the HELLO and
+   * every STATUS that finds them changed, and swapped for their sentinels
+   * in the exec requests that name them. Absent: none. */
+  logins?: Pick<DeviceLogins, 'list' | 'token'>;
   /** A raw device: its relays listen on loopback ports the kernel picks,
    * and are handed here as `[deployment origin, loopback origin]` pairs once
    * they listen (backend/raw/raw-relays.ts). Absent: the relays listen on the
@@ -255,6 +264,9 @@ async function observePlatform(config: DeviceConfig): Promise<DevicePlatform> {
   };
 }
 
+/** The session API's exec start (`POST /v1/sessions/:id/exec`). */
+const EXEC_PATH = /^\/v1\/sessions\/[a-zA-Z0-9_-]{1,64}\/exec$/;
+
 export class DeviceAgent {
   private readonly fetchImpl: (
     input: string,
@@ -277,6 +289,8 @@ export class DeviceAgent {
   private platformCache: DevicePlatform | null = null;
   /** The sessions' fingerprint as the last STATUS reported them. */
   private reportedInventory: string | null = null;
+  /** The sign-ins as the last HELLO or STATUS reported them. */
+  private reportedLogins: string | null = null;
   private statusInFlight: {
     endpoint: TunnelEndpoint;
     report: Promise<void>;
@@ -297,6 +311,18 @@ export class DeviceAgent {
           };
         }));
     this.platformImpl = opts.platform ?? (() => observePlatform(opts.config));
+  }
+
+  /** The device's sign-ins now; none when they cannot be read (logged), so
+   * a broken file never costs the tunnel. */
+  private async loginReport(): Promise<DeviceLoginReport[]> {
+    if (this.opts.logins === undefined) return [];
+    try {
+      return await this.opts.logins.list();
+    } catch (err) {
+      console.warn('[sandbox.devices] reading the sign-ins failed:', err);
+      return [];
+    }
   }
 
   /** Is the tunnel up and welcomed right now? */
@@ -616,6 +642,8 @@ export class DeviceAgent {
         this.platform(),
         this.updateReport(),
       ]);
+      const logins = await this.loginReport();
+      this.reportedLogins = JSON.stringify(logins);
       endpoint.sendControl(FRAME.HELLO, {
         protocol: TUNNEL_PROTOCOL_VERSION,
         version: this.opts.version,
@@ -623,6 +651,7 @@ export class DeviceAgent {
         platform,
         sessions: observation.sessions,
         update,
+        logins,
       });
     } catch (err) {
       console.error('[sandbox.devices] announcing the device failed:', err);
@@ -672,6 +701,10 @@ export class DeviceAgent {
       ]);
       const harnesses = observation.harnesses;
       const helloHarnesses = this.platformCache?.harnesses ?? null;
+      const logins = await this.loginReport();
+      const loginKey = JSON.stringify(logins);
+      const loginsChanged = loginKey !== this.reportedLogins;
+      this.reportedLogins = loginKey;
       endpoint.sendControl(FRAME.STATUS, {
         maxSessions: this.opts.config.maxSessions,
         running: observation.running,
@@ -683,6 +716,7 @@ export class DeviceAgent {
         JSON.stringify(harnesses) !== JSON.stringify(helloHarnesses)
           ? { harnesses }
           : {}),
+        ...(loginsChanged ? { logins } : {}),
       });
     } catch (err) {
       console.warn('[sandbox.devices] status report failed:', err);
@@ -722,6 +756,15 @@ export class DeviceAgent {
         stream.body,
         sessionRequestBodyLimit(path, this.opts.maxRequestBodyBytes),
       );
+      // A turn on this device's own sign-in names it by its sentinel; the
+      // secret itself never crossed the tunnel.
+      if (
+        method === 'POST' &&
+        this.opts.logins !== undefined &&
+        EXEC_PATH.test(path.split('?')[0] ?? '')
+      ) {
+        body = await withDeviceLogins(body, this.opts.logins);
+      }
     } catch (err) {
       stream.reset(
         'bad_request',

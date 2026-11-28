@@ -1680,6 +1680,64 @@ describe('DeviceHub placement', () => {
     ]);
   });
 
+  test("a create on a device's sign-in goes only to a device holding it, and never to the server", async () => {
+    const { hub } = await makeHub();
+    const signedIn = connectDevice(hub, 'dev-signed-in');
+    await signedIn.hello({
+      logins: [{ harness: 'claude-code', addedAtMs: 1 }],
+    });
+    const other = connectDevice(hub, 'dev-other');
+    await other.hello();
+    const create = (sessionId: string, requires: Record<string, unknown>) => {
+      const body = JSON.stringify({
+        sessionId,
+        organizationId: ORG,
+        profile: 'agent',
+        placement: 'device',
+        requires,
+      });
+      const url = new URL('http://sandbox/v1/sessions');
+      return {
+        req: new Request(url.toString(), { method: 'POST', body }),
+        url,
+        body,
+      };
+    };
+    const first = create('pa-one', {
+      harness: 'claude-code',
+      login: 'claude-code',
+    });
+    expect(
+      (await hub.maybeForward(first.req, first.url, first.body))?.status,
+    ).toBe(201);
+    expect(signedIn.served).toHaveLength(1);
+    expect(other.served).toHaveLength(0);
+    // Its sign-in reached its limit: passed over, and with no other device
+    // holding one, the create waits rather than starting on the server.
+    const second = create('pa-two', {
+      harness: 'claude-code',
+      login: 'claude-code',
+      avoidDevices: ['dev-signed-in'],
+    });
+    const refused = await hub.maybeForward(second.req, second.url, second.body);
+    expect(refused?.status).toBe(429);
+    expect(await refused?.json()).toMatchObject({
+      error: 'device_login_unavailable',
+    });
+    expect(signedIn.served).toHaveLength(1);
+    expect(
+      hub.devicesFor(ORG).find((d) => d.deviceId === 'dev-signed-in')?.logins,
+    ).toEqual([{ harness: 'claude-code', addedAtMs: 1 }]);
+  });
+
+  test('a sign-in removed while the device runs is reported with its next status', async () => {
+    const { hub } = await makeHub();
+    const device = connectDevice(hub, 'dev-1');
+    await device.hello({ logins: [{ harness: 'claude-code', addedAtMs: 1 }] });
+    await device.status({ logins: [] });
+    expect(hub.devicesFor(ORG)[0]?.logins).toEqual([]);
+  });
+
   test('capacity: limits, summaries and the runtime overlay', async () => {
     const { hub } = await makeHub();
     const d1 = connectDevice(hub, 'dev-1');

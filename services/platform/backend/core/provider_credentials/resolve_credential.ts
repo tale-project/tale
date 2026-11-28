@@ -70,7 +70,12 @@ interface CredentialRow {
   _id: Id<'providerCredentials'>;
   organizationId: string;
   providerSlug: string;
-  authMethod: 'api-key' | 'env' | 'subscription-key' | 'subscription-broker';
+  authMethod:
+    | 'api-key'
+    | 'env'
+    | 'subscription-key'
+    | 'subscription-broker'
+    | 'device-login';
   name: string;
   encryptedData?: EncryptedSecret;
   envName?: string;
@@ -145,6 +150,20 @@ export type ResolvedProviderCredential =
       /** The row's endpoint override, when the brokered token authenticates
        * against a proxy instead of the vendor's default API host. */
       readonly endpointUrl?: string;
+    }
+  | {
+      /** No secret: the run uses the sign-in a connected sandbox device holds
+       * for `harness`. The harness receives the sentinel
+       * `tale-device-login:<harness>` under `targetEnvVar`, which the device
+       * swaps for its own token. */
+      readonly authMethod: 'device-login';
+      readonly credentialId: Id<'providerCredentials'>;
+      readonly name: string;
+      /** The harness the provider's device-login entry is constrained to. */
+      readonly harness: string;
+      /** The harness env var the provider's auth entry names; absent means
+       * the harness's default token variable. */
+      readonly targetEnvVar?: string;
     };
 
 type CredentialError = AppError<{ code: string; message: string }>;
@@ -612,6 +631,29 @@ async function subscriptionKeyAuth(
 }
 
 /**
+ * The forced harness and delivery variable the provider's `device-login`
+ * auth entry names. Undefined when the provider no longer declares the
+ * method, which makes the credential a shape refusal.
+ */
+async function deviceLoginAuth(
+  ctx: ActionCtx,
+  organizationId: string,
+  providerSlug: string,
+): Promise<{ harness: string; targetEnvVar?: string } | undefined> {
+  const providers = await resolveProvidersForOrgId(ctx, organizationId);
+  const entry = providers
+    .find((provider) => provider.name === providerSlug)
+    ?.auth.find((auth) => auth.method === 'device-login');
+  if (entry?.method !== 'device-login') return undefined;
+  return {
+    harness: entry.constraints.harness,
+    ...(entry.targetEnvVar !== undefined && {
+      targetEnvVar: entry.targetEnvVar,
+    }),
+  };
+}
+
+/**
  * Resolve one (org, provider[, credential]) selection to its usable secret
  * material. Internal-only: callers own keeping the result out of logs and
  * client responses.
@@ -670,6 +712,25 @@ export async function resolveProviderCredential(
         ...(subscription?.baseUrl !== undefined
           ? { endpointUrl: subscription.baseUrl }
           : {}),
+      };
+    }
+    case 'device-login': {
+      // No secret is stored or read: the material is the device sign-in
+      // sentinel the serving layer builds from `harness`.
+      const deviceLogin = await deviceLoginAuth(
+        ctx,
+        row.organizationId,
+        row.providerSlug,
+      );
+      if (deviceLogin === undefined) throw shapeError(row);
+      return {
+        authMethod: 'device-login',
+        credentialId: row._id,
+        name: row.name,
+        harness: deviceLogin.harness,
+        ...(deviceLogin.targetEnvVar !== undefined && {
+          targetEnvVar: deviceLogin.targetEnvVar,
+        }),
       };
     }
     case 'env': {

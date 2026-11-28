@@ -45,6 +45,18 @@ Such a credential holds no key of its own. A request to change its key is refuse
 - **Example**: A credential reads its key from the server's environment. Ada pastes a new key
   into it → refused. The operator changes the key on the server instead.
 
+## Signing in on a sandbox device
+
+### PCRED-R8 · A device sign-in stores no key and serves only tasks and automations
+
+Such a credential is created with no key, and a key sent with it is refused
+(`CREDENTIAL_SECRET_NOT_ACCEPTED`). It runs only in tasks and automations, on a connected
+device that holds the provider's sign-in, never in chat.
+
+- **Example**: Ada adds an Anthropic sign-in on a sandbox device and pastes a key into it →
+  refused, and nothing is saved. Ada adds it with no key → saved, and chat does not offer its
+  models.
+
 ## Removing and switching off
 
 ### PCRED-R5 · The credential the embedding model depends on cannot be removed

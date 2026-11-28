@@ -546,6 +546,7 @@ export function createProviderSettingRoutes(deps: {
       'env',
       'subscription-key',
       'subscription-broker',
+      'device-login',
     ]);
     const subscriptions = credentials
       .filter(
@@ -563,10 +564,12 @@ export function createProviderSettingRoutes(deps: {
             | 'api-key'
             | 'env'
             | 'subscription-key'
-            | 'subscription-broker',
+            | 'subscription-broker'
+            | 'device-login',
         );
         return auth?.authMethod === 'subscription-key' ||
-          auth?.authMethod === 'subscription-broker'
+          auth?.authMethod === 'subscription-broker' ||
+          auth?.authMethod === 'device-login'
           ? [{ providerSlug: credential.providerSlug, credential: auth }]
           : [];
       });

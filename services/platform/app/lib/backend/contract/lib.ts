@@ -72,7 +72,11 @@ export interface LibContract {
       catalogErrorCode?: ProviderCatalogFailureCode;
       catalogSource: 'none' | 'static' | 'openrouter-api' | 'models-endpoint';
       authMethods: Array<
-        'api-key' | 'env' | 'subscription-key' | 'subscription-broker'
+        | 'api-key'
+        | 'env'
+        | 'subscription-key'
+        | 'subscription-broker'
+        | 'device-login'
       >;
       /** Declared vendor account identity field for static subscriptions. */
       subscriptionAccountIdVar?: string;

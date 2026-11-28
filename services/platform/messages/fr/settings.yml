@@ -1127,6 +1127,7 @@ providers:
     env: Variable d'environnement
     subscriptionKey: Clé d'abonnement
     subscriptionBroker: Courtier d'abonnement
+    deviceLogin: Connexion sur un appareil sandbox
   card:
     facts: '{format} · {host}'
     factsPerCredential: '{format} · endpoint défini par identifiant'
@@ -1212,6 +1213,10 @@ providers:
       ta ressource ; sans eux, aucun modèle n'est disponible.
     allowlistFreeTextPlaceholder: gpt-4o, o4-mini
     removeModel: Retirer {model}
+  deviceLogin:
+    title: Connexion sur un appareil sandbox
+    description: >-
+      Les exécutions utilisent la connexion Claude Code d'un appareil sandbox connecté (tale sandbox login claude-code sur l'appareil). Le jeton reste sur l'appareil. Les exécutions attendent un appareil qui en dispose.
   subscriptionScope:
     title: Tâches et automatisations uniquement
     description: >-

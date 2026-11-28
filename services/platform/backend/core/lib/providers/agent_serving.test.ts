@@ -100,6 +100,11 @@ const ANTHROPIC: ProviderDefinition = providerDefinitionSchema.parse({
       method: 'subscription-broker',
       constraints: { execution: 'sandbox', harness: 'claude-code' },
     },
+    {
+      method: 'device-login',
+      targetEnvVar: 'CLAUDE_CODE_OAUTH_TOKEN',
+      constraints: { execution: 'sandbox', harness: 'claude-code' },
+    },
   ],
 });
 
@@ -1091,5 +1096,108 @@ describe('resolveWorkflowAgentServing — native Anthropic harness lane', () => 
       providerSlug: 'deepseek',
       modelId: 'deepseek-v4-flash',
     });
+  });
+});
+
+/**
+ * A device sign-in serves the SAME subscription lane as a pasted key: the
+ * sandbox harness it is bound to, the vendor's API base, and no gateway key.
+ * The one difference the hosts read is `deviceLogin` — the harness whose
+ * device holds the sign-in — which is set only for this credential.
+ */
+describe('device sign-in serves the subscription lane [PCRED-R8]', () => {
+  const DEVICE = { status: 'active', authMethod: 'device-login' };
+
+  it('serves an unpinned turn on the subscription lane, naming the device harness [PCRED-R8]', async () => {
+    credentials = { anthropic: DEVICE };
+
+    const serving = await resolveWorkflowAgentServing(ctx, {
+      organizationId: ORG,
+      model: 'claude-fable-5',
+      harness: 'claude-code',
+    });
+
+    expect(serving).toMatchObject({
+      lane: 'subscription',
+      providerSlug: 'anthropic',
+      modelId: 'claude-fable-5',
+      apiBaseUrl: 'https://api.anthropic.com',
+      deviceLogin: 'claude-code',
+    });
+  });
+
+  it('serves a pinned turn the same way, naming the device harness [PCRED-R8]', async () => {
+    credentials = { anthropic: DEVICE };
+
+    const serving = await resolveWorkflowAgentServing(ctx, {
+      organizationId: ORG,
+      model: 'claude-fable-5',
+      modelProvider: 'anthropic',
+      harness: 'claude-code',
+    });
+
+    expect(serving).toMatchObject({
+      lane: 'subscription',
+      deviceLogin: 'claude-code',
+    });
+  });
+
+  it('leaves deviceLogin unset for a static or brokered subscription [PCRED-R8]', async () => {
+    credentials = { anthropic: BROKER };
+
+    const serving = await resolveWorkflowAgentServing(ctx, {
+      organizationId: ORG,
+      model: 'claude-fable-5',
+      harness: 'claude-code',
+    });
+
+    expect(serving).toMatchObject({ lane: 'subscription' });
+    expect(serving).not.toHaveProperty('deviceLogin');
+  });
+
+  it('refuses a harness other than the one the device sign-in is bound to, naming it [PCRED-R8]', async () => {
+    credentials = { anthropic: DEVICE };
+
+    await expect(
+      resolveWorkflowAgentServing(ctx, {
+        organizationId: ORG,
+        model: 'claude-fable-5',
+        harness: 'codex',
+      }),
+    ).rejects.toThrow(/"anthropic".*claude-code/s);
+  });
+
+  it('reads images on a device sign-in only through a vision model [PCRED-R8]', async () => {
+    credentials = { anthropic: DEVICE };
+    getProviderCatalog.mockResolvedValue([
+      { id: 'claude-fable-5', tags: ['chat'], supportsVision: true },
+    ]);
+    const readable = await resolveWorkflowAgentServing(ctx, {
+      organizationId: ORG,
+      model: 'claude-fable-5',
+      harness: 'claude-code',
+    });
+    expect(readable).toMatchObject({ vision: { readable: true } });
+
+    getProviderCatalog.mockResolvedValue([
+      { id: 'claude-text-only', tags: ['chat'], supportsVision: false },
+    ]);
+    const blind = await resolveWorkflowAgentServing(ctx, {
+      organizationId: ORG,
+      model: 'claude-text-only',
+      harness: 'claude-code',
+    });
+    expect(blind).toMatchObject({
+      vision: { readable: false, reason: expect.stringContaining('text-only') },
+    });
+  });
+
+  it('never serves a device sign-in through the gateway lane [PCRED-R8]', async () => {
+    credentials = { anthropic: DEVICE };
+
+    const direct = await walkDirectServing(ctx, ORG, 'claude-fable-5', [
+      ANTHROPIC,
+    ]);
+    expect(direct.target).toBeNull();
   });
 });

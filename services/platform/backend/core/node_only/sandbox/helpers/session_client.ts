@@ -691,7 +691,15 @@ export interface SessionCreateBody {
    * session's turns run, which a raw device (services/sandbox/docs/raw.md)
    * runs only when it found it installed. The server and Docker devices run
    * every harness. */
-  requires?: { harness?: string };
+  requires?: {
+    harness?: string;
+    /** The harness whose own sign-in the device must hold: only such a
+     * device takes the session, and the hub answers 429 rather than start it
+     * on the server (TASK-R87). */
+    login?: string;
+    /** Devices whose sign-in for `login` is at its usage limit. */
+    avoidDevices?: string[];
+  };
 }
 
 export interface SessionInfo {

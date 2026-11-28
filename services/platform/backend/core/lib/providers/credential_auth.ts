@@ -41,6 +41,8 @@ export function credentialAuthFor(
         authMethod: 'subscription-broker',
         constraints: entry.constraints,
       };
+    case 'device-login':
+      return { authMethod: 'device-login', constraints: entry.constraints };
     default: {
       const _exhaustive: never = entry;
       return _exhaustive;

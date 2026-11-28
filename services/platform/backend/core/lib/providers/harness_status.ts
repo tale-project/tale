@@ -63,7 +63,7 @@ export interface HarnessStatusEntry {
 /** A subscription-flavored credential, resolver-shaped. */
 type SubscriptionAuth = Extract<
   CredentialAuth,
-  { authMethod: 'subscription-key' | 'subscription-broker' }
+  { authMethod: 'subscription-key' | 'subscription-broker' | 'device-login' }
 >;
 
 export interface SubscriptionCredentialFact {

@@ -159,6 +159,39 @@ describe('resolveExecution — tool API compatibility', () => {
   });
 });
 
+describe('resolveExecution — device-login (a device sign-in, no secret) [PCRED-R8]', () => {
+  const DEVICE_LOGIN: CredentialAuth = {
+    authMethod: 'device-login',
+    constraints: { execution: 'sandbox', harness: 'claude-code' },
+  };
+
+  it('refuses direct exactly like a subscription key [PCRED-R8]', () => {
+    const result = resolve({ credential: DEVICE_LOGIN, mode: 'direct' });
+    expect(result.mode).toBe('refused');
+    if (result.mode === 'refused') {
+      expect(result.reason).toContain('claude-code');
+    }
+  });
+
+  it('forces the constrained harness in sandbox mode [PCRED-R8]', () => {
+    expect(
+      resolve({ credential: DEVICE_LOGIN, mode: 'sandbox' }),
+    ).toMatchObject({ mode: 'sandbox', harness: { slug: 'claude-code' } });
+  });
+
+  it('refuses any other requested harness, naming the forced one [PCRED-R8]', () => {
+    const result = resolve({
+      credential: DEVICE_LOGIN,
+      mode: 'sandbox',
+      harness: 'codex',
+    });
+    expect(result.mode).toBe('refused');
+    if (result.mode === 'refused') {
+      expect(result.reason).toContain('"claude-code"');
+    }
+  });
+});
+
 describe('resolveExecution — subscription-key (static plan/portal keys)', () => {
   it('refuses direct exactly like the broker flavor', () => {
     const result = resolve({ credential: SUBSCRIPTION_KEY, mode: 'direct' });

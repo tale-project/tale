@@ -82,6 +82,16 @@ Un appareil raw n’exécute une sandbox qu’avec un environnement d’agent in
 
 Dans **Paramètres > Sandboxes**, la liste **Appareils** affiche un appareil raw dans la colonne **Machine** avec la mention **Sur la machine**, son isolation (**Chaque sandbox avec son propre compte** ou **Compte partagé**) et ses **Environnements d’agent** avec leurs versions. Un appareil Docker affiche **Docker**. Un appareil raw n’a pas de Docker Engine : l’avertissement sur un Docker Engine trop ancien ne le concerne jamais.
 
+## Utiliser l’abonnement de l’appareil {#sign-ins}
+
+Un appareil peut garder sa propre connexion Claude Code, pour que les tâches et les automatisations de ton organisation s’exécutent avec l’abonnement Claude de cette machine plutôt qu’avec une clé d’API. Le jeton reste sur la machine : Tale ne le reçoit jamais.
+
+1. Sur l’appareil, exécute `claude setup-token` avec un compte Claude Pro, Max, Team ou Enterprise. Il affiche un jeton valable un an.
+2. Exécute `tale sandbox login claude-code` et colle le jeton. Sur un appareil raw isolé, exécute-le avec `sudo`. `tale sandbox logins` liste les connexions d’un appareil, et `tale sandbox logout claude-code` en retire une.
+3. Dans **Paramètres > Fournisseurs**, ajoute un identifiant Anthropic avec **Connexion sur un appareil sandbox** et définis-le par défaut. Voir [Fournisseurs](/fr/platform/admin/providers).
+
+Les exécutions avec un tel identifiant ne démarrent que sur un appareil connecté qui détient une connexion, jamais sur le serveur Tale. Quand un abonnement atteint sa limite d’utilisation, la connexion de l’appareil est retenue jusqu’à la réinitialisation de la limite, et l’exécution passe sur un autre appareil dont la connexion est libre. Quand toutes les connexions ont atteint leur limite, l’exécution attend la plus proche réinitialisation et affiche **En attente de la réinitialisation d’une connexion**. Une exécution en attente ne consomme aucune tentative. La liste **Appareils** montre chaque connexion, et jusqu’à quand l’une a atteint sa limite.
+
 ## Comprendre où s’exécutent les sandboxes
 
 Les nouveaux espaces de travail des agents et des automatisations démarrent sur un appareil connecté qui a de la place. S’il n’y en a aucun, ils démarrent sur le serveur Tale. Un espace de travail reste, avec ses fichiers, sur la machine où il a démarré : un agent qui a déjà un espace de travail sur le serveur continue donc de l’utiliser. Quand le serveur est plein, une exécution de tâche dont l’espace de travail s’y trouve passe toutefois dans un autre espace de travail de son agent qui peut démarrer, par exemple sur un appareil qui a de la place ou dans un nouvel espace sur cet appareil ; son espace de travail sur le serveur garde ses fichiers. Les pages rendues pour l’exploration des sites web restent toujours sur le serveur.

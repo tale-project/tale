@@ -67,6 +67,12 @@ export type TaskRunFailureCode =
    * spends no attempt, waits on the model's capacity hold with every other
    * run on it, and keeps the prior account eligible. */
   | 'model_capacity'
+  /** The subscription the run worked on reached its usage limit (a
+   * device's own sign-in, a pasted subscription token): it is held until the
+   * limit resets (`domains/tasks/usage-limit-holds.ts`). The retry spends no
+   * attempt; it starts on another device's sign-in when one can take it, and
+   * otherwise waits for the reset (TASK-R87). */
+  | 'usage_limit'
   | 'turn_crashed'
   /** The sandbox ended the harness because it stalled: it printed nothing
    * and used almost no CPU for the sandbox's stall window (45 minutes by
@@ -324,6 +330,7 @@ export function freeCapacityWaits(
     (row) =>
       row.status === 'failed' &&
       (row.failureCode === 'model_capacity' ||
+        row.failureCode === 'usage_limit' ||
         row.failureCode === 'sandbox_capacity'),
   );
 }

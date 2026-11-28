@@ -71,7 +71,10 @@ import {
   type SubscriptionVision,
 } from '../lib/providers/subscription_vision';
 import type { Id } from '../lib/rows';
-import { ensureAgentSession } from '../node_only/sandbox/agent_session';
+import {
+  deviceLoginRequirement,
+  ensureAgentSession,
+} from '../node_only/sandbox/agent_session';
 import {
   isDestroyPendingRefusal,
   sandboxCapacityRefusal,
@@ -525,6 +528,10 @@ export function automationAgentHost(
           sessionId,
           harness,
           lane: serving.lane,
+          ...(serving.lane === 'subscription' &&
+          serving.deviceLogin !== undefined
+            ? { deviceLogin: serving.deviceLogin }
+            : {}),
           providerSlug: serving.providerSlug,
           modelId: serving.modelId,
           gatewayModel: execModel,
@@ -775,6 +782,9 @@ export async function ensureWorkflowSession(
   organizationId: string,
   runId: string,
   harness?: string,
+  /** The run's agent works on a device's own sign-in: the provider it is
+   * the default credential of, and its harness (TASK-R87). */
+  deviceLogin?: { providerSlug: string; harness: string },
 ): Promise<string> {
   const sessionId = sessionIdForWorkflowExecution(runId);
   await ensureAgentSession(ctx, {
@@ -782,6 +792,9 @@ export async function ensureWorkflowSession(
     sessionId,
     owner: { type: 'workflow_run', runId },
     ...(harness !== undefined ? { agentKind: harness } : {}),
+    ...(deviceLogin !== undefined
+      ? await deviceLoginRequirement(ctx, { organizationId, ...deviceLogin })
+      : {}),
   });
   return sessionId;
 }
@@ -1348,17 +1361,22 @@ async function mintWorkflowTurnAuth(
   });
   if (
     credential.authMethod !== 'subscription-key' &&
-    credential.authMethod !== 'subscription-broker'
+    credential.authMethod !== 'subscription-broker' &&
+    credential.authMethod !== 'device-login'
   ) {
     // The default credential changed shape between resolution and redeem.
     throw new Error(
       `provider "${args.providerSlug}"'s default credential is no longer a subscription — rerun the automation`,
     );
   }
+  // A device sign-in carries no secret: the harness gets the sentinel, which
+  // the device swaps for its own token and the server refuses (safe).
   const secret =
-    credential.authMethod === 'subscription-broker'
-      ? credential.token
-      : credential.secret;
+    credential.authMethod === 'device-login'
+      ? `tale-device-login:${credential.harness}`
+      : credential.authMethod === 'subscription-broker'
+        ? credential.token
+        : credential.secret;
   const bridgeToken = `tale-sub-${randomBytes(24).toString('base64url')}`;
   return {
     serving: {
@@ -1372,7 +1390,8 @@ async function mintWorkflowTurnAuth(
       ...(credential.targetEnvVar !== undefined
         ? { targetEnvVar: credential.targetEnvVar }
         : {}),
-      ...(credential.accountId !== undefined
+      ...(credential.authMethod !== 'device-login' &&
+      credential.accountId !== undefined
         ? { accountId: credential.accountId }
         : {}),
     },
@@ -1394,6 +1413,9 @@ export interface StartWorkflowAgentTurnArgs {
   sessionId: string;
   harness: string;
   lane?: 'gateway' | 'subscription';
+  /** The subscription serving is a device's own sign-in for this harness
+   * (TASK-R87): the run's session starts on a device that holds one. */
+  deviceLogin?: string;
   providerSlug: string;
   modelId: string;
   gatewayModel: string;
@@ -1518,6 +1540,9 @@ export async function startWorkflowAgentTurnImpl(
         args.organizationId,
         args.runId,
         args.harness,
+        args.deviceLogin !== undefined
+          ? { providerSlug: args.providerSlug, harness: args.deviceLogin }
+          : undefined,
       );
 
       const skillViewer = await resolveRunSkillViewer(

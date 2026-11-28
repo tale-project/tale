@@ -51,10 +51,12 @@ import {
 const ID_FORM =
   'the provider and the credential name joined by a slash, the name URI-encoded, such as openai/Production%20key';
 
-/** Whether a credential's authentication method is a subscription. */
+/** Whether a credential's authentication method rides the subscription lane:
+ * a pasted or brokered subscription, or a device sign-in that serves one. */
 function isSubscription(authMethod: unknown): boolean {
   return (
-    typeof authMethod === 'string' && authMethod.startsWith('subscription')
+    typeof authMethod === 'string' &&
+    (authMethod.startsWith('subscription') || authMethod === 'device-login')
   );
 }
 

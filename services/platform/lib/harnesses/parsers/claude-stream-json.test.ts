@@ -14,6 +14,98 @@ describe('claude-stream-json parser', () => {
   const disabledSubscription =
     'Your organization has disabled Claude subscription access for Claude Code · Use an Anthropic API key instead, or ask your admin to enable access';
 
+  it.each([
+    [
+      'the rate-limit event the CLI sends before it ends the turn',
+      [
+        {
+          type: 'rate_limit_event',
+          rate_limit_info: {
+            status: 'allowed_warning',
+            resetsAt: 1_900_000_000,
+          },
+        },
+        {
+          type: 'rate_limit_event',
+          rate_limit_info: { status: 'rejected', resetsAt: 1_900_003_600 },
+        },
+        {
+          type: 'result',
+          subtype: 'success',
+          is_error: true,
+          api_error_status: 429,
+          result: "You've hit your session limit · resets 3:45pm",
+        },
+      ],
+      1_900_003_600_000,
+    ],
+    [
+      'the documented result text alone',
+      [
+        {
+          type: 'result',
+          subtype: 'success',
+          is_error: true,
+          result: "You've hit your weekly limit · resets Mon 9:00am",
+        },
+      ],
+      undefined,
+    ],
+    [
+      "an older release's result with its reset",
+      [
+        {
+          type: 'result',
+          subtype: 'success',
+          is_error: true,
+          result: 'Claude AI usage limit reached|1900007200',
+        },
+      ],
+      1_900_007_200_000,
+    ],
+  ])(
+    'identifies the subscription usage limit from %s',
+    (_what, lines, resetsAt) => {
+      const events = collectEvents(
+        createParser('claude-code'),
+        lines.map((line) => JSON.stringify(line)).join('\n'),
+      );
+      const ended = events.find((event) => event.type === 'turn-ended');
+      expect(ended).toMatchObject({
+        type: 'turn-ended',
+        isError: true,
+        providerErrorKind: 'usage_limit',
+      });
+      expect(
+        ended !== undefined && 'usageLimitResetsAtMs' in ended
+          ? ended.usageLimitResetsAtMs
+          : undefined,
+      ).toBe(resetsAt);
+    },
+  );
+
+  it('reads no usage limit from a quotation or a passing warning', () => {
+    const events = collectEvents(
+      createParser('claude-code'),
+      [
+        {
+          type: 'rate_limit_event',
+          rate_limit_info: { status: 'allowed_warning', resetsAt: 1 },
+        },
+        {
+          type: 'result',
+          subtype: 'success',
+          is_error: false,
+          result: "The docs say: You've hit your session limit · resets 3pm",
+        },
+      ]
+        .map((line) => JSON.stringify(line))
+        .join('\n'),
+    );
+    const ended = events.find((event) => event.type === 'turn-ended');
+    expect(ended).not.toHaveProperty('providerErrorKind');
+  });
+
   it.each(['claude-code', 'claude-code-compact'] as const)(
     '%s identifies the terminal subscription-access refusal',
     (harness) => {

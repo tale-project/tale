@@ -151,13 +151,19 @@ describe('codex-jsonl parser', () => {
     });
   });
 
+  it('reads the plan usage limit as a usage limit another sign-in can take', () => {
+    const message =
+      "You've hit your usage limit. Upgrade to Pro (https://chatgpt.com/explore/pro), visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again at Jan 1st, 2100 1:00 AM.";
+    expect(describeTurnFailure(message)).toEqual({
+      message,
+      apiErrorStatus: 429,
+      providerErrorKind: 'usage_limit',
+    });
+  });
+
   it.each([
     ['unexpected status 429 Too Many Requests: retry later', 429],
     ['unexpected status 401 Unauthorized: invalid token', 401],
-    [
-      "You've hit your usage limit. Upgrade to Pro (https://chatgpt.com/explore/pro), visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again at Jan 1st, 2100 1:00 AM.",
-      429,
-    ],
   ])(
     'preserves the pinned CLI vendor failure status: %s',
     (message, status) => {

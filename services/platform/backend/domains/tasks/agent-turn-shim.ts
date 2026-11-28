@@ -57,6 +57,7 @@ import {
   handTaskToInProgressForKick,
 } from './service.ts';
 import { readTaskBrief } from './task-brief-read.ts';
+import { heldDeviceLogins } from './usage-limit-holds.ts';
 
 /**
  * Handler map for the REUSED task-agent turn host
@@ -121,6 +122,15 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
       };
       const { projectBlock } = await snapshotRunInstructions(sql, args);
       return projectBlock;
+    },
+
+    /** The devices whose own sign-in for the provider's default device
+     * sign-in credential is at its usage limit (TASK-R87): a new worker of a
+     * run on a device sign-in is placed on none of them. */
+    'tasks/agent_runs:heldDeviceLogins': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
+      const args = raw as { organizationId: string; providerSlug: string };
+      return await heldDeviceLogins(sql, args);
     },
 
     'tasks/agent_runs:getTaskAgentRunForDrive': async (raw) => {

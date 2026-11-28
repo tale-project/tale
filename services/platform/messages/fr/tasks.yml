@@ -96,6 +96,8 @@ agentRun:
     destroy_pending: En attente d’un espace de travail
     exec_limit: En attente de sa sandbox
     model_capacity: En attente du modèle
+    usage_limit: En attente de la réinitialisation d’une connexion
+    device_login: En attente d’un appareil
     unknown: En attente d’un worker
   # Ce que l'état court veut dire, affiché dessous pendant l'attente.
   waitingWhy:
@@ -104,6 +106,8 @@ agentRun:
     destroy_pending: Un admin supprime l’espace de travail que cette exécution utiliserait. Elle démarre dans un nouvel espace une fois la suppression terminée.
     exec_limit: Sa sandbox termine encore un processus précédent. L’exécution démarre d’elle-même dans un instant.
     model_capacity: Le modèle d’IA de cet agent est saturé. L’exécution démarre d’elle-même dès que le modèle répond de nouveau ; l’attente ne consomme aucune tentative.
+    usage_limit: L’abonnement avec lequel travaille cet agent a atteint sa limite d’utilisation. Si la connexion d’un autre appareil peut reprendre l’exécution, elle y démarre ; sinon elle démarre d’elle-même dès que la limite est réinitialisée. L’attente ne consomme aucune tentative.
+    device_login: Cet agent travaille avec la connexion d’un appareil de sandbox, et aucun appareil connecté qui en détient une n’a de place pour le moment. L’exécution démarre d’elle-même dès que l’un d’eux en a.
     unknown: L’exécution démarre d’elle-même dès qu’il y a de la place pour elle.
   # Pour les owners et les admins, à côté de « Tous les workers d’agent … ».
   manageWorkers: Gérer les workers d’agent
@@ -129,6 +133,7 @@ agentRun:
     time_limit: L’exécution a atteint sa limite de temps avant que l’agent ait terminé. Relance l’agent, ou découpe la tâche en tâches plus petites.
     capacity: L’exécution a attendu trop longtemps un worker libre. Relance l’agent quand moins d’agents seront occupés.
     model_capacity: Le modèle d’IA est resté saturé pendant douze heures, l’exécution a donc cessé d’attendre. Relance l’agent plus tard — si le modèle reste indisponible, demande à un admin de vérifier le fournisseur d’IA.
+    usage_limit: L’abonnement avec lequel travaille cet agent a atteint sa limite d’utilisation et n’a pas été réinitialisé tant que l’exécution pouvait attendre. Relance l’agent une fois la limite réinitialisée, ou connecte un autre appareil.
     model: Le modèle d’IA derrière cet agent a échoué avant la fin du travail. Relance l’agent — s’il échoue encore, demande à un admin de vérifier le fournisseur d’IA.
     start: L’exécution n’a pas pu démarrer. Réessaie — si elle échoue encore, montre à un admin ce que l’exécution a signalé dans « Détails ».
     interrupted: L’exécution a été interrompue avant que l’agent ait terminé. Relance l’agent.

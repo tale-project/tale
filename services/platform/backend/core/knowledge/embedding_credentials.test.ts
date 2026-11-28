@@ -105,6 +105,13 @@ function credential(
         targetEnvVar: 'CLAUDE_CODE_OAUTH_TOKEN',
         brokerTokenHash: 'synthetic-account-hash',
       };
+    case 'device-login':
+      return {
+        ...common,
+        authMethod,
+        harness: 'claude-code',
+        targetEnvVar: 'CLAUDE_CODE_OAUTH_TOKEN',
+      };
     default:
       throw new Error('Unsupported test credential');
   }
@@ -133,7 +140,7 @@ describe('an organization without an embedding model', () => {
 });
 
 describe('direct embedding credentials', () => {
-  it.each(['subscription-key', 'subscription-broker'] as const)(
+  it.each(['subscription-key', 'subscription-broker', 'device-login'] as const)(
     'rejects a default %s before fetching or allocating a secret',
     async (authMethod) => {
       runQuery.mockResolvedValue({ ...BASE_ROW, authMethod });
@@ -152,7 +159,7 @@ describe('direct embedding credentials', () => {
     },
   );
 
-  it.each(['subscription-key', 'subscription-broker'] as const)(
+  it.each(['subscription-key', 'subscription-broker', 'device-login'] as const)(
     'rejects an explicitly selected %s before resolving its secret',
     async (authMethod) => {
       runQuery.mockResolvedValue({ ...BASE_ROW, authMethod });
@@ -173,7 +180,7 @@ describe('direct embedding credentials', () => {
     },
   );
 
-  it.each(['subscription-key', 'subscription-broker'] as const)(
+  it.each(['subscription-key', 'subscription-broker', 'device-login'] as const)(
     'rechecks resolved %s credentials after a concurrent settings change',
     async (authMethod) => {
       runQuery.mockResolvedValue({ ...BASE_ROW, authMethod: 'api-key' });
