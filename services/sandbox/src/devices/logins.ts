@@ -14,13 +14,12 @@ import { join } from 'node:path';
 /** The harnesses a device can hold a sign-in for, and the variable each one
  * reads it from: Claude Code takes the long-lived token `claude setup-token`
  * prints. */
-export const DEVICE_LOGIN_HARNESSES: Readonly<Record<string, { env: string }>> =
-  {
-    'claude-code': { env: 'CLAUDE_CODE_OAUTH_TOKEN' },
-  };
+const DEVICE_LOGIN_HARNESSES: Readonly<Record<string, { env: string }>> = {
+  'claude-code': { env: 'CLAUDE_CODE_OAUTH_TOKEN' },
+};
 
 /** What the platform sends where a device's sign-in goes. */
-export const DEVICE_LOGIN_SENTINEL_PREFIX = 'tale-device-login:';
+const DEVICE_LOGIN_SENTINEL_PREFIX = 'tale-device-login:';
 
 export function deviceLoginSentinel(harness: string): string {
   return `${DEVICE_LOGIN_SENTINEL_PREFIX}${harness}`;

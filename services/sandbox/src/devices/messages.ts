@@ -164,7 +164,7 @@ function parseUpdate(value: unknown): DeviceUpdateReport {
 }
 
 /** A sign-in list; an unreadable one reads as none. */
-export function parseLogins(value: unknown): DeviceLogin[] {
+function parseLogins(value: unknown): DeviceLogin[] {
   if (!Array.isArray(value) || value.length > MAX_HARNESSES) return [];
   const out: DeviceLogin[] = [];
   for (const entry of value) {
