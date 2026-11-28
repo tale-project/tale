@@ -42,6 +42,7 @@ vi.mock('@tale/ui/use-toast', () => ({ useToast: () => ({ toast }) }));
 
 function device(overrides: Partial<SandboxDeviceView> = {}): SandboxDeviceView {
   return {
+    logins: [],
     id: 'dev-1',
     name: 'studio-mac',
     status: 'online',
@@ -545,6 +546,38 @@ describe('Runs sandboxes on', () => {
       { id: 'codex', version: '0.160.0' },
     ],
   };
+
+  it("lists a device's own sign-ins, and one at its usage limit with until when [TASK-R87]", () => {
+    renderSection({
+      view: view([
+        device({
+          name: 'ada-laptop',
+          platform: rawPlatform,
+          logins: [{ harness: 'claude-code', addedAt: 1, heldUntil: null }],
+        }),
+        device({
+          id: 'dev-2',
+          name: 'bo-desktop',
+          platform: rawPlatform,
+          logins: [
+            {
+              harness: 'claude-code',
+              addedAt: 1,
+              heldUntil: Date.parse('2026-11-28T15:45:00Z'),
+            },
+          ],
+        }),
+      ]),
+    });
+    expect(
+      within(rowOf('ada-laptop')).getByText('Claude Code sign-in'),
+    ).toBeInTheDocument();
+    expect(
+      within(rowOf('bo-desktop')).getByText(
+        /Claude Code sign-in · at its usage limit until/,
+      ),
+    ).toBeInTheDocument();
+  });
 
   it('names Docker for a device that runs its sandboxes in containers', () => {
     renderSection({ view: view([device()]) });

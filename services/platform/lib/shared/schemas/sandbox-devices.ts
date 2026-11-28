@@ -154,6 +154,13 @@ export interface SandboxDeviceView {
     error: string | null;
     atMs: number | null;
   } | null;
+  /** The harness sign-ins the device holds (online only), and until when
+   * each is at its usage limit (TASK-R87). */
+  logins: Array<{
+    harness: string;
+    addedAt: number;
+    heldUntil: number | null;
+  }>;
 }
 
 /** `GET /api/app/sandbox-devices` */
@@ -185,6 +192,17 @@ export const hubDevicesSchema = z.object({
         })
         .nullable(),
       platform: sandboxDevicePlatformSchema.nullable(),
+      /** The harnesses the device holds its own sign-in for. Absent from
+       * hubs older than device sign-ins. */
+      logins: z
+        .array(
+          z.object({
+            harness: z.string().min(1).max(48),
+            addedAtMs: z.number().nonnegative(),
+          }),
+        )
+        .max(32)
+        .optional(),
       update: z.object({
         state: z.enum(['idle', 'updating', 'failed']),
         targetVersion: z.string().max(128).nullable(),

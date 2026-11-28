@@ -85,6 +85,24 @@ describe('pgAutomationStore.modelAvailable', () => {
     ).resolves.toBeUndefined();
   });
 
+  it('cannot tell for an agent node while a device sign-in lane is connected [PCRED-R8]', async () => {
+    walkLlmServing.mockResolvedValue({
+      target: null,
+      unreachable: [],
+      rows: new Map(),
+    });
+    listServingCredentialFacts.mockResolvedValue([
+      { providerSlug: 'anthropic', authMethod: 'device-login' },
+    ]);
+    const store = pgAutomationStore(sql, scope);
+    await expect(
+      store.modelAvailable?.('claude-fable-5', 'agent'),
+    ).resolves.toBeUndefined();
+    await expect(store.modelAvailable?.('claude-fable-5', 'llm')).resolves.toBe(
+      false,
+    );
+  });
+
   it('cannot tell for an agent node while a subscription lane is connected', async () => {
     walkLlmServing.mockResolvedValue({
       target: null,

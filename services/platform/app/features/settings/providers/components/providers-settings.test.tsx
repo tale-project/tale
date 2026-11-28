@@ -264,7 +264,7 @@ const anthropicProvider = {
   apiFormat: 'anthropic',
   baseUrl: 'https://api.anthropic.com/v1',
   catalogSource: 'static',
-  authMethods: ['api-key', 'env', 'subscription-broker'],
+  authMethods: ['api-key', 'env', 'device-login', 'subscription-broker'],
   models: [model('claude-fable-5'), model('claude-haiku-4')],
 } as unknown as ProviderCatalog;
 
@@ -663,7 +663,44 @@ describe('ProvidersSettings', () => {
       );
       expect(
         screen.getAllByRole('option').map((option) => option.textContent),
-      ).toEqual(['API key', 'Environment variable', 'Subscription broker']);
+      ).toEqual([
+        'API key',
+        'Environment variable',
+        'Sign-in on a sandbox device',
+        'Subscription broker',
+      ]);
+    });
+
+    it('adds a sign-in on a sandbox device with no secret field, and says where it runs', async () => {
+      createCredential.mockResolvedValue({ credentialId: 'cred-10' });
+      fixtures.credentials = [];
+      const { user } = renderPage();
+      const form = await pickProvider(user, 'Anthropic');
+      await user.click(
+        form.getByRole('combobox', { name: /Authentication method/ }),
+      );
+      await user.click(
+        screen.getByRole('option', { name: 'Sign-in on a sandbox device' }),
+      );
+
+      expect(
+        form.getByText(
+          /Runs use the Claude Code sign-in of a connected sandbox device/,
+        ),
+      ).toBeInTheDocument();
+      expect(form.getByText('Tasks and automations only')).toBeInTheDocument();
+      // Nothing to type: the sign-in stays on the device.
+      expect(document.querySelector('input[type="password"]')).toBeNull();
+
+      await user.click(form.getByRole('button', { name: 'Add credential' }));
+      await waitFor(() =>
+        expect(createCredential).toHaveBeenCalledWith({
+          organizationId: 'org-1',
+          providerSlug: 'anthropic',
+          authMethod: 'device-login',
+          name: 'Anthropic',
+        }),
+      );
     });
 
     it('renders the declared subscription account field from the catalog shape', async () => {

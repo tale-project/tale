@@ -336,3 +336,71 @@ describe('updateCredential — an env credential has no secret to rotate [PCRED-
     expect(error.message).toContain('tokensPath');
   });
 });
+
+describe('a sign-in on a sandbox device stores no secret [PCRED-R8]', () => {
+  it('refuses a secret sent with a device sign-in, before any statement [PCRED-R8]', async () => {
+    const error = await caught(
+      createCredential(refusingTx(), SCOPE, {
+        providerSlug: 'anthropic',
+        authMethod: 'device-login',
+        name: 'Device',
+        secret: 'sk-ant-oat01-not-for-this-method',
+      }),
+    );
+    expect(error.code).toBe('CREDENTIAL_SECRET_NOT_ACCEPTED');
+    expect(error.status).toBe(400);
+  });
+
+  it('saves a device sign-in with no secret, storing neither ciphertext nor a preview [PCRED-R8]', async () => {
+    const inserted: unknown[][] = [];
+    let calls = 0;
+    const run = async (
+      _strings: TemplateStringsArray,
+      ...values: unknown[]
+    ) => {
+      calls += 1;
+      if (calls === 1) return []; // the provider's sibling credentials
+      if (calls === 2) inserted.push(values);
+      return [{ id: 'cred-device' }];
+    };
+    const tx = Object.assign(run, {
+      json: (value: unknown) => value,
+    }) as unknown as TransactionSql;
+    const id = await createCredential(tx, SCOPE, {
+      providerSlug: 'anthropic',
+      authMethod: 'device-login',
+      name: 'Device',
+    }).catch((error: unknown) => error);
+    expect(id).toBe('cred-device');
+    // The insert's values: the encrypted payload and masked preview are null.
+    const values = inserted[0] ?? [];
+    expect(values).toContain('device-login');
+    expect(
+      values.some(
+        (value) => typeof value === 'string' && value.includes('sk-'),
+      ),
+    ).toBe(false);
+    expect(
+      values.filter((value) => value === null).length,
+    ).toBeGreaterThanOrEqual(3);
+  });
+
+  it('refuses a secret patch on a device sign-in row, writing nothing [PCRED-R8]', async () => {
+    const error = await caught(
+      updateCredential(
+        txServingRow({
+          providerSlug: 'anthropic',
+          isDefault: true,
+          name: 'Device',
+          authMethod: 'device-login',
+          status: 'active',
+        }),
+        SCOPE,
+        'cred-device',
+        { secret: 'sk-new' },
+      ),
+    );
+    expect(error.code).toBe('CREDENTIAL_SECRET_NOT_ACCEPTED');
+    expect(error.status).toBe(400);
+  });
+});

@@ -118,4 +118,25 @@ describe('toModelOptions + offeredToHarness', () => {
     // Before the roster answers, the default holds: a runtime runs one.
     expect(offeredToHarness(anthropic, 'qwen-code', undefined)).toBe(true);
   });
+
+  it('offers a device sign-in model only to the harness its device sign-in is bound to [PCRED-R8]', () => {
+    const [device] = toModelOptions([
+      {
+        id: 'claude-fable-5',
+        label: 'Claude Fable 5',
+        providerSlug: 'anthropic',
+        providerLabel: 'Anthropic',
+        credential: {
+          authMethod: 'device-login',
+          constraints: { harness: 'claude-code' },
+        },
+      },
+    ]);
+    if (device === undefined) throw new Error('missing option');
+    expect(device).toMatchObject({
+      subscription: { harness: 'claude-code' },
+    });
+    expect(offeredToHarness(device, 'claude-code', CLAUDE_CODE)).toBe(true);
+    expect(offeredToHarness(device, 'codex', CODEX)).toBe(false);
+  });
 });

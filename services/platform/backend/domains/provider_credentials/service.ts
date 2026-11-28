@@ -161,7 +161,12 @@ interface ResolverRow {
   _id: string;
   organizationId: string;
   providerSlug: string;
-  authMethod: 'api-key' | 'env' | 'subscription-key' | 'subscription-broker';
+  authMethod:
+    | 'api-key'
+    | 'env'
+    | 'subscription-key'
+    | 'subscription-broker'
+    | 'device-login';
   name: string;
   encryptedData?: EncryptedSecret;
   envName?: string;
@@ -318,7 +323,12 @@ export async function resolveProviderCredential(
 /** The credential facts a model-serving walk reads. */
 export interface ServingCredentialFacts {
   providerSlug: string;
-  authMethod: 'api-key' | 'env' | 'subscription-key' | 'subscription-broker';
+  authMethod:
+    | 'api-key'
+    | 'env'
+    | 'subscription-key'
+    | 'subscription-broker'
+    | 'device-login';
   modelAllowlist?: string[];
 }
 
@@ -596,6 +606,16 @@ export async function createCredential(
   }
   if (args.authMethod === 'env') {
     envName = assertProviderKeyEnvName(args.envName);
+  } else if (args.authMethod === 'device-login') {
+    // No secret: the token stays on the sandbox device that holds the
+    // sign-in. A secret sent for it is refused, never stored.
+    if (args.secret !== undefined) {
+      throw new CredentialAdminError(
+        'CREDENTIAL_SECRET_NOT_ACCEPTED',
+        'A sign-in on a sandbox device takes no secret — the token stays on the device',
+        400,
+      );
+    }
   } else {
     if (!args.secret || args.secret.trim().length === 0) {
       throw new CredentialAdminError(
@@ -710,7 +730,8 @@ export async function updateCredential(
         | 'api-key'
         | 'env'
         | 'subscription-key'
-        | 'subscription-broker';
+        | 'subscription-broker'
+        | 'device-login';
       status: 'active' | 'disabled';
       id: string;
       envName: string | null;
@@ -784,6 +805,13 @@ export async function updateCredential(
   }
   let rotated: EncryptedSecret | undefined;
   let rotatedPreview: string | undefined;
+  if (patch.secret !== undefined && row.authMethod === 'device-login') {
+    throw new CredentialAdminError(
+      'CREDENTIAL_SECRET_NOT_ACCEPTED',
+      'A sign-in on a sandbox device takes no secret — the token stays on the device',
+      400,
+    );
+  }
   if (patch.secret !== undefined) {
     if (patch.secret.trim().length === 0) {
       throw new CredentialAdminError(

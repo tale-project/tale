@@ -334,8 +334,18 @@ export type HarnessEvent =
        * whether to rotate credentials / retry. */
       apiErrorStatus?: number;
       /** A semantic failure from the harness's terminal provider channel.
-       * Account feedback also requires its matching HTTP status. */
-      providerErrorKind?: 'model_capacity' | 'subscription_access_disabled';
+       * Account feedback also requires its matching HTTP status.
+       * `usage_limit`: the subscription the turn ran on reached its usage
+       * limit (Claude's five-hour or weekly window, Codex's plan limit) —
+       * another sign-in can take the run, the same one only after it resets. */
+      providerErrorKind?:
+        | 'model_capacity'
+        | 'subscription_access_disabled'
+        | 'usage_limit';
+      /** When the limit resets, epoch ms, where the harness said so (Claude
+       * Code's `rate_limit_event` before the refusal, or the legacy
+       * `…usage limit reached|<epoch>` result). */
+      usageLimitResetsAtMs?: number;
     }
   | { type: 'error'; message: string; raw?: unknown }
   /** The provider refused a call because the model is at capacity, and the

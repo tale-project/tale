@@ -29,6 +29,7 @@ Teste Zugangsdaten vom Typ **API-Schlüssel** oder **Umgebungsvariable** mit ein
 | **Umgebungsvariable** | Der Name einer Bereitstellungsvariable | Ein Betreiber verwaltet das Geheimnis außerhalb der Oberfläche. Der Name muss mit `TALE_PROVIDER_KEY_` beginnen. |
 | **Abo-Schlüssel** | Ein unterstütztes Abonnement-Geheimnis des Anbieters | Ausführung über die unterstützte Agent-Laufzeit des Anbieters in Aufgaben und Automatisierungen, nie im Chat. |
 | **Abo-Broker** | Broker-Endpunkt und Konfiguration seiner Token-Antwort | Die Bereitstellung bezieht nutzbare Abonnement-Tokens von einem Broker, für die Agent-Laufzeit des Anbieters in Aufgaben und Automatisierungen, nie im Chat. |
+| **Anmeldung auf einem Sandbox-Gerät** | Nichts. Die Claude-Code-Anmeldung bleibt auf einem verbundenen Sandbox-Gerät | Läufe nutzen die eigene Anmeldung des Geräts in Aufgaben und Automatisierungen, nie im Chat. |
 
 Es erscheinen nur Methoden, die der ausgewählte Anbieter unterstützt. Ein Variablenverweis legt die Variable nicht an. Der Betreiber muss sie gemäß der [Anbieterkonfiguration](/de/self-hosted/configuration/providers) bereitstellen.
 
@@ -39,6 +40,18 @@ Zugangsdaten vom Typ **Abo-Schlüssel** oder **Abo-Broker** funktionieren nur in
 Tale führt ein Abo deshalb in Aufgaben und Automatisierungen aus, wo seine Laufzeit in einer Sandbox arbeitet. Der Chat bietet nur Modelle an, die Zugangsdaten vom Typ **API-Schlüssel** oder **Umgebungsvariable** bereitstellen. Die App weist an drei Stellen darauf hin: Das Formular zum Hinzufügen zeigt **Nur für Aufgaben und Automatisierungen**, sobald du eine Abo-Methode wählst, jede Abo-Zeile in der Tabelle der Zugangsdaten trägt denselben Hinweis, und die Modellliste im Chat nennt die Abos, die sie auslässt.
 
 Um mit einem Modell zu chatten, das du über ein Abo erreichst, füge für denselben Anbieter Zugangsdaten per API-Schlüssel oder Umgebungsvariable hinzu oder verbinde einen Anbieter wie OpenRouter, der das Modell bereitstellt.
+
+## Anmeldung auf einem Sandbox-Gerät
+
+**Anmeldung auf einem Sandbox-Gerät** führt Anthropic-Modelle mit der Claude-Code-Anmeldung aus, die ein verbundenes Sandbox-Gerät hält. Tale speichert für diese Methode kein Geheimnis, und das Token verlässt das Gerät nie. Wie ein Abo dient sie nur Aufgaben und Automatisierungen, nie dem Chat.
+
+So fügst du die Anmeldung einem Gerät hinzu:
+
+1. Führe auf dem Gerät `claude setup-token` aus und folge der Anmeldung, die sich öffnet. Claude gibt ein langlebiges OAuth-Token aus.
+2. Führe auf dem Gerät `tale sandbox login claude-code` aus und füge das Token ein. Auf einem isolierten Raw-Gerät, das du [mit `sudo` verbunden hast](/de/platform/admin/sandbox-devices#raw-devices), führst du den Befehl ebenfalls mit `sudo` aus, damit das Token im eigenen Konto des Geräts gespeichert wird.
+3. Lege unter **Einstellungen > KI-Anbieter** einen **Anthropic**-Zugang mit der Methode **Anmeldung auf einem Sandbox-Gerät** an und speichere ihn. Der Zugang nennt kein Token, du musst also nichts weiter eingeben.
+
+Läufe warten auf ein verbundenes Gerät, das eine Anmeldung hält. Erreicht die Anmeldung eines Geräts ihr Nutzungslimit, wechselt der Lauf auf ein anderes verbundenes Gerät mit einer solchen Anmeldung. Sind die Anmeldungen aller Geräte am Limit, warten die Läufe, bis die früheste zurückgesetzt wird. Die Geräte stehen auf der [Seite der verbundenen Geräte](/de/platform/admin/sandbox-devices).
 
 ## Ein Claude-OAuth-Token einfügen
 

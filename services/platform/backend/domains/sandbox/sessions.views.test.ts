@@ -265,6 +265,8 @@ describe('agent workers on the Sandboxes page', () => {
         destroy_pending: 0,
         exec_limit: 0,
         model_capacity: 0,
+        usage_limit: 0,
+        device_login: 0,
         unknown: 1,
       },
     });

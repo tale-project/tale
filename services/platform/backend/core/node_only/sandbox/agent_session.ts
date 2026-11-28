@@ -78,6 +78,10 @@ export async function ensureAgentSession(
      * row's `agent_kind`, which names the session in the harness-turn
      * metrics; absent for a session no harness turn opens. */
     agentKind?: string;
+    /** The turn runs on a device's own sign-in (TASK-R87): a session made
+     * now goes only to a connected device holding one, never the server, and
+     * to none of `avoidDevices`, whose sign-in is at its usage limit. */
+    deviceLogin?: { harness: string; avoidDevices: readonly string[] };
   },
 ): Promise<{ liveCreatedAt: number | undefined }> {
   const { organizationId, sessionId } = args;
@@ -115,6 +119,7 @@ export async function ensureAgentSession(
           existing.profile === 'agent-light' ? 'agent-light' : 'agent',
           args.owner.type,
           args.agentKind,
+          args.deviceLogin,
         );
       }
     } catch (error) {
@@ -152,6 +157,7 @@ export async function ensureAgentSession(
       profile,
       args.owner.type,
       args.agentKind,
+      args.deviceLogin,
     );
   } catch (error) {
     // The spawner may already hold what this create made (one cut short
@@ -211,6 +217,7 @@ async function createOrAcquireSession(
   profile: 'agent' | 'agent-light',
   ownerType: AgentSessionOwner['type'],
   harness: string | undefined,
+  deviceLogin?: { harness: string; avoidDevices: readonly string[] },
 ): Promise<void> {
   try {
     // Agent and automation workspaces may start on one of the organization's
@@ -222,9 +229,21 @@ async function createOrAcquireSession(
       profile,
       workload: ownerType === 'project_agent' ? 'project' : 'workflow',
       placement: 'device',
-      ...(harness === undefined
+      ...(harness === undefined && deviceLogin === undefined
         ? {}
-        : { requires: { harness: installedHarness(harness) } }),
+        : {
+            requires: {
+              ...(harness === undefined
+                ? {}
+                : { harness: installedHarness(harness) }),
+              ...(deviceLogin === undefined
+                ? {}
+                : {
+                    login: installedHarness(deviceLogin.harness),
+                    avoidDevices: [...deviceLogin.avoidDevices],
+                  }),
+            },
+          }),
     });
   } catch (error) {
     if (!(error instanceof SessionDuplicateError)) throw error;
@@ -236,4 +255,20 @@ async function createOrAcquireSession(
       `[sandbox.session] adopting existing runtime for ${sessionId}`,
     );
   }
+}
+
+/**
+ * What a turn on a device's own sign-in (TASK-R87) asks of the session it
+ * starts: a connected device holding the sign-in, and none of the devices
+ * whose sign-in is at its usage limit.
+ */
+export async function deviceLoginRequirement(
+  ctx: SessionContext,
+  args: { organizationId: string; providerSlug: string; harness: string },
+): Promise<{ deviceLogin: { harness: string; avoidDevices: string[] } }> {
+  const avoidDevices: string[] = await ctx.runQuery(
+    internal.tasks.agent_runs.heldDeviceLogins,
+    { organizationId: args.organizationId, providerSlug: args.providerSlug },
+  );
+  return { deviceLogin: { harness: args.harness, avoidDevices } };
 }

@@ -250,6 +250,7 @@ describe.each(SHIPPED_LOCALES)(
   'SandboxesSettings placement observations (%s)',
   (locale) => {
     const device: SandboxDeviceView = {
+      logins: [],
       id: 'device-other',
       name: 'Other administrator laptop',
       status: 'online',

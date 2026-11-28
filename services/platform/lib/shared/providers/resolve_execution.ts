@@ -23,6 +23,11 @@
  *    injected into the session environment, i.e. bring-your-own posture —
  *    the forced harness must accept byo credentials (`credentialPolicy.byo`);
  *    OpenCode is managed-only and refuses.
+ *  - `device-login` — NO secret: the run uses the sign-in a connected
+ *    sandbox device holds. It takes exactly the subscription case above
+ *    (the same forced harness, sandbox only, byo posture); the value the
+ *    harness receives is the device sentinel, which the device swaps for its
+ *    own token. Tasks and automations only, like every subscription lane.
  *
  * Sandbox with no harness selected is a refusal, not a guess: the caller
  * owns default-harness policy and passes a concrete slug (a subscription
@@ -61,6 +66,10 @@ export type CredentialAuth =
     }
   | {
       readonly authMethod: 'subscription-broker';
+      readonly constraints: ExecutionConstraints;
+    }
+  | {
+      readonly authMethod: 'device-login';
       readonly constraints: ExecutionConstraints;
     };
 
@@ -243,11 +252,12 @@ export function resolveExecution(
       }
     }
     case 'subscription-key':
-    case 'subscription-broker': {
-      // A vendor subscription — static plan key, OAuth blob, or brokered
-      // rotating token — only works inside the vendor's sanctioned CLI, so
-      // the credential forces sandbox execution on one harness and rides
-      // the session environment (byo posture).
+    case 'subscription-broker':
+    case 'device-login': {
+      // A vendor subscription — static plan key, OAuth blob, brokered
+      // rotating token, or a device's own sign-in — only works inside the
+      // vendor's sanctioned CLI, so the credential forces sandbox execution
+      // on one harness and rides the session environment (byo posture).
       const forced = credential.constraints.harness;
       switch (mode) {
         case 'direct':

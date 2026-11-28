@@ -187,6 +187,8 @@ devices:
     shared: Shared account
   agentRuntimes: 'Agent runtimes: {list}'
   noAgentRuntimes: No agent runtime is installed on this machine
+  signIn: '{name} sign-in'
+  signInAtLimit: '{name} sign-in · at its usage limit until {time}'
   updatingTo: 'Updating to {version}'
   updateFailedHint: The update to {version} failed. The device tries again on its own.
   outdatedHint: Runs a different release than Tale ({version}). Run tale sandbox update on the machine.

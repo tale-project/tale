@@ -7,6 +7,7 @@ import {
   harnessDefinitionSchema,
   modelCatalogEntrySchema,
   modelCatalogFileSchema,
+  providerCredentialCreateSchema,
   providerDefinitionSchema,
   providerKeyEnvNameSchema,
   SECRETS_ENV_PREFIX,
@@ -314,6 +315,49 @@ describe('providerDefinitionSchema', () => {
         constraints,
       }),
     ).toBe(false);
+  });
+
+  it('accepts a device sign-in entry with constraints and no secret fields', () => {
+    const constraints = { execution: 'sandbox', harness: 'claude-code' };
+    const parse = (entry: Record<string, unknown>) =>
+      providerDefinitionSchema.safeParse({
+        ...VALID_CONNECTOR,
+        auth: [entry],
+      }).success;
+    expect(
+      parse({
+        method: 'device-login',
+        targetEnvVar: 'CLAUDE_CODE_OAUTH_TOKEN',
+        constraints,
+      }),
+    ).toBe(true);
+    // Forced constraints are required, as for a subscription key.
+    expect(parse({ method: 'device-login' })).toBe(false);
+    // Nothing a secret-bearing entry could carry rides on this one.
+    expect(
+      parse({
+        method: 'device-login',
+        baseUrl: 'https://x.example.com',
+        constraints,
+      }),
+    ).toBe(false);
+    expect(
+      parse({
+        method: 'device-login',
+        targetEnvVar: 'claude_code_oauth_token',
+        constraints,
+      }),
+    ).toBe(false);
+  });
+
+  it('accepts a device-login credential create with no secret', () => {
+    expect(
+      providerCredentialCreateSchema.safeParse({
+        providerSlug: 'anthropic',
+        authMethod: 'device-login',
+        name: 'Device',
+      }).success,
+    ).toBe(true);
   });
 
   it('rejects broker constraints demanding direct execution', () => {

@@ -1046,6 +1046,7 @@ providers:
     env: Environment variable
     subscriptionKey: Subscription key
     subscriptionBroker: Subscription broker
+    deviceLogin: Sign-in on a sandbox device
   card:
     facts: '{format} · {host}'
     factsPerCredential: '{format} · endpoint set per credential'
@@ -1126,6 +1127,10 @@ providers:
       no model is available.
     allowlistFreeTextPlaceholder: gpt-4o, o4-mini
     removeModel: Remove {model}
+  deviceLogin:
+    title: Sign-in on a sandbox device
+    description: >-
+      Runs use the Claude Code sign-in of a connected sandbox device (tale sandbox login claude-code on the device). The token stays on the device. Runs wait for a device that holds one.
   subscriptionScope:
     title: Tasks and automations only
     description: >-

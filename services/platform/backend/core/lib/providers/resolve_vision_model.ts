@@ -64,7 +64,12 @@ export const PREFERRED_VISION_MODELS: readonly string[] = [
 /** The default-credential fields this module reads (the internal query
  * returns the full row as `v.any()`). */
 interface DefaultCredentialFacts {
-  authMethod: 'api-key' | 'env' | 'subscription-key' | 'subscription-broker';
+  authMethod:
+    | 'api-key'
+    | 'env'
+    | 'subscription-key'
+    | 'subscription-broker'
+    | 'device-login';
   status: 'active' | 'disabled';
   modelAllowlist?: string[];
 }

@@ -486,6 +486,28 @@ the run, and a run that waited that long fails as having waited too long.
   waits. At 10:04 Claude Code gives up: the run fails as at capacity again, and the wait is now
   2 minutes, until 10:06. The twelve hours still count from 10:00.
 
+### TASK-R87 · A run on a device's sign-in moves to another device when its limit is reached
+
+When the organization's credential for a provider is a sign-in on a sandbox device, a run starts
+only in a worker on a connected device that holds that sign-in, runs the run's harness and whose
+sign-in has not reached its usage limit: its task's worker, another worker of its agent that is
+up, a stopped one on such a device, or a new one the sandbox hub places on such a device. It never
+starts on the Tale server, which holds no sign-in. When the subscription answers that it reached
+its usage limit, the device's sign-in is held until the limit resets (the reset the harness names,
+or an hour when it names none), the run fails as at its limit, and its automatic retry, which uses
+no attempt, starts on another device's sign-in. When every device that holds one is at its limit,
+the run waits until the earliest resets ("Waiting for a sign-in to reset"); when none has room, it
+waits for one ("Waiting for a device"), for up to 12 hours from its start. A pasted subscription
+token at its limit is held the same way, and its runs wait for its reset.
+
+- **Example**: Scribe runs Claude Code on the organization's device sign-in. "Changelog" works in
+  worker 3 on Ada's laptop when the laptop's subscription hits its five-hour limit, which resets at
+  15:45 → the run fails as at its limit, and its retry starts in worker 2 on Bo's desktop.
+- **Example**: As above, but the desktop is at its limit too, until 17:00 → the retry waits until
+  15:45, then starts on the laptop.
+- **Example**: Nobody's machine holds a sign-in → Scribe's runs wait for a device and start once a
+  device that holds one connects with a free slot.
+
 ### TASK-R86 · A worker deletes a task's directory once the task is closed or a week old
 
 A run keeps its task's clones, checkouts and scratch in a directory of its own in the worker's

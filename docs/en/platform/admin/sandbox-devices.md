@@ -82,6 +82,16 @@ A raw device runs a sandbox only with a harness installed on its machine, and it
 
 In **Settings > Sandboxes**, the **Devices** list shows a raw device under **Machine** as **On the machine**, with its isolation (**Each sandbox as its own account** or **Shared account**) and its **Agent runtimes** and their versions. A Docker device shows **Docker**. A raw device has no Docker Engine, so the Docker Engine warning never applies to it.
 
+## Use the device's own subscription {#sign-ins}
+
+A device can keep a Claude Code sign-in of its own, so your organization's tasks and automations run on that machine's Claude subscription instead of an API key. The token stays on the machine: Tale never receives it.
+
+1. On the device, run `claude setup-token` with a Claude Pro, Max, Team or Enterprise account. It prints a token that lasts a year.
+2. Run `tale sandbox login claude-code` and paste the token. On an isolated raw device, run it with `sudo`. `tale sandbox logins` lists the sign-ins a device holds, and `tale sandbox logout claude-code` removes one.
+3. Under **Settings > Providers**, add an Anthropic credential with **Sign-in on a sandbox device** and make it the default. See [Providers](/platform/admin/providers).
+
+Runs on such a credential start only on a connected device that holds a sign-in, never on the Tale server. When a subscription reaches its usage limit, the device's sign-in is held until the limit resets, and the run moves to another device whose sign-in is free. When every sign-in is at its limit, the run waits until the earliest one resets and reads **Waiting for a sign-in to reset**. A waiting run uses no retry. The **Devices** list shows each sign-in, and until when one is at its limit.
+
 ## Understand where sandboxes run
 
 New agent and automation workspaces start on a connected device that has room. When none has, they start on the Tale server. A workspace stays with its files on the machine where it started, so an agent that already has a workspace on the server keeps using it. When the server is full, though, a task run whose workspace is there moves to another workspace of its agent that can start, such as one on a device with room or a new one there; its workspace on the server keeps its files. Pages rendered for website crawling always stay on the server.

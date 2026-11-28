@@ -13,6 +13,7 @@ export const KNOWN_AUTH_METHODS = [
   'env',
   'subscription-key',
   'subscription-broker',
+  'device-login',
 ] as const;
 export type KnownAuthMethod = (typeof KNOWN_AUTH_METHODS)[number];
 
@@ -30,6 +31,8 @@ export function authMethodLabel(t: Translator, method: string): string {
       return t('providers.authMethod.subscriptionKey');
     case 'subscription-broker':
       return t('providers.authMethod.subscriptionBroker');
+    case 'device-login':
+      return t('providers.authMethod.deviceLogin');
     default:
       return method;
   }

@@ -91,6 +91,10 @@ export interface ChatContract {
           | {
               authMethod: 'subscription-broker';
               constraints: { harness: string; execution: 'sandbox' };
+            }
+          | {
+              authMethod: 'device-login';
+              constraints: { harness: string; execution: 'sandbox' };
             };
       }>;
       harnesses: Array<{

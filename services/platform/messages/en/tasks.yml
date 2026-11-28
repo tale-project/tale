@@ -98,6 +98,8 @@ agentRun:
     destroy_pending: Waiting for a workspace
     exec_limit: Waiting for its sandbox
     model_capacity: Waiting for model capacity
+    usage_limit: Waiting for a sign-in to reset
+    device_login: Waiting for a device
     unknown: Waiting for a worker
   # What the short state means, said under it while the run waits.
   waitingWhy:
@@ -106,6 +108,8 @@ agentRun:
     destroy_pending: An admin is deleting the workspace this run would use. The run starts in a fresh one once that is done.
     exec_limit: Its sandbox is still finishing an earlier process. The run starts on its own in a moment.
     model_capacity: The AI model this agent uses is at capacity. The run starts on its own once the model answers again; no retry is used while it waits.
+    usage_limit: The subscription this agent works on reached its usage limit. If another device's sign-in can take the run, it starts there; otherwise it starts on its own when the limit resets. No retry is used while it waits.
+    device_login: This agent works on the sign-in of a sandbox device, and no connected device that holds one has room now. The run starts on its own when one does.
     unknown: The run starts on its own as soon as there is room for it.
   # Shown to Owners and Admins beside "All … agent workers are busy".
   manageWorkers: Manage agent workers
@@ -130,6 +134,7 @@ agentRun:
     time_limit: The run reached its time limit before the agent finished. Start the agent again, or split the task into smaller ones.
     capacity: The run waited too long for a free worker. Start the agent again when fewer agents are busy.
     model_capacity: The AI model stayed at capacity for twelve hours, so the run stopped waiting. Start the agent again later — if the model stays unavailable, ask an Admin to check the AI provider.
+    usage_limit: The subscription this agent works on reached its usage limit and did not reset while the run could wait. Start the agent again once it has reset, or sign in another device.
     model: The AI model behind this agent failed before the work was done. Start the agent again — if it fails again, ask an Admin to check the AI provider.
     start: The run couldn't start. Try again — if it fails again, show an Admin what the run reported under Details.
     interrupted: The run was interrupted before the agent finished. Start the agent again.

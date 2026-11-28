@@ -1098,6 +1098,7 @@ providers:
     env: Umgebungsvariable
     subscriptionKey: Abo-Schlüssel
     subscriptionBroker: Abo-Broker
+    deviceLogin: Anmeldung auf einem Sandbox-Gerät
   card:
     facts: '{format} · {host}'
     factsPerCredential: '{format} · Endpunkt pro Eintrag'
@@ -1182,6 +1183,10 @@ providers:
       deiner Ressource; ohne sie ist kein Modell verfügbar.
     allowlistFreeTextPlaceholder: gpt-4o, o4-mini
     removeModel: '{model} entfernen'
+  deviceLogin:
+    title: Anmeldung auf einem Sandbox-Gerät
+    description: >-
+      Läufe nutzen die Claude-Code-Anmeldung eines verbundenen Sandbox-Geräts (tale sandbox login claude-code auf dem Gerät). Das Token bleibt auf dem Gerät. Läufe warten auf ein Gerät, das eine Anmeldung hat.
   subscriptionScope:
     title: Nur für Aufgaben und Automatisierungen
     description: >-

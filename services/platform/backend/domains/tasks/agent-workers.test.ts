@@ -13,7 +13,9 @@ import {
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import {
+  deviceHoldsLogin,
   deviceRunsHarness,
+  type DeviceLoginRoom,
   agentRunWorkDeadline,
   chooseWorker,
   claimAgentWorker,
@@ -448,10 +450,22 @@ function claimSql(
     previous?: string;
     /** The run was refused by a host, and its organization has a device. */
     asksHub?: boolean;
+    /** The provider's default credential is a device sign-in (TASK-R87). */
+    loginCredential?: string;
   } = {},
 ) {
   return fakeSql([
-    [ASKS_HUB, [{ ask: script.asksHub === true }]],
+    [
+      ASKS_HUB,
+      [
+        {
+          ask: script.asksHub === true,
+          harness: 'claude-code',
+          refused: script.asksHub === true,
+          loginCredential: script.loginCredential ?? null,
+        },
+      ],
+    ],
     ['SELECT agent_id AS "agentId" FROM', [{ agentId: AGENT }]],
     [RUN, [{ ...RUN_ROW, ...script.run }]],
     [FAMILY, script.family ?? []],
@@ -1115,5 +1129,117 @@ describe('a device has room only for a run whose harness it runs [TASK-R85]', ()
     expect(deviceRunsHarness(laptop, 'claude-code')).toBe(true);
     expect(deviceRunsHarness(laptop, 'codex')).toBe(false);
     expect(deviceRunsHarness({ runtime: 'raw' }, 'claude-code')).toBe(false);
+  });
+});
+
+describe("a run on a device's own sign-in [TASK-R87]", () => {
+  // Scribe runs Claude Code on the organization's device sign-in. Ada's
+  // laptop and Bo's desktop each hold one; "Changelog" last worked in
+  // worker 3, on the laptop.
+  const login = (
+    overrides: Partial<DeviceLoginRoom> = {},
+  ): DeviceLoginRoom => ({
+    workers: new Set<string>(),
+    room: false,
+    heldUntilMs: null,
+    held: [],
+    ...overrides,
+  });
+
+  it('goes back to its worker while its device can take it', () => {
+    expect(
+      chooseWorker(
+        facts({
+          previous: w(3),
+          workers: [worker(3)],
+          deviceLogin: login({ workers: new Set([w(3)]), room: true }),
+        }),
+      ),
+    ).toEqual({ sessionId: w(3), worker: 3 });
+  });
+
+  it("moves to a worker on another device when its own device's sign-in is at its limit", () => {
+    // The laptop's sign-in hit its five-hour limit: worker 3 is no longer
+    // a worker the run can use, worker 2 on the desktop is.
+    expect(
+      chooseWorker(
+        facts({
+          previous: w(3),
+          workers: [worker(2), worker(3)],
+          deviceLogin: login({
+            workers: new Set([w(2)]),
+            held: ['laptop'],
+            heldUntilMs: Date.parse('2026-11-28T15:45:00Z'),
+          }),
+        }),
+      ),
+    ).toEqual({ sessionId: w(2), worker: 2 });
+  });
+
+  it('opens a new worker for a device with room, never one on the server', () => {
+    // Worker 1 is stopped on the server, where no sign-in is.
+    expect(
+      chooseWorker(
+        facts({
+          previous: w(1),
+          workers: [worker(1)],
+          deviceLogin: login({ room: true }),
+        }),
+      ),
+    ).toEqual({ sessionId: w(2), worker: 2 });
+  });
+
+  it('waits for the earliest sign-in to reset when every one is at its limit', () => {
+    expect(
+      chooseWorker(
+        facts({
+          previous: w(3),
+          workers: [worker(3)],
+          deviceLogin: login({
+            held: ['laptop', 'desktop'],
+            heldUntilMs: Date.parse('2026-11-28T15:45:00Z'),
+          }),
+        }),
+      ),
+    ).toEqual({ wait: 'usage_limit' });
+  });
+
+  it('waits for a device with room when none has a slot free', () => {
+    expect(chooseWorker(facts({ workers: [], deviceLogin: login() }))).toEqual({
+      wait: 'device_login',
+    });
+  });
+
+  it('waits for a worker slot when the organization has none left', () => {
+    expect(
+      chooseWorker(
+        facts({ room: 0, workers: [], deviceLogin: login({ room: true }) }),
+      ),
+    ).toEqual({ wait: 'org_limit' });
+  });
+
+  it('takes a warm worker on a device with the sign-in even with no slot left', () => {
+    expect(
+      chooseWorker(
+        facts({
+          room: 0,
+          workers: [worker(2, { warm: true })],
+          deviceLogin: login({ workers: new Set([w(2)]) }),
+        }),
+      ),
+    ).toEqual({ sessionId: w(2), worker: 2 });
+  });
+
+  it('reads a device as holding a sign-in only by what its hub reports', () => {
+    expect(
+      deviceHoldsLogin(
+        [{ harness: 'claude-code', addedAtMs: 1 }],
+        'claude-code',
+      ),
+    ).toBe(true);
+    expect(
+      deviceHoldsLogin([{ harness: 'claude-code', addedAtMs: 1 }], 'codex'),
+    ).toBe(false);
+    expect(deviceHoldsLogin(undefined, 'claude-code')).toBe(false);
   });
 });

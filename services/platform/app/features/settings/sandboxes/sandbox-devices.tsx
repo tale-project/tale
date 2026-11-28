@@ -10,6 +10,7 @@ import { EntityRowActions } from '@tale/ui/entity/entity-row-actions';
 import { Stack } from '@tale/ui/layout';
 import { TableDateCell } from '@tale/ui/table-date-cell';
 import { Text } from '@tale/ui/text';
+import { useFormatDate } from '@tale/ui/use-format-date';
 import { useToast } from '@tale/ui/use-toast';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Monitor, Plus, Trash2 } from 'lucide-react';
@@ -31,6 +32,7 @@ import { AddDeviceDialog } from './add-device-dialog';
 import {
   deviceRuntime,
   dockerEngineOf,
+  harnessDisplayName,
   harnessList,
 } from './sandbox-device-runtime';
 
@@ -77,6 +79,7 @@ export function SandboxDevicesSection({
   const { t } = useT('sandboxes');
   const { toast } = useToast();
   const { formatNumber } = useFormatNumber();
+  const { formatDate } = useFormatDate();
   const remove = useBackendMutation('sandbox_devices/mutations:remove', {
     errorToast: false,
   });
@@ -235,6 +238,21 @@ export function SandboxDevicesSection({
                       })}
                 </span>
               )}
+              {row.original.logins.map((login) => (
+                <span
+                  key={login.harness}
+                  className="text-muted-foreground text-xs break-words"
+                >
+                  {login.heldUntil === null
+                    ? t('devices.signIn', {
+                        name: harnessDisplayName(login.harness),
+                      })
+                    : t('devices.signInAtLimit', {
+                        name: harnessDisplayName(login.harness),
+                        time: formatDate(new Date(login.heldUntil), 'short'),
+                      })}
+                </span>
+              ))}
             </Stack>
           );
         },
@@ -290,7 +308,7 @@ export function SandboxDevicesSection({
           ]
         : []),
     ],
-    [t, canManage, formatNumber, view?.serverVersion],
+    [t, canManage, formatNumber, formatDate, view?.serverVersion],
   );
 
   const hubNotice =

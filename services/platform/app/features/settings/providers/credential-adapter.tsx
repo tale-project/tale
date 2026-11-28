@@ -236,6 +236,22 @@ function SecretFields({
     );
   }
 
+  if (method === 'device-login') {
+    // No secret to type: the sign-in stays on the device. Say what the method
+    // does where it is chosen, the same way a subscription key does.
+    return (
+      <>
+        <SubscriptionScopeNotice />
+        <Alert
+          variant="info"
+          live="off"
+          title={t('providers.deviceLogin.title')}
+          description={t('providers.deviceLogin.description')}
+        />
+      </>
+    );
+  }
+
   if (method === 'env') {
     return (
       <Input
@@ -770,7 +786,8 @@ export const providerCredentialAdapter: CredentialAdapter<
           ),
         })
       : credential.authMethod === 'subscription-key' ||
-          credential.authMethod === 'subscription-broker'
+          credential.authMethod === 'subscription-broker' ||
+          credential.authMethod === 'device-login'
         ? t('providers.credential.tasksOnly')
         : undefined,
 
@@ -900,9 +917,13 @@ export const providerCredentialAdapter: CredentialAdapter<
         );
       }
       if (method === 'env') return draft.envSuffix.trim().length > 0;
+      // A device sign-in has no field to fill: the sign-in is on the device.
+      if (method === 'device-login') return true;
       return isBrokerDraftComplete(draft.broker);
     },
     buildArgs: (t, method, draft) => {
+      // Nothing is sent but the method: the server refuses a secret for it.
+      if (method === 'device-login') return { ok: true, args: {} };
       if (isSecretLike(method)) {
         // Only a subscription key carries an account ID. The draft outlives a
         // method change, and the server refuses one on any other method.
@@ -933,7 +954,8 @@ export const providerCredentialAdapter: CredentialAdapter<
       }
       return { ok: true, args: { broker: built.document } };
     },
-    hasFields: () => true,
+    // A device sign-in stores no secret, so there is nothing to replace.
+    hasFields: (method) => method !== 'device-login',
     replaceTitle: (t, method) => {
       switch (method) {
         case 'api-key':

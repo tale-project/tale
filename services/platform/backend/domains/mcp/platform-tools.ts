@@ -78,6 +78,7 @@ function matches(query: string | undefined, ...fields: string[]): boolean {
  * key (`subscription`) or the broker's sign-in (`broker`). */
 function laneOf(authMethod: string): 'direct' | 'subscription' | 'broker' {
   if (authMethod === 'subscription-key') return 'subscription';
+  if (authMethod === 'device-login') return 'subscription';
   if (authMethod === 'subscription-broker') return 'broker';
   return 'direct';
 }

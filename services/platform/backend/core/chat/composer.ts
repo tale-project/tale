@@ -91,7 +91,8 @@ type ComposerCredentialAuth =
   | { authMethod: 'api-key' }
   | { authMethod: 'env' }
   | { authMethod: 'subscription-key'; constraints: ExecutionConstraints }
-  | { authMethod: 'subscription-broker'; constraints: ExecutionConstraints };
+  | { authMethod: 'subscription-broker'; constraints: ExecutionConstraints }
+  | { authMethod: 'device-login'; constraints: ExecutionConstraints };
 
 export interface ComposerModelOption {
   id: string;

@@ -59,6 +59,7 @@ import {
   readInPlaceRetryState,
 } from './run-start.ts';
 import { recordRunTerminalInTx } from './slot-wakes.ts';
+import { recordUsageLimitHold, usageLimitTarget } from './usage-limit-holds.ts';
 
 /**
  * The project-agent run ledger over PG — the 0.5 twin of
@@ -868,8 +869,20 @@ export async function failAgentRunFromTurn(
      * comment's restart found no room in the run's sandbox. The retry is
      * still kicked at once, so the card shows it queued; its start waits. */
     retryAtMs?: number;
+    /** A `usage_limit` failure: when the limit resets, as the harness said
+     * (absent when it did not). The sign-in that reached it — the device's
+     * own, or the pasted token — is held in the same transaction
+     * (`usage-limit-holds.ts`); the retry's claim waits on it, or starts on
+     * another device's sign-in (TASK-R87). */
+    usageLimit?: { resetsAtMs?: number };
   },
 ): Promise<boolean> {
+  // Which sign-in reached its limit is read before the transaction: a
+  // device's own is found where the hub placed the run's worker.
+  const usageLimitHold =
+    args.failureCode === 'usage_limit'
+      ? await usageLimitTarget(sql, args.runId)
+      : null;
   const now = Date.now();
   const error = args.error.slice(0, 2000);
   // Stamped on the failed row with the arm, so the run card knows a retry
@@ -957,6 +970,20 @@ export async function failAgentRunFromTurn(
         `;
       }
     }
+    // A sign-in at its usage limit is held for every run on it until it
+    // resets; this run's retry starts on another device's sign-in, or waits
+    // for that (TASK-R87).
+    if (usageLimitHold !== null && run.engine === 'harness') {
+      await recordUsageLimitHold(tx, {
+        organizationId: run.organizationId,
+        credentialId: usageLimitHold.credentialId,
+        deviceId: usageLimitHold.deviceId,
+        ...(args.usageLimit?.resetsAtMs !== undefined
+          ? { resetsAtMs: args.usageLimit.resetsAtMs }
+          : {}),
+        runId: args.runId,
+      });
+    }
     if (retrying) {
       // The broker's cooldown — or the sandbox's wait for room — stays inside
       // the stranded-queued-run sweep: the retry is queued at once and its
@@ -964,6 +991,7 @@ export async function failAgentRunFromTurn(
       // claim parks it on the model's hold.
       const startAfterMs =
         args.failureCode !== 'model_capacity' &&
+        args.failureCode !== 'usage_limit' &&
         args.retryAtMs !== undefined &&
         args.retryAtMs > now
           ? Math.min(args.retryAtMs, now + BROKER_RATE_LIMIT_COOLDOWN_MS)

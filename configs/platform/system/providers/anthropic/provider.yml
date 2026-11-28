@@ -26,6 +26,14 @@ auth:
     constraints:
       execution: sandbox
       harness: claude-code
+  # No secret: the run uses the Claude Code sign-in a connected sandbox device
+  # holds (`tale sandbox login claude-code`). The token never leaves the
+  # device; the sentinel delivered here is swapped for it on the device.
+  - method: device-login
+    targetEnvVar: CLAUDE_CODE_OAUTH_TOKEN
+    constraints:
+      execution: sandbox
+      harness: claude-code
   - method: subscription-broker
     constraints:
       execution: sandbox

@@ -32,6 +32,7 @@ import {
   readModelCapacityHold,
 } from './model-capacity-holds.ts';
 import { sessionIdForAgentRun } from './run-authority.ts';
+import { readUsageLimitHolds } from './usage-limit-holds.ts';
 
 /**
  * Agent workers: every run of a project agent that works at the same time
@@ -106,11 +107,34 @@ export interface WorkerFacts {
    * sandbox hub reports: whether it would take a new worker, and the workers
    * placed on such a device. Read only for a run a host refused. */
   devices?: { room: boolean; workers: ReadonlySet<string> };
+  /** The run works on a device's own sign-in (`device-login`, TASK-R87):
+   * only a worker on a connected device that holds the sign-in, runs the
+   * run's harness and is not at its usage limit can take it. */
+  deviceLogin?: DeviceLoginRoom;
+}
+
+/** Where a run on a device's own sign-in can start now (TASK-R87). */
+export interface DeviceLoginRoom {
+  /** Workers placed on a device that holds the sign-in, runs the run's
+   * harness and whose sign-in is not held. */
+  workers: ReadonlySet<string>;
+  /** Such a device has a free slot for a new worker. */
+  room: boolean;
+  /** When the earliest held sign-in of a device that would otherwise take
+   * the run resets, epoch ms; null when none is held. */
+  heldUntilMs: number | null;
+  /** The devices whose sign-in is at its limit: the hub passes over them. */
+  held: readonly string[];
 }
 
 export type WorkerChoice =
   | { sessionId: string; worker: number }
-  | { wait: Extract<AgentRunWaitingReason, 'org_limit' | 'destroy_pending'> };
+  | {
+      wait: Extract<
+        AgentRunWaitingReason,
+        'org_limit' | 'destroy_pending' | 'usage_limit' | 'device_login'
+      >;
+    };
 
 /**
  * Which worker a run starts in. Pure: the claim reads the facts under the
@@ -181,6 +205,15 @@ export function chooseWorker(facts: WorkerFacts): WorkerChoice {
     }
   };
 
+  if (facts.deviceLogin !== undefined) {
+    return chooseDeviceLoginWorker(facts, facts.deviceLogin, {
+      free,
+      own,
+      kept,
+      pick,
+      fresh,
+    });
+  }
   const claimed = own(facts.claimed, true);
   if (claimed !== null) return claimed;
   const refused = facts.refused ?? new Set<string>();
@@ -223,6 +256,63 @@ export function chooseWorker(facts: WorkerFacts): WorkerChoice {
   return { wait: 'org_limit' };
 }
 
+/**
+ * The worker a run on a device's own sign-in starts in (TASK-R87): in the
+ * order {@link chooseWorker} keeps — the claimed, the task's previous, a warm
+ * free, a stopped free one — but only a worker on a device that can take the
+ * run now ({@link DeviceLoginRoom}), and a new one only while such a device
+ * has a free slot, which the sandbox hub then places it on. Otherwise it
+ * waits: for a worker slot of the organization (`org_limit`), for the
+ * earliest sign-in to reset when every device that holds one is at its limit
+ * (`usage_limit`), or for a device with room (`device_login`).
+ */
+function chooseDeviceLoginWorker(
+  facts: WorkerFacts,
+  login: DeviceLoginRoom,
+  helpers: {
+    free: readonly FamilyWorker[];
+    own: (
+      sessionId: string | undefined,
+      claimed: boolean,
+    ) => { sessionId: string; worker: number } | null;
+    kept: (w: FamilyWorker) => boolean;
+    pick: (w: FamilyWorker) => { sessionId: string; worker: number };
+    fresh: () => { sessionId: string; worker: number };
+  },
+): WorkerChoice {
+  const allowed = (sessionId: string | undefined): boolean =>
+    sessionId !== undefined && login.workers.has(sessionId);
+  if (allowed(facts.claimed)) {
+    const claimed = helpers.own(facts.claimed, true);
+    if (claimed !== null) return claimed;
+  }
+  if (allowed(facts.previous)) {
+    const previous = helpers.own(facts.previous, false);
+    if (previous !== null) return previous;
+  }
+  const warm = helpers.free.find(
+    (w) =>
+      w.warm && !w.destroyPending && !helpers.kept(w) && allowed(w.sessionId),
+  );
+  if (warm !== undefined) return helpers.pick(warm);
+  if (facts.room > 0) {
+    const stopped = helpers.free.find(
+      (w) => !w.destroyPending && !helpers.kept(w) && allowed(w.sessionId),
+    );
+    if (stopped !== undefined) return helpers.pick(stopped);
+    if (login.room) return helpers.fresh();
+  }
+  if (facts.room <= 0 && (login.room || login.workers.size > 0)) {
+    return { wait: 'org_limit' };
+  }
+  return {
+    wait:
+      login.heldUntilMs !== null && !login.room && login.workers.size === 0
+        ? 'usage_limit'
+        : 'device_login',
+  };
+}
+
 /** What a claim did: the run holds a worker now (`moved` when it left the
  * session it named before, which may leave that one idle), or it was parked
  * to wait for one. */
@@ -231,7 +321,11 @@ export type WorkerClaim =
   | {
       parked: Extract<
         AgentRunWaitingReason,
-        'org_limit' | 'destroy_pending' | 'model_capacity'
+        | 'org_limit'
+        | 'destroy_pending'
+        | 'model_capacity'
+        | 'usage_limit'
+        | 'device_login'
       >;
     };
 
@@ -280,10 +374,10 @@ export async function claimAgentWorker(
   sql: Sql,
   args: { organizationId: string; runId: string; execId: string },
 ): Promise<WorkerClaim | null> {
-  const devices = await readDeviceRoom(sql, args);
+  const room = await readDeviceRoom(sql, args);
   for (let attempt = 1; ; attempt += 1) {
     try {
-      return await sql.begin((tx) => claimInTx(tx, args, devices));
+      return await sql.begin((tx) => claimInTx(tx, args, room));
     } catch (error) {
       if (!isUniqueViolation(error) || attempt >= 3) throw error;
       console.warn(
@@ -291,6 +385,55 @@ export async function claimAgentWorker(
       );
     }
   }
+}
+
+/** How often a run on a device's sign-in looks again for a device with
+ * room while none has. */
+export const DEVICE_LOGIN_RECHECK_MS = 60_000;
+
+/** When the provider's default pasted subscription token (`subscription-key`)
+ * comes back from its usage limit, epoch ms; null when it is not held. */
+async function pastedSubscriptionHoldInTx(
+  tx: TransactionSql,
+  args: { organizationId: string; modelProvider: string | null },
+): Promise<number | null> {
+  if (args.modelProvider === null) return null;
+  const rows = await tx<{ heldUntilMs: number }[]>`
+    SELECT h.held_until_ms::float8 AS "heldUntilMs"
+    FROM app.provider_credentials c
+    JOIN app.usage_limit_holds h
+      ON h.org_id = c.org_id AND h.credential_id = c.id AND h.device_id = ''
+    WHERE c.org_id = ${args.organizationId}
+      AND c.provider_slug = ${args.modelProvider}
+      AND c.is_default AND c.status = 'active'
+      AND c.auth_method = 'subscription-key'
+      AND h.held_until_ms > ${Date.now()}
+    LIMIT 1
+  `;
+  return rows[0]?.heldUntilMs ?? null;
+}
+
+/** What a claim reads of the organization's connected devices before its
+ * transaction (the hub answers outside it). */
+interface DeviceRoom {
+  /** For a run a host refused (`TASK-R85`). */
+  devices?: WorkerFacts['devices'];
+  /** For a run on a device's own sign-in (`TASK-R87`). */
+  deviceLogin?: DeviceLoginRoom;
+}
+
+/** Whether a device holds its own sign-in for a harness, as the hub reports
+ * (`logins`; a hub older than device sign-ins reports none). */
+export function deviceHoldsLogin(logins: unknown, harness: string): boolean {
+  return (
+    Array.isArray(logins) &&
+    logins.some(
+      (entry: unknown) =>
+        entry !== null &&
+        typeof entry === 'object' &&
+        Reflect.get(entry, 'harness') === harness,
+    )
+  );
 }
 
 /**
@@ -323,20 +466,62 @@ export function deviceRunsHarness(platform: unknown, harness: string): boolean {
 async function readDeviceRoom(
   sql: Sql,
   args: { organizationId: string; runId: string },
-): Promise<WorkerFacts['devices']> {
-  const rows = await sql<{ ask: boolean; harness: string }[]>`
+): Promise<DeviceRoom> {
+  const rows = await sql<
+    {
+      ask: boolean;
+      harness: string;
+      refused: boolean;
+      loginCredential: string | null;
+    }[]
+  >`
     SELECT EXISTS (
       SELECT 1 FROM app.sandbox_devices d
       WHERE d.org_id = r.org_id AND d.revoked_at_ms IS NULL
-    ) AS ask, r.harness
+    ) AS ask, r.harness,
+    cardinality(r.host_refused_session_ids) > 0 AS refused,
+    (
+      SELECT c.id FROM app.provider_credentials c
+      WHERE c.org_id = r.org_id AND c.provider_slug = r.model_provider
+        AND c.is_default AND c.status = 'active'
+        AND c.auth_method = 'device-login'
+      LIMIT 1
+    ) AS "loginCredential"
     FROM app.project_agent_runs r
     WHERE r.id = ${args.runId} AND r.org_id = ${args.organizationId}
-      AND cardinality(r.host_refused_session_ids) > 0
   `;
   const row = rows[0];
-  if (!row?.ask) return undefined;
+  if (row === undefined) return {};
+  const login = row.loginCredential ?? null;
+  // A run on a device's sign-in can start nowhere but on such a device: with
+  // none to ask, it waits for one.
+  const nowhere: DeviceLoginRoom = {
+    workers: new Set(),
+    room: false,
+    heldUntilMs: null,
+    held: [],
+  };
+  if (!row.ask) return login === null ? {} : { deviceLogin: nowhere };
+  if (!row.refused && login === null) return {};
+  const harness = installedHarness(row.harness);
+  let hub: Awaited<ReturnType<typeof sandboxDevices>>;
   try {
-    const hub = await sandboxDevices(args.organizationId);
+    hub = await sandboxDevices(args.organizationId);
+  } catch (error) {
+    console.warn(
+      `[task-agent] device room for run ${args.runId} unavailable — claiming without it`,
+      error,
+    );
+    return login === null ? {} : { deviceLogin: nowhere };
+  }
+  const placedOn = (deviceIds: ReadonlySet<string>) =>
+    new Set(
+      (hub.placements ?? [])
+        .filter((placement) => deviceIds.has(placement.deviceId))
+        .map((placement) => placement.sessionId),
+    );
+  const out: DeviceRoom = {};
+  if (row.refused) {
     // A raw device runs only the harnesses it found installed: one without
     // the run's has no room for it, however many slots it has free.
     const roomy = new Set(
@@ -344,31 +529,43 @@ async function readDeviceRoom(
         .filter(
           (device) =>
             (device.freeSlots ?? 0) > 0 &&
-            deviceRunsHarness(device.platform, installedHarness(row.harness)),
+            deviceRunsHarness(device.platform, harness),
         )
         .map((device) => device.deviceId),
     );
-    return {
-      room: roomy.size > 0,
-      workers: new Set(
-        (hub.placements ?? [])
-          .filter((placement) => roomy.has(placement.deviceId))
-          .map((placement) => placement.sessionId),
-      ),
-    };
-  } catch (error) {
-    console.warn(
-      `[task-agent] device room for run ${args.runId} unavailable — claiming without it`,
-      error,
-    );
-    return undefined;
+    out.devices = { room: roomy.size > 0, workers: placedOn(roomy) };
   }
+  if (login !== null) {
+    const holds = await readUsageLimitHolds(sql, {
+      organizationId: args.organizationId,
+      credentialId: login,
+    });
+    const signedIn = hub.devices.filter(
+      (device) =>
+        deviceRunsHarness(device.platform, harness) &&
+        deviceHoldsLogin(device.logins, harness),
+    );
+    const open = signedIn.filter((device) => !holds.has(device.deviceId));
+    const held = signedIn
+      .filter((device) => holds.has(device.deviceId))
+      .map((device) => device.deviceId);
+    const resets = held
+      .map((deviceId) => holds.get(deviceId)?.heldUntilMs)
+      .filter((value): value is number => value !== undefined);
+    out.deviceLogin = {
+      workers: placedOn(new Set(open.map((device) => device.deviceId))),
+      room: open.some((device) => (device.freeSlots ?? 0) > 0),
+      heldUntilMs: resets.length === 0 ? null : Math.min(...resets),
+      held,
+    };
+  }
+  return out;
 }
 
 async function claimInTx(
   tx: TransactionSql,
   args: { organizationId: string; runId: string; execId: string },
-  devices: WorkerFacts['devices'],
+  room: DeviceRoom,
 ): Promise<WorkerClaim | null> {
   const agents = await tx<{ agentId: string }[]>`
     SELECT agent_id AS "agentId" FROM app.project_agent_runs
@@ -417,20 +614,49 @@ async function claimInTx(
     return { parked: 'model_capacity' };
   }
 
-  const base = await runFamilyBase(tx, args.organizationId, run);
-  const facts = await readWorkerFacts(tx, {
+  // A pasted subscription token at its usage limit is held for every run
+  // on it until it resets: no other sign-in can take the run (TASK-R87).
+  const pastedHold = await pastedSubscriptionHoldInTx(tx, {
     organizationId: args.organizationId,
-    runId: args.runId,
-    base,
-    run,
-    devices,
+    modelProvider: run.modelProvider,
   });
+  if (pastedHold !== null) {
+    await parkAgentRunInTx(tx, {
+      runId: args.runId,
+      execId: args.execId,
+      reason: 'usage_limit',
+      wakeAfterMs: Math.max(1_000, pastedHold - Date.now()),
+    });
+    return { parked: 'usage_limit' };
+  }
+
+  const base = await runFamilyBase(tx, args.organizationId, run);
+  const facts: WorkerFacts = {
+    ...(await readWorkerFacts(tx, {
+      organizationId: args.organizationId,
+      runId: args.runId,
+      base,
+      run,
+      devices: room.devices,
+    })),
+    ...(room.deviceLogin !== undefined
+      ? { deviceLogin: room.deviceLogin }
+      : {}),
+  };
   const choice = chooseWorker(facts);
   if ('wait' in choice) {
+    const heldUntilMs = room.deviceLogin?.heldUntilMs ?? null;
     await parkAgentRunInTx(tx, {
       runId: args.runId,
       execId: args.execId,
       reason: choice.wait,
+      // Woken when the earliest sign-in resets, or to look for a device with
+      // room again; the other waits are woken when a worker frees.
+      ...(choice.wait === 'usage_limit' && heldUntilMs !== null
+        ? { wakeAfterMs: Math.max(1_000, heldUntilMs - Date.now()) }
+        : choice.wait === 'device_login'
+          ? { wakeAfterMs: DEVICE_LOGIN_RECHECK_MS }
+          : {}),
     });
     return { parked: choice.wait };
   }

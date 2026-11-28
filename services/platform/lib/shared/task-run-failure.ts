@@ -39,6 +39,9 @@ export const TASK_RUN_FAILURE_CLASSES = [
   /** The provider kept the model at capacity for twelve hours: the run
    * stopped waiting for it. */
   'model_capacity',
+  /** The sign-in the agent works on reached its usage limit and did not
+   * reset while the run could wait (TASK-R87). */
+  'usage_limit',
   /** The run never started: the sandbox or the model behind it refused. */
   'start',
   /** The run stopped mid-way on the platform's side. */
@@ -66,6 +69,7 @@ const CLASS_BY_CODE: Record<TaskRunFailureCode, TaskRunFailureClass> = {
   park_deadline: 'capacity',
   harness_error: 'model',
   model_capacity: 'model_capacity',
+  usage_limit: 'usage_limit',
   empty_turn: 'model',
   credential_rotated: 'model',
   credential_cooldown: 'model',

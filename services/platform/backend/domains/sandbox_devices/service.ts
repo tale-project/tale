@@ -605,6 +605,21 @@ export async function listDevices(
       );
     }
   }
+  // A device's own sign-in at its usage limit is held until it resets
+  // (TASK-R87): the list says until when.
+  const holds = await sql<{ deviceId: string; heldUntil: number }[]>`
+    SELECT h.device_id AS "deviceId", max(h.held_until_ms)::float8 AS "heldUntil"
+    FROM app.usage_limit_holds h
+    JOIN app.provider_credentials c
+      ON c.org_id = h.org_id AND c.id = h.credential_id
+     AND c.auth_method = 'device-login'
+    WHERE h.org_id = ${organizationId} AND h.device_id <> ''
+      AND h.held_until_ms > ${Date.now()}
+    GROUP BY h.device_id
+  `;
+  const heldUntil = new Map(
+    holds.map((hold) => [hold.deviceId, hold.heldUntil]),
+  );
   const devices: SandboxDeviceView[] = rows.map((row) => {
     const now = live.find((d) => d.deviceId === row.id);
     return {
@@ -621,6 +636,11 @@ export async function listDevices(
       sessions: now?.sessions ?? null,
       resources: now?.resources ?? null,
       update: now?.update ?? null,
+      logins: (now?.logins ?? []).map((login) => ({
+        harness: login.harness,
+        addedAt: login.addedAtMs,
+        heldUntil: heldUntil.get(row.id) ?? null,
+      })),
     };
   });
   return { devices, hub, serverVersion: deviceServerVersion() };

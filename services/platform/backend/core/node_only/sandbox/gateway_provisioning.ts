@@ -146,7 +146,8 @@ export async function buildProviderProvision(
   // there is no upstream API key to install in the gateway.
   if (
     resolved.authMethod === 'subscription-broker' ||
-    resolved.authMethod === 'subscription-key'
+    resolved.authMethod === 'subscription-key' ||
+    resolved.authMethod === 'device-login'
   ) {
     return null;
   }

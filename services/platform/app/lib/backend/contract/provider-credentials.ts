@@ -29,7 +29,8 @@ export interface ProviderCredentialsContract {
         | 'api-key'
         | 'env'
         | 'subscription-key'
-        | 'subscription-broker';
+        | 'subscription-broker'
+        | 'device-login';
     };
     returns: { credentialId: string };
   };
@@ -120,7 +121,8 @@ export interface ProviderCredentialsContract {
         | 'api-key'
         | 'env'
         | 'subscription-key'
-        | 'subscription-broker';
+        | 'subscription-broker'
+        | 'device-login';
       name: string;
       /** The row's native version: an edit that names it is refused once
        * the row has changed since. */

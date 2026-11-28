@@ -178,6 +178,27 @@ describe('deriveHarnessStatus — against the real shipped harness facts', () =>
     expect(entryOf(rows, 'codex').subscriptions).toEqual([]);
   });
 
+  it('attaches a device sign-in to the harness it is bound to, like a subscription [PCRED-R8]', () => {
+    const rows = deriveHarnessStatus({
+      harnesses: HARNESSES,
+      directModels: DIRECT,
+      subscriptions: [
+        {
+          providerSlug: 'anthropic',
+          credential: {
+            authMethod: 'device-login',
+            constraints: { execution: 'sandbox', harness: 'claude-code' },
+          },
+        },
+      ],
+    });
+
+    expect(entryOf(rows, 'claude-code').subscriptions).toEqual([
+      { providerSlug: 'anthropic', usable: true },
+    ]);
+    expect(entryOf(rows, 'codex').subscriptions).toEqual([]);
+  });
+
   it('flags a subscription bound to a managed-only harness (opencode) as inert', () => {
     const rows = deriveHarnessStatus({
       harnesses: HARNESSES,

@@ -96,6 +96,8 @@ agentRun:
     destroy_pending: Wartet auf einen Arbeitsbereich
     exec_limit: Wartet auf seine Sandbox
     model_capacity: Wartet auf Modellkapazität
+    usage_limit: Wartet, bis eine Anmeldung wieder frei ist
+    device_login: Wartet auf ein Gerät
     unknown: Wartet auf einen Worker
   # Was der kurze Zustand bedeutet, darunter, solange der Lauf wartet.
   waitingWhy:
@@ -104,6 +106,8 @@ agentRun:
     destroy_pending: Ein Admin löscht gerade den Arbeitsbereich, den dieser Lauf nutzen würde. Danach startet der Lauf in einem neuen.
     exec_limit: Seine Sandbox beendet noch einen früheren Prozess. Der Lauf startet gleich von selbst.
     model_capacity: Das KI-Modell dieses Agenten ist ausgelastet. Der Lauf startet von selbst, sobald das Modell wieder antwortet; das Warten verbraucht keinen Versuch.
+    usage_limit: Das Abonnement, mit dem dieser Agent arbeitet, hat sein Nutzungslimit erreicht. Kann die Anmeldung eines anderen Geräts den Lauf übernehmen, startet er dort; sonst startet er von selbst, sobald das Limit zurückgesetzt ist. Das Warten verbraucht keinen Versuch.
+    device_login: Dieser Agent arbeitet mit der Anmeldung eines Sandbox-Geräts, und kein verbundenes Gerät mit einer Anmeldung hat gerade Platz. Der Lauf startet von selbst, sobald eines frei ist.
     unknown: Der Lauf startet von selbst, sobald Platz für ihn frei ist.
   # Für Owner und Admins neben „Alle … Agenten-Worker sind belegt".
   manageWorkers: Agenten-Worker verwalten
@@ -129,6 +133,7 @@ agentRun:
     time_limit: Der Lauf hat sein Zeitlimit erreicht, bevor der Agent fertig war. Starte den Agenten erneut oder teile die Aufgabe in kleinere auf.
     capacity: Der Lauf hat zu lange auf einen freien Worker gewartet. Starte den Agenten erneut, wenn weniger Agenten beschäftigt sind.
     model_capacity: Das KI-Modell war zwölf Stunden lang ausgelastet, deshalb hat der Lauf aufgehört zu warten. Starte den Agenten später erneut — bleibt das Modell nicht verfügbar, bitte einen Admin, den KI-Anbieter zu prüfen.
+    usage_limit: Das Abonnement, mit dem dieser Agent arbeitet, hat sein Nutzungslimit erreicht und wurde nicht zurückgesetzt, solange der Lauf warten konnte. Starte den Agenten erneut, sobald es zurückgesetzt ist, oder melde ein weiteres Gerät an.
     model: Das KI-Modell hinter diesem Agenten ist ausgefallen, bevor die Arbeit erledigt war. Starte den Agenten erneut — schlägt er wieder fehl, bitte einen Admin, den KI-Anbieter zu prüfen.
     start: 'Der Lauf konnte nicht starten. Versuche es erneut — schlägt er wieder fehl, zeig einem Admin, was der Lauf unter "Details" gemeldet hat.'
     interrupted: Der Lauf wurde unterbrochen, bevor der Agent fertig war. Starte den Agenten erneut.

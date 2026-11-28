@@ -82,6 +82,16 @@ Ein Raw-Gerät führt eine Sandbox nur mit einer Agenten-Laufzeit aus, die auf s
 
 In **Einstellungen > Sandboxes** zeigt die Liste **Geräte** ein Raw-Gerät in der Spalte **Rechner** als **Auf dem Rechner** an, mit seiner Isolation (**Jede Sandbox mit eigenem Benutzerkonto** oder **Gemeinsames Benutzerkonto**) und seinen **Agenten-Laufzeiten** mit ihren Versionen. Ein Docker-Gerät zeigt **Docker**. Ein Raw-Gerät hat keine Docker Engine, deshalb betrifft es die Warnung zu einer zu alten Docker Engine nie.
 
+## Das eigene Abonnement des Geräts nutzen {#sign-ins}
+
+Ein Gerät kann eine eigene Claude-Code-Anmeldung behalten, sodass die Aufgaben und Automatisierungen deiner Organisation mit dem Claude-Abonnement dieses Rechners laufen statt mit einem API-Schlüssel. Das Token bleibt auf dem Rechner: Tale erhält es nie.
+
+1. Führe auf dem Gerät `claude setup-token` mit einem Claude-Pro-, Max-, Team- oder Enterprise-Konto aus. Es gibt ein Token aus, das ein Jahr gilt.
+2. Führe `tale sandbox login claude-code` aus und füge das Token ein. Auf einem isolierten Raw-Gerät führst du es mit `sudo` aus. `tale sandbox logins` listet die Anmeldungen eines Geräts auf, `tale sandbox logout claude-code` entfernt eine.
+3. Füge unter **Einstellungen > Anbieter** eine Anthropic-Zugangsangabe mit **Anmeldung auf einem Sandbox-Gerät** hinzu und mache sie zum Standard. Siehe [Anbieter](/de/platform/admin/providers).
+
+Läufe mit einer solchen Zugangsangabe starten nur auf einem verbundenen Gerät mit einer Anmeldung, nie auf dem Tale-Server. Erreicht ein Abonnement sein Nutzungslimit, wird die Anmeldung des Geräts zurückgehalten, bis das Limit zurückgesetzt ist, und der Lauf wechselt auf ein anderes Gerät, dessen Anmeldung frei ist. Haben alle Anmeldungen ihr Limit erreicht, wartet der Lauf, bis die früheste zurückgesetzt ist, und zeigt **Wartet, bis eine Anmeldung wieder frei ist**. Ein wartender Lauf verbraucht keinen Versuch. Die Liste **Geräte** zeigt jede Anmeldung und bis wann eine ihr Limit erreicht hat.
+
 ## Verstehen, wo Sandboxes laufen
 
 Neue Arbeitsbereiche für Agenten und Automatisierungen starten auf einem verbundenen Gerät mit freiem Platz. Hat keines Platz, starten sie auf dem Tale-Server. Ein Arbeitsbereich bleibt mit seinen Dateien auf dem Rechner, auf dem er gestartet ist; ein Agent, der schon einen Arbeitsbereich auf dem Server hat, nutzt diesen also weiter. Ist der Server voll, wechselt ein Aufgabenlauf, dessen Arbeitsbereich dort liegt, jedoch in einen anderen Arbeitsbereich seines Agenten, der starten kann, etwa einen auf einem Gerät mit freiem Platz oder einen neuen dort; sein Arbeitsbereich auf dem Server behält seine Dateien. Seiten, die beim Crawlen von Websites gerendert werden, bleiben immer auf dem Server.
