@@ -23,13 +23,28 @@ export const SANDBOX_DEVICE_TICKET_TTL_MS = 15 * 60 * 1000;
 
 const measure = z.number().nonnegative().nullable();
 
-/** What a device reports about the machine it runs on. */
+/** A harness a raw device found installed on its machine, and its version
+ * as the harness printed it. */
+export const sandboxDeviceHarnessSchema = z.object({
+  id: z.string().min(1).max(48),
+  version: z.string().max(64).nullable(),
+});
+export type SandboxDeviceHarness = z.infer<typeof sandboxDeviceHarnessSchema>;
+
+/** What a device reports about the machine it runs on. The runtime fields
+ * are absent from devices older than raw devices. */
 export const sandboxDevicePlatformSchema = z.object({
   os: z.string().min(1).max(32),
   arch: z.string().min(1).max(32),
   cpus: measure.optional(),
   memoryBytes: measure.optional(),
   dockerVersion: z.string().max(64).nullable().optional(),
+  /** `docker` (its sandboxes run in containers) or `raw` (on the machine). */
+  runtime: z.enum(['docker', 'raw']).optional(),
+  /** A raw device's isolation; null on Docker. */
+  isolation: z.enum(['isolated', 'shared']).nullable().optional(),
+  /** The harnesses a raw device found; null on Docker. */
+  harnesses: z.array(sandboxDeviceHarnessSchema).max(32).nullable().optional(),
 });
 export type SandboxDevicePlatform = z.infer<typeof sandboxDevicePlatformSchema>;
 

@@ -179,6 +179,14 @@ devices:
   sandboxCount: '{used} / {limit}'
   lastSeenNow: Now
   machine: '{cpus, plural, one {# CPU} other {# CPUs}} · {memory} GiB'
+  runtime:
+    docker: Docker
+    raw: On the machine
+  isolation:
+    isolated: Each sandbox as its own account
+    shared: Shared account
+  agentRuntimes: 'Agent runtimes: {list}'
+  noAgentRuntimes: No agent runtime is installed on this machine
   updatingTo: 'Updating to {version}'
   updateFailedHint: The update to {version} failed. The device tries again on its own.
   outdatedHint: Runs a different release than Tale ({version}). Run tale sandbox update on the machine.

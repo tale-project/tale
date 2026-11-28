@@ -1,6 +1,6 @@
 ---
 title: Exécuter les sandboxes sur tes propres appareils
-description: Connecte une machine Linux ou macOS avec Docker pour que les sandboxes des agents et des automatisations de ton organisation s’y exécutent.
+description: Connecte une machine Linux ou macOS pour que les sandboxes des agents et des automatisations de ton organisation s’y exécutent, dans Docker ou directement sur la machine.
 ---
 
 Un appareil est une machine que tu connectes à ton organisation pour que ses sandboxes s’y exécutent au lieu du serveur Tale : un poste de travail inutilisé, un serveur de build ou un Mac qui a de la capacité à partager. Les Propriétaires et Admins ajoutent et retirent des appareils dans **Paramètres > Sandboxes**. Les Développeurs voient la liste.
@@ -8,7 +8,7 @@ Un appareil est une machine que tu connectes à ton organisation pour que ses sa
 ## Vérifier ce dont la machine a besoin
 
 - Linux sur x86_64 ou arm64, ou macOS sur Apple Silicon ou Intel.
-- Docker : Docker Engine 24.0 ou une version ultérieure sous Linux ; Docker Desktop, OrbStack ou Colima sous macOS. Si Docker manque, la CLI Tale propose de l’installer. Les couches des images Tale sont compressées en zstd, ce que les moteurs plus anciens ne savent pas télécharger : `tale sandbox connect` et `tale sandbox update` refusent donc un moteur plus ancien avant d’utiliser la commande de connexion ou de télécharger quoi que ce soit.
+- Docker, sauf si l’appareil exécute ses sandboxes [directement sur la machine](#raw-devices) : Docker Engine 24.0 ou une version ultérieure sous Linux ; Docker Desktop, OrbStack ou Colima sous macOS. Si Docker manque, la CLI Tale propose de l’installer. Les couches des images Tale sont compressées en zstd, ce que les moteurs plus anciens ne savent pas télécharger : `tale sandbox connect` et `tale sandbox update` refusent donc un moteur plus ancien avant d’utiliser la commande de connexion ou de télécharger quoi que ce soit.
 - Un accès HTTPS sortant vers ton site Tale. C’est l’appareil qui se connecte à Tale ; rien ne doit joindre la machine depuis l’extérieur, donc cela fonctionne aussi derrière un routeur ou un pare-feu.
 - De l’espace disque pour les images de sandbox, plusieurs gigaoctets, et pour les espaces de travail qu’il accueillera.
 
@@ -63,6 +63,25 @@ Dès que la machine joint Tale, la boîte de dialogue affiche **studio-mac est c
 
 L’appareil continue de fonctionner après un redémarrage de la machine, tant que Docker démarre avec elle. Quand Tale est mis à jour, l’appareil passe tout seul à la même version.
 
+## Exécuter les sandboxes directement sur la machine {#raw-devices}
+
+Un appareil exécute ses sandboxes dans des conteneurs Docker par défaut. Un appareil **raw** les exécute directement sur la machine, sans conteneur ni machine virtuelle. Chaque sandbox tourne comme des processus ordinaires sur la machine, et les environnements d’agent, comme Claude Code et Codex, sont installés sur la machine elle-même. Choisis raw pour une machine qui doit exécuter des sandboxes sans Docker. Les appareils Docker fonctionnent comme avant.
+
+Un appareil raw est soit isolé, soit partagé. Tu le choisis au moment de la connexion :
+
+| Isolation | Connexion | Chaque sandbox s’exécute sous | À utiliser sur |
+| --- | --- | --- | --- |
+| **Isolé** | `sudo tale sandbox connect https://your-org.tale.dev --token tsdj_… --runtime raw` | Son propre compte du système d’exploitation. Le service de l’appareil tourne en root et sépare les sandboxes par compte. | Une machine qu’utilisent aussi d’autres personnes, ou toute machine où les sandboxes ne doivent pas voir les fichiers des autres. |
+| **Partagé** | `tale sandbox connect https://your-org.tale.dev --token tsdj_… --runtime raw`, sans `sudo` | Le seul compte qui a connecté l’appareil. | Une machine que toi seul utilises. |
+
+Le mode isolé demande les droits root pour créer les comptes, c’est pourquoi sa commande s’exécute avec `sudo`. Utilise le jeton de **Ajouter un appareil** ; il ne fonctionne qu’une fois et pendant une heure. Remplace `https://your-org.tale.dev` par l’adresse de ton site.
+
+Un appareil partagé donne à chaque sandbox les fichiers et le réseau de ce compte unique : une sandbox peut lire et modifier tout ce que ce compte peut faire, y compris tes documents et les identifiants qu’il enregistre. Utilise le mode partagé uniquement sur une machine que toi seul utilises. Un appareil isolé sépare les sandboxes par compte. Quand une sandbox s’arrête, l’appareil nettoie ce qu’elle a laissé dans son compte : ses fichiers temporaires et son répertoire personnel.
+
+Un appareil raw n’exécute une sandbox qu’avec un environnement d’agent installé sur sa machine, et il ne reçoit des exécutions que pour ceux qu’il a trouvés. À la connexion, il signale chaque environnement avec sa version, par exemple Claude Code 2.1.285 et Codex 0.160.0. Il signale aussi un environnement installé ou retiré pendant son fonctionnement. Une machine sans environnement d’agent ne reçoit aucune exécution tant que tu n’en installes pas un.
+
+Dans **Paramètres > Sandboxes**, la liste **Appareils** affiche un appareil raw dans la colonne **Machine** avec la mention **Sur la machine**, son isolation (**Chaque sandbox avec son propre compte** ou **Compte partagé**) et ses **Environnements d’agent** avec leurs versions. Un appareil Docker affiche **Docker**. Un appareil raw n’a pas de Docker Engine : l’avertissement sur un Docker Engine trop ancien ne le concerne jamais.
+
 ## Comprendre où s’exécutent les sandboxes
 
 Les nouveaux espaces de travail des agents et des automatisations démarrent sur un appareil connecté qui a de la place. S’il n’y en a aucun, ils démarrent sur le serveur Tale. Un espace de travail reste, avec ses fichiers, sur la machine où il a démarré : un agent qui a déjà un espace de travail sur le serveur continue donc de l’utiliser. Quand le serveur est plein, une exécution de tâche dont l’espace de travail s’y trouve passe toutefois dans un autre espace de travail de son agent qui peut démarrer, par exemple sur un appareil qui a de la place ou dans un nouvel espace sur cet appareil ; son espace de travail sur le serveur garde ses fichiers. Les pages rendues pour l’exploration des sites web restent toujours sur le serveur.
@@ -71,7 +90,7 @@ Quand plusieurs appareils ont de la place, Tale tient compte à la fois des plac
 
 Dès que ton organisation a un appareil, la liste **Espaces de travail** indique où s’exécute chaque espace de travail : **Sur le serveur** ou sur un appareil désigné par son nom. Tant qu’un appareil est hors ligne, le travail qui a besoin d’un de ses espaces de travail échoue avec un message indiquant que l’appareil n’est pas connecté. Relance-le quand l’appareil est de nouveau en ligne ; un espace de travail ne passe jamais tout seul sur une autre machine.
 
-Les sandboxes d’un appareil accèdent à Internet par la connexion de la machine, via le même proxy de sortie que sur le serveur. Le proxy bloque les adresses des réseaux privés, si bien que les sandboxes ne peuvent pas joindre les autres machines de ton réseau local.
+Les sandboxes d’un appareil accèdent à Internet par la connexion de la machine, via le même proxy de sortie que sur le serveur. Le proxy bloque les adresses des réseaux privés, si bien que les sandboxes ne peuvent pas joindre les autres machines de ton réseau local. Les sandboxes d’un [appareil raw](#raw-devices) n’ont pas ce proxy : elles utilisent le réseau de la machine comme tout autre programme, sauf si la personne qui gère la machine le restreint.
 
 Les appareils connectés relèvent aussi le plafond des [limites d’activité](/fr/platform/admin/sandboxes#modifier-une-limite-dactivite) de ton organisation : leur total peut utiliser la capacité du déploiement plus les sandboxes de tes appareils.
 

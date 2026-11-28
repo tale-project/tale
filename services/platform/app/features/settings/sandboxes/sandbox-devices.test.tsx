@@ -524,3 +524,123 @@ describe('Add device', () => {
     ).toBeInTheDocument();
   });
 });
+
+describe('Runs sandboxes on', () => {
+  function rowOf(name: string): HTMLElement {
+    return within(screen.getByRole('table', { name: 'Devices' }))
+      .getByText(name)
+      .closest('tr') as HTMLElement;
+  }
+
+  const rawPlatform = {
+    os: 'linux',
+    arch: 'arm64',
+    cpus: 4,
+    memoryBytes: 16 * 1024 ** 3,
+    dockerVersion: null,
+    runtime: 'raw' as const,
+    isolation: 'isolated' as const,
+    harnesses: [
+      { id: 'claude-code', version: '2.1.285' },
+      { id: 'codex', version: '0.160.0' },
+    ],
+  };
+
+  it('names Docker for a device that runs its sandboxes in containers', () => {
+    renderSection({ view: view([device()]) });
+    const row = rowOf('studio-mac');
+    expect(within(row).getByText('Docker')).toBeInTheDocument();
+    expect(within(row).queryByText(/Agent runtimes/)).toBeNull();
+  });
+
+  it('treats a device that reports no runtime as Docker', () => {
+    renderSection({
+      view: view([
+        device({
+          platform: {
+            os: 'linux',
+            arch: 'x64',
+            cpus: 2,
+            memoryBytes: 1024 ** 3,
+          },
+        }),
+      ]),
+    });
+    expect(within(rowOf('studio-mac')).getByText('Docker')).toBeInTheDocument();
+  });
+
+  it('shows a raw device with its isolation and the harnesses it found', () => {
+    renderSection({
+      view: view([
+        device({
+          name: 'lab-box',
+          platform: rawPlatform,
+          sessions: null,
+          maxSessions: 4,
+        }),
+      ]),
+    });
+    const row = rowOf('lab-box');
+    expect(within(row).getByText('On the machine')).toBeInTheDocument();
+    expect(
+      within(row).getByText('Each sandbox as its own account'),
+    ).toBeInTheDocument();
+    expect(
+      within(row).getByText(
+        'Agent runtimes: Claude Code 2.1.285, Codex 0.160.0',
+      ),
+    ).toBeVisible();
+    expect(within(row).queryByText('Docker')).toBeNull();
+  });
+
+  it('shows a shared raw device as one shared account', () => {
+    renderSection({
+      view: view([
+        device({
+          name: 'my-laptop',
+          platform: { ...rawPlatform, isolation: 'shared' },
+        }),
+      ]),
+    });
+    expect(
+      within(rowOf('my-laptop')).getByText('Shared account'),
+    ).toBeInTheDocument();
+  });
+
+  it('says so when a raw device found no harness', () => {
+    renderSection({
+      view: view([
+        device({
+          name: 'bare-box',
+          platform: { ...rawPlatform, harnesses: [] },
+        }),
+      ]),
+    });
+    expect(
+      within(rowOf('bare-box')).getByText(
+        'No agent runtime is installed on this machine',
+      ),
+    ).toBeVisible();
+  });
+
+  it('never names a Docker Engine for a raw device, even one that is too old', () => {
+    renderSection({
+      view: view([
+        device({
+          name: 'old-engine-raw',
+          status: 'update_failed',
+          platform: { ...rawPlatform, dockerVersion: '20.10.24' },
+          update: {
+            state: 'failed',
+            targetVersion: '0.5.61',
+            error: 'pulling failed',
+            atMs: 1,
+          },
+        }),
+      ]),
+    });
+    const row = rowOf('old-engine-raw');
+    expect(within(row).getByText('Update failed')).toBeInTheDocument();
+    expect(within(row).queryByText(/Docker Engine/)).toBeNull();
+  });
+});
