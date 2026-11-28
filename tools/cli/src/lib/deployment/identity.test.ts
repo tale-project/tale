@@ -83,6 +83,8 @@ interface FixtureOptions {
   createdOrganization?: unknown;
   connection?: Record<string, unknown>;
   retainProvider?: boolean;
+  /** What the configuration reads after a removal (default ABSENT). */
+  afterRemoval?: Record<string, unknown>;
   discovery?: unknown;
   failedPath?: string;
   malformedPath?: string;
@@ -197,7 +199,7 @@ function fixture(options: FixtureOptions = {}) {
       }
       if (path === '/api/app/sso/config?orgId=org-example') {
         if (request.method === 'DELETE' && !options.retainProvider)
-          connection = structuredClone(ABSENT);
+          connection = structuredClone(options.afterRemoval ?? ABSENT);
         return Response.json(
           request.method === 'DELETE' ? { ok: true } : connection,
         );
@@ -1343,6 +1345,58 @@ describe('native instance provisioning over real local HTTP', () => {
       expect(f.calls.at(-1)?.path).toBe('/api/auth/sign-out');
     }),
   );
+
+  test("leaves another organization's SSO alone when this one has none", async () =>
+    withFixture(
+      {
+        connection: { ...ABSENT, otherOrgsEnabled: true },
+        discovery: { enabled: true, multiple: false },
+      },
+      async (f) => {
+        await configureInstance(
+          { ...INPUT, ssoEnabled: false },
+          { fetchImpl: f.fetchImpl },
+        );
+        expect(writes(f.calls)).toHaveLength(0);
+      },
+    ));
+
+  test('removes the managed connection even though another organization keeps SSO afterwards', async () =>
+    withFixture(
+      {
+        connection: MANAGED,
+        afterRemoval: { ...ABSENT, otherOrgsEnabled: true },
+        discovery: { enabled: true, multiple: false },
+      },
+      async (f) => {
+        await configureInstance(
+          { ...INPUT, ssoEnabled: false },
+          { fetchImpl: f.fetchImpl },
+        );
+        expect(writes(f.calls)).toEqual([
+          expect.objectContaining({
+            method: 'DELETE',
+            path: '/api/app/sso/config?orgId=org-example',
+          }),
+        ]);
+      },
+    ));
+
+  test('still holds SSO discovery when no other organization has SSO', async () =>
+    withFixture(
+      {
+        connection: ABSENT,
+        discovery: { enabled: true, multiple: false },
+      },
+      async (f) => {
+        await expect(
+          configureInstance(
+            { ...INPUT, ssoEnabled: false },
+            { fetchImpl: f.fetchImpl },
+          ),
+        ).rejects.toThrow('SSO discovery does not match');
+      },
+    ));
 
   test.each([
     { retainProvider: true },
