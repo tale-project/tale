@@ -239,6 +239,18 @@ export function rawJoinPlatform(
   };
 }
 
+/** Whether the device follows its hub's release by itself: only under a
+ * service of its own, which the update starts again from the new binary. A
+ * device without one (`--no-service`) is run, and so moved to a release, by
+ * whoever runs it: an update could replace the binary but not the process
+ * that runs from it. */
+export function rawAutoUpdate(
+  requested: boolean,
+  service: RawPlan['service'],
+): boolean {
+  return requested && service !== 'none';
+}
+
 export function rawMaxSessions(
   requested: number | undefined,
   plan: RawPlan,
@@ -274,12 +286,18 @@ export async function finishRawConnect(
     binary: settled.binary,
     service: plan.service,
   };
+  const autoUpdate = rawAutoUpdate(options.autoUpdate, plan.service);
+  if (options.autoUpdate && !autoUpdate) {
+    logger.info(
+      'Without a service of its own, the device follows no release by itself: whoever runs it moves it (`tale sandbox update`, then start it again).',
+    );
+  }
   const config: SandboxDeviceConfig = {
     ...buildSandboxDeviceConfig(joined, {
       stateDir: plan.root,
       maxSessions: options.maxSessions,
       host: { os: host.os(), arch: process.arch, hostname: options.hostname },
-      autoUpdate: options.autoUpdate,
+      autoUpdate,
       cliServerUrl: options.cliServerUrl,
     }),
     runtime: 'raw',
@@ -379,7 +397,13 @@ export async function updateRawDevice(
       targetVersion: version,
       error: null,
     });
-    logger.success(`The sandbox device runs Tale ${version}.`);
+    if (raw.service === 'none') {
+      logger.success(
+        `Tale ${version} is in place at ${raw.binary}; start the device again to run it.`,
+      );
+    } else {
+      logger.success(`The sandbox device runs Tale ${version}.`);
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await writeUpdateStatus(config.stateDir, {

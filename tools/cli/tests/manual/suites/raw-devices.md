@@ -42,4 +42,5 @@ an ordinary account) and a real Mac, against a Tale site the person administers.
 ## Updates
 
 - [ ] `RAW-F11` · **Connect a device with automatic updates on, then update the Tale site to the next release** → within the next ticket renewal the device reads the site's release in Settings, and `update-status.json` in the device's directory reads `"state":"idle"` with the new release.
+- [ ] `RAW-F14` · **Connect a device with `--no-service`, then update the Tale site to the next release** → the connect says the device follows no release by itself, its `device.json` holds `"autoUpdate": false`, and the device keeps its release (the site lists it as behind) until `tale sandbox update` runs, which says to start the device again.
 - [ ] `RAW-B4` · **On a device that updates itself, replace the next release's `tale_checksums.txt` line of the platform's binary with another SHA-256 (a test site's release only), then update the site** → the device stays on its release, Settings shows **Update failed**, and `update-status.json` names `is not the one … lists`.

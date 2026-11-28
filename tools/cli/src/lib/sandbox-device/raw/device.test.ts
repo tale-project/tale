@@ -1,6 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 
-import { planRawDevice, rawJoinPlatform, rawMaxSessions } from './device';
+import {
+  planRawDevice,
+  rawAutoUpdate,
+  rawJoinPlatform,
+  rawMaxSessions,
+} from './device';
 
 const root = { isRoot: () => true, os: () => 'linux' as const };
 const user = { isRoot: () => false, os: () => 'darwin' as const };
@@ -52,6 +57,15 @@ describe('planning a raw device', () => {
 
   test('--no-service leaves the service to the machine', () => {
     expect(planRawDevice({ service: false }, root, '/r').service).toBe('none');
+  });
+
+  test('only a device with a service of its own follows its hub by itself', () => {
+    expect(rawAutoUpdate(true, 'systemd-system')).toBe(true);
+    expect(rawAutoUpdate(true, 'launchd-agent')).toBe(true);
+    expect(rawAutoUpdate(false, 'systemd-user')).toBe(false);
+    // Whoever runs a device without a service moves it to a release: an
+    // update could replace its binary but not restart it.
+    expect(rawAutoUpdate(true, 'none')).toBe(false);
   });
 
   test('an isolated device runs no more sessions than it has slots', () => {

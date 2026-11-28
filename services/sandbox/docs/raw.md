@@ -62,7 +62,10 @@ A device on a release follows its hub: when the hub runs another release, the de
 `<binary> sandbox update --to <release> --from-device`, which fetches that release's binary for the
 platform, refuses it unless its SHA-256 is the one the release's `tale_checksums.txt` lists, puts
 it in place, records the outcome in `update-status.json` and has the service start again from it.
-`--no-auto-update` (what a managed machine uses: its manager pins the binary) turns that off.
+`--no-auto-update` (what a managed machine uses: its manager pins the binary) turns that off, and a
+device without a service of its own (`--no-service`) never follows by itself: the update could put
+the new binary in place but not restart the process its caller runs, so whoever runs it moves it
+(`tale sandbox update`, then starts it again; hostkit moves its pin).
 
 ## A session
 
