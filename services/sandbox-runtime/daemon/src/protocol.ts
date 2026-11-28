@@ -324,6 +324,16 @@ export interface RunnerdError {
 }
 
 export const WORKSPACE_ROOT = '/agent';
+
+/** `host:port` runnerd listens on instead of every address on
+ * {@link RUNNERD_PORT}: a raw session's runnerd takes a loopback port the
+ * kernel picks (`127.0.0.1:0`), since every session of its device shares the
+ * host's network. */
+export const RUNNERD_LISTEN_ENV = 'TALE_RUNNERD_LISTEN';
+
+/** A file runnerd writes once it listens, `{port, pid, incarnation?}`: how a
+ * raw session's spawner learns the port it took. */
+export const RUNNERD_READY_FILE_ENV = 'TALE_RUNNERD_READY_FILE';
 export const ID_ALPHABET_RE = /^[a-zA-Z0-9_-]{1,64}$/;
 
 /** Missing cursor starts at zero; malformed cursors must never skip history. */

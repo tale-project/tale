@@ -409,7 +409,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Sandboxes auf eigenen Geräten ausführen",
-      "description": "Verbinde einen Linux- oder macOS-Rechner mit Docker, damit die Sandboxes deiner Agenten und Automatisierungen darauf laufen."
+      "description": "Verbinde einen Linux- oder macOS-Rechner, damit die Sandboxes deiner Agenten und Automatisierungen darauf laufen, in Docker oder direkt auf dem Rechner."
     }
   },
   "de:platform/admin/sandboxes": {
@@ -1660,7 +1660,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Run sandboxes on your own devices",
-      "description": "Connect a Linux or macOS machine with Docker so your organization's agent and automation sandboxes run on it."
+      "description": "Connect a Linux or macOS machine so your organization's agent and automation sandboxes run on it, in Docker or directly on the machine."
     }
   },
   "en:platform/admin/sandboxes": {
@@ -2908,7 +2908,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Exécuter les sandboxes sur tes propres appareils",
-      "description": "Connecte une machine Linux ou macOS avec Docker pour que les sandboxes des agents et des automatisations de ton organisation s’y exécutent."
+      "description": "Connecte une machine Linux ou macOS pour que les sandboxes des agents et des automatisations de ton organisation s’y exécutent, dans Docker ou directement sur la machine."
     }
   },
   "fr:platform/admin/sandboxes": {

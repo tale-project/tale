@@ -840,13 +840,15 @@ describe('reconcileSession keeps a pinned session pinned', () => {
       // The create path the agent hosts use, under the SAME id and
       // organization: the spawner resolves the workspace by id, so this create
       // re-attaches the preserved one. The pin follows it, since a create
-      // always starts unpinned spawner-side.
+      // always starts unpinned spawner-side. It names the row's harness, so
+      // a raw device without it is passed over.
       expect(spawner.create).toHaveBeenCalledExactlyOnceWith({
         sessionId: 'session-a',
         organizationId: 'org-a',
         profile,
         placement: 'device',
         workload: 'project',
+        requires: { harness: 'opencode' },
       });
       expect(calls).toEqual([
         'isAlive session-a',

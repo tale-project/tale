@@ -1,7 +1,8 @@
 // Backend selection. Chosen once at boot from `cfg.backend` (env
 // SANDBOX_BACKEND, default 'docker'): the Docker Compose path, the native
-// Kubernetes Pod-per-session path, or the Incus instance-per-session path
-// (on one host, or on several behind the placement of incus-multi-backend.ts).
+// Kubernetes Pod-per-session path, the Incus instance-per-session path
+// (on one host, or on several behind the placement of incus-multi-backend.ts),
+// or a connected device's own host with no container at all (raw).
 //
 // The Kubernetes backends are imported only when selected: they pull in
 // @kubernetes/client-node, about 100 MiB resident and a few hundred
@@ -52,6 +53,23 @@ export async function loadBackends(cfg: SpawnerConfig): Promise<Backends> {
     return {
       host: new IncusBackend(cfg),
       createSession: () => new IncusSessionBackend(cfg),
+    };
+  }
+  if (cfg.backend === 'raw' && cfg.raw !== undefined) {
+    // A connected device that runs its sessions on its own host, as plain
+    // processes (docs/raw.md).
+    const raw = cfg.raw;
+    const [{ RawHostBackend }, { RawSessionBackend }] = await Promise.all([
+      import('./raw/raw-backend.ts'),
+      import('./raw/raw-session-backend.ts'),
+    ]);
+    let sessions: InstanceType<typeof RawSessionBackend> | null = null;
+    return {
+      host: new RawHostBackend(cfg, raw, { sessions: () => sessions }),
+      createSession: () => {
+        sessions = new RawSessionBackend(cfg, raw);
+        return sessions;
+      },
     };
   }
   return {

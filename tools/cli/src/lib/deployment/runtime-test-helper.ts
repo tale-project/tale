@@ -232,6 +232,7 @@ export const SPAWNER_CONFIG_SOURCE = [
   'services/sandbox/src/backend/incus/incus-config.ts',
   'services/sandbox/src/backend/incus/incus-registry-caches.ts',
   'services/sandbox/src/backend/kubernetes/k8s-session-pod-spec.ts',
+  'services/sandbox/src/backend/raw/raw-config.ts',
   'services/sandbox/src/host-memory.ts',
   'services/sandbox/src/host-pressure-assessment.ts',
   'services/sandbox/src/network-address.ts',

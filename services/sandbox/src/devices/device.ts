@@ -29,6 +29,7 @@ import { readUpdateStatus, type DeviceConfig } from './device-config.ts';
 import {
   isReleaseVersion,
   parseWelcome,
+  type DeviceHarness,
   type DevicePlatform,
   type DeviceResources,
   type DeviceUpdateReport,
@@ -141,6 +142,9 @@ export interface DeviceObservation {
   starting: number;
   sessions: DeviceSessionReport[];
   resources: DeviceResources;
+  /** A raw device's harnesses as it finds them now (they are reported when
+   * they differ from its HELLO's); absent on Docker. */
+  harnesses?: DeviceHarness[];
 }
 
 export interface DeviceAgentOptions {
@@ -164,6 +168,11 @@ export interface DeviceAgentOptions {
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
   platform?: () => Promise<DevicePlatform>;
+  /** A raw device: its relays listen on loopback ports the kernel picks,
+   * and are handed here as `[deployment origin, loopback origin]` pairs once
+   * they listen (backend/raw/raw-relays.ts). Absent: the relays listen on the
+   * deployment's own ports, every address (Docker). */
+  relayOrigins?: (origins: ReadonlyArray<readonly [string, string]>) => void;
   /** How long an unanswered upgrade is waited for (tests shorten it). */
   connectTimeoutMs?: number;
 }
@@ -240,6 +249,9 @@ async function observePlatform(config: DeviceConfig): Promise<DevicePlatform> {
     cpus,
     memoryBytes,
     dockerVersion,
+    runtime: 'docker',
+    isolation: null,
+    harnesses: null,
   };
 }
 
@@ -658,6 +670,8 @@ export class DeviceAgent {
         this.observation(),
         this.updateReport(),
       ]);
+      const harnesses = observation.harnesses;
+      const helloHarnesses = this.platformCache?.harnesses ?? null;
       endpoint.sendControl(FRAME.STATUS, {
         maxSessions: this.opts.config.maxSessions,
         running: observation.running,
@@ -665,6 +679,10 @@ export class DeviceAgent {
         sessions: observation.sessions,
         resources: observation.resources,
         update,
+        ...(harnesses !== undefined &&
+        JSON.stringify(harnesses) !== JSON.stringify(helloHarnesses)
+          ? { harnesses }
+          : {}),
       });
     } catch (err) {
       console.warn('[sandbox.devices] status report failed:', err);
@@ -743,24 +761,46 @@ export class DeviceAgent {
   }
 
   /** Answer the platform addresses (`backend-api:3005`,
-   * `sandbox-llm-gateway:8080`) this device's sessions call. */
+   * `sandbox-llm-gateway:8080`) this device's sessions call. A raw device's
+   * sessions share the host's network: each relay takes a loopback port the
+   * kernel picks, and the sessions reach it through their view
+   * (`relayOrigins`), never on the deployment's own port. */
   private startRelays(): void {
+    const raw = this.opts.relayOrigins !== undefined;
+    const origins: Array<readonly [string, string]> = [];
+    const byPort = new Map<number, ReturnType<typeof Bun.serve>>();
     for (const relay of this.opts.config.relays) {
       const { port } = relayEndpoint(relay.url);
+      if (raw) {
+        const shared = byPort.get(port);
+        if (shared !== undefined) {
+          origins.push([
+            new URL(relay.url).origin,
+            `http://127.0.0.1:${shared.port}`,
+          ]);
+          continue;
+        }
+      }
       try {
-        this.relayServers.push(
-          Bun.serve({
-            port,
-            hostname: '0.0.0.0',
-            // LLM streams can pause while a model thinks; stay under Bun's cap.
-            idleTimeout: 255,
-            fetch: (req) =>
-              handleSandboxRequest(req, (request) =>
-                this.relayRequest(relay.name, request),
-              ),
-            error: sandboxServerError,
-          }),
-        );
+        const server = Bun.serve({
+          port: raw ? 0 : port,
+          hostname: raw ? '127.0.0.1' : '0.0.0.0',
+          // LLM streams can pause while a model thinks; stay under Bun's cap.
+          idleTimeout: 255,
+          fetch: (req) =>
+            handleSandboxRequest(req, (request) =>
+              this.relayRequest(relay.name, request),
+            ),
+          error: sandboxServerError,
+        });
+        this.relayServers.push(server);
+        if (raw) {
+          byPort.set(port, server);
+          origins.push([
+            new URL(relay.url).origin,
+            `http://127.0.0.1:${server.port}`,
+          ]);
+        }
       } catch (err) {
         reportSandboxError(err, 'device-relay-listener');
         console.error(
@@ -769,6 +809,7 @@ export class DeviceAgent {
         );
       }
     }
+    if (raw) this.opts.relayOrigins?.(origins);
   }
 
   async relayRequest(name: RelayName, req: Request): Promise<Response> {

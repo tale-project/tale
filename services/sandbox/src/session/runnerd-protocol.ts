@@ -14,6 +14,15 @@ export const RUNNERD_TOKEN_CONTEXT = 'runnerd-v1:';
  * incarnation it registered from a replacement under the same name without
  * asking the backend. A container launched without it names none. */
 export const RUNNERD_INCARNATION_ENV = 'TALE_RUNNERD_INCARNATION';
+
+/** `host:port` runnerd listens on instead of every address on its port: a
+ * raw session's runnerd takes a loopback port the kernel picks
+ * (docs/raw.md). */
+export const RUNNERD_LISTEN_ENV = 'TALE_RUNNERD_LISTEN';
+
+/** The file runnerd writes once it listens, `{port, pid, incarnation?}`: how
+ * a raw session's spawner learns the port it took. */
+export const RUNNERD_READY_FILE_ENV = 'TALE_RUNNERD_READY_FILE';
 /** Request header naming the incarnation an activity request is meant for.
  * runnerd refuses the request with 409 `incarnation_mismatch` (naming its own)
  * when it serves another, before anything changes. */

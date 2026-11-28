@@ -257,10 +257,10 @@ describe('the other backends', () => {
     expect(loadConfig().backend).toBe('docker');
   });
 
-  test('an unknown backend names all three', () => {
+  test('an unknown backend names all four', () => {
     process.env.SANDBOX_BACKEND = 'nomad';
     expect(() => loadConfig()).toThrow(
-      "SANDBOX_BACKEND must be 'docker', 'kubernetes' or 'incus'",
+      "SANDBOX_BACKEND must be 'docker', 'kubernetes', 'incus' or 'raw'",
     );
   });
 

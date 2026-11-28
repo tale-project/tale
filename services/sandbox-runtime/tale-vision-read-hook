@@ -48,9 +48,14 @@ emit_deny() {
   exit 0
 }
 
+# The extension, lower-cased with tr rather than bash 4's ${var,,}: on a raw
+# device (services/sandbox/docs/raw.md) the hook may run under macOS's bash 3.2,
+# where that expansion is a syntax error, which exits 2 and so blocks every Read.
+lower_path=$(printf '%s' "$file_path" | tr '[:upper:]' '[:lower:]')
+
 # --- PDF: never allow Claude Code's native document/`file` read on text-only
 # models. Prefer pdftotext for text/hybrid PDFs; guide rasterize for scans.
-case "${file_path,,}" in
+case "$lower_path" in
   *.pdf)
     extracted=""
     if command -v pdftotext >/dev/null 2>&1; then
@@ -80,7 +85,7 @@ $body"
 esac
 
 # --- Raster images: transcribe via gateway vision model.
-case "${file_path,,}" in
+case "$lower_path" in
   *.png | *.jpg | *.jpeg | *.gif | *.webp | *.bmp) ;;
   *) exit 0 ;;
 esac

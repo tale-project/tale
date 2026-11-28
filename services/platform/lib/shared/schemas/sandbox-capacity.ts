@@ -25,7 +25,7 @@ export const sandboxPlacementSchema = z.object({
 export const sandboxCapacitySchema = z.object({
   status: z.literal('available'),
   observedAt: z.number().int().nonnegative(),
-  backend: z.enum(['docker', 'kubernetes', 'incus']),
+  backend: z.enum(['docker', 'kubernetes', 'incus', 'raw']),
   /** What the session counts cover: the Docker host, a Kubernetes namespace
    * or an Incus project. */
   scope: z.enum(['host', 'namespace', 'project']),

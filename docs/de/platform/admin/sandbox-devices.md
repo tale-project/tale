@@ -1,6 +1,6 @@
 ---
 title: Sandboxes auf eigenen Geräten ausführen
-description: Verbinde einen Linux- oder macOS-Rechner mit Docker, damit die Sandboxes deiner Agenten und Automatisierungen darauf laufen.
+description: Verbinde einen Linux- oder macOS-Rechner, damit die Sandboxes deiner Agenten und Automatisierungen darauf laufen, in Docker oder direkt auf dem Rechner.
 ---
 
 Ein Gerät ist ein Rechner, den du mit deiner Organisation verbindest, damit ihre Sandboxes dort laufen statt auf dem Tale-Server: eine freie Workstation, ein Build-Server oder ein Mac, der Kapazität übrig hat. Inhaber und Admins fügen Geräte unter **Einstellungen > Sandboxes** hinzu und entfernen sie. Entwickler sehen die Liste.
@@ -8,7 +8,7 @@ Ein Gerät ist ein Rechner, den du mit deiner Organisation verbindest, damit ihr
 ## Prüfen, was der Rechner braucht
 
 - Linux auf x86_64 oder arm64 oder macOS auf Apple Silicon oder Intel.
-- Docker: Docker Engine 24.0 oder neuer unter Linux, unter macOS Docker Desktop, OrbStack oder Colima. Fehlt Docker, bietet die Tale CLI an, es zu installieren. Die Schichten der Tale-Images sind mit zstd komprimiert, und ältere Engines können sie nicht laden. Deshalb brechen `tale sandbox connect` und `tale sandbox update` bei einer älteren Engine ab, bevor sie den Verbindungsbefehl einlösen oder etwas herunterladen.
+- Docker, außer das Gerät führt seine Sandboxes [direkt auf dem Rechner](#raw-devices) aus: Docker Engine 24.0 oder neuer unter Linux, unter macOS Docker Desktop, OrbStack oder Colima. Fehlt Docker, bietet die Tale CLI an, es zu installieren. Die Schichten der Tale-Images sind mit zstd komprimiert, und ältere Engines können sie nicht laden. Deshalb brechen `tale sandbox connect` und `tale sandbox update` bei einer älteren Engine ab, bevor sie den Verbindungsbefehl einlösen oder etwas herunterladen.
 - Ausgehendes HTTPS zu deiner Tale-Seite. Das Gerät baut die Verbindung zu Tale selbst auf; nichts muss den Rechner von außen erreichen, deshalb funktioniert es auch hinter einem Router oder einer Firewall.
 - Speicherplatz für die Sandbox-Images, einige Gigabyte, und für die Arbeitsbereiche, die es aufnehmen wird.
 
@@ -63,6 +63,25 @@ Sobald der Rechner Tale erreicht, zeigt der Dialog **studio-mac ist verbunden.**
 
 Das Gerät läuft nach einem Neustart des Rechners weiter, sofern Docker mitstartet. Wird Tale aktualisiert, bringt sich das Gerät selbst auf dasselbe Release.
 
+## Sandboxes direkt auf dem Rechner ausführen {#raw-devices}
+
+Ein Gerät führt seine Sandboxes standardmäßig in Docker-Containern aus. Ein **Raw**-Gerät führt sie dagegen direkt auf dem Rechner aus, ohne Container und ohne virtuelle Maschine. Jede Sandbox läuft als gewöhnliche Prozesse auf dem Rechner, und die Agenten-Laufzeiten, etwa Claude Code und Codex, sind auf dem Rechner selbst installiert. Wähle Raw für einen Rechner, der Sandboxes ohne Docker ausführen soll. Docker-Geräte funktionieren wie bisher.
+
+Ein Raw-Gerät ist entweder isoliert oder geteilt. Du wählst das beim Verbinden:
+
+| Isolation | Verbinden mit | Jede Sandbox läuft als | Verwenden auf |
+| --- | --- | --- | --- |
+| **Isoliert** | `sudo tale sandbox connect https://your-org.tale.dev --token tsdj_… --runtime raw` | ihr eigenes Benutzerkonto im Betriebssystem. Der Gerätedienst läuft als root und hält die Sandboxes über ihre Konten getrennt. | Einem Rechner, den auch andere nutzen, oder jedem Rechner, auf dem Sandboxes die Dateien der anderen nicht sehen dürfen. |
+| **Geteilt** | `tale sandbox connect https://your-org.tale.dev --token tsdj_… --runtime raw`, ohne `sudo` | Das eine Benutzerkonto, mit dem das Gerät verbunden wurde. | Einem Rechner, den nur du nutzt. |
+
+Der isolierte Modus braucht Root-Rechte, um die Konten anzulegen, deshalb läuft sein Befehl mit `sudo`. Verwende das Token aus **Gerät hinzufügen**; es funktioniert einmal und innerhalb einer Stunde. Ersetze `https://your-org.tale.dev` durch die Adresse deiner Tale-Seite.
+
+Ein geteiltes Gerät gibt jeder Sandbox die Dateien und das Netzwerk dieses einen Kontos: Eine Sandbox kann alles lesen und ändern, was dieses Konto darf, also auch deine Dokumente und dort gespeicherte Zugangsdaten. Verwende den geteilten Modus nur auf einem Rechner, den nur du nutzt. Ein isoliertes Gerät hält die Sandboxes über ihre Konten getrennt. Wenn eine Sandbox stoppt, räumt das Gerät auf, was sie in ihrem Konto hinterlassen hat: temporäre Dateien und das Home-Verzeichnis.
+
+Ein Raw-Gerät führt eine Sandbox nur mit einer Agenten-Laufzeit aus, die auf seinem Rechner installiert ist, und nimmt nur Läufe für die Laufzeiten an, die es gefunden hat. Beim Verbinden meldet es jede Laufzeit mit ihrer Version, zum Beispiel Claude Code 2.1.285 und Codex 0.160.0. Es meldet auch eine Laufzeit, die während des Betriebs installiert oder entfernt wird. Ein Rechner ohne Agenten-Laufzeit nimmt keine Läufe an, bis du eine installierst.
+
+In **Einstellungen > Sandboxes** zeigt die Liste **Geräte** ein Raw-Gerät in der Spalte **Rechner** als **Auf dem Rechner** an, mit seiner Isolation (**Jede Sandbox mit eigenem Benutzerkonto** oder **Gemeinsames Benutzerkonto**) und seinen **Agenten-Laufzeiten** mit ihren Versionen. Ein Docker-Gerät zeigt **Docker**. Ein Raw-Gerät hat keine Docker Engine, deshalb betrifft es die Warnung zu einer zu alten Docker Engine nie.
+
 ## Verstehen, wo Sandboxes laufen
 
 Neue Arbeitsbereiche für Agenten und Automatisierungen starten auf einem verbundenen Gerät mit freiem Platz. Hat keines Platz, starten sie auf dem Tale-Server. Ein Arbeitsbereich bleibt mit seinen Dateien auf dem Rechner, auf dem er gestartet ist; ein Agent, der schon einen Arbeitsbereich auf dem Server hat, nutzt diesen also weiter. Ist der Server voll, wechselt ein Aufgabenlauf, dessen Arbeitsbereich dort liegt, jedoch in einen anderen Arbeitsbereich seines Agenten, der starten kann, etwa einen auf einem Gerät mit freiem Platz oder einen neuen dort; sein Arbeitsbereich auf dem Server behält seine Dateien. Seiten, die beim Crawlen von Websites gerendert werden, bleiben immer auf dem Server.
@@ -71,7 +90,7 @@ Haben mehrere Geräte Platz, berücksichtigt Tale sowohl freie Plätze als auch 
 
 Sobald deine Organisation ein Gerät hat, zeigt die Liste **Arbeitsbereiche**, wo jeder Arbeitsbereich läuft: **Auf dem Server** oder auf einem Gerät mit dessen Namen. Solange ein Gerät offline ist, schlägt Arbeit, die einen seiner Arbeitsbereiche braucht, mit der Meldung fehl, dass das Gerät nicht verbunden ist. Starte sie erneut, sobald das Gerät wieder online ist; Arbeitsbereiche wechseln nie von selbst auf einen anderen Rechner.
 
-Sandboxes auf einem Gerät erreichen das Internet über die eigene Verbindung des Rechners, und zwar über denselben Egress-Proxy wie auf dem Server. Der Proxy sperrt Adressen privater Netze, deshalb erreichen die Sandboxes keine anderen Rechner in deinem lokalen Netz.
+Sandboxes auf einem Gerät erreichen das Internet über die eigene Verbindung des Rechners, und zwar über denselben Egress-Proxy wie auf dem Server. Der Proxy sperrt Adressen privater Netze, deshalb erreichen die Sandboxes keine anderen Rechner in deinem lokalen Netz. Sandboxes auf einem [Raw-Gerät](#raw-devices) haben keinen solchen Proxy: Sie nutzen das Netz des Rechners wie jedes andere Programm darauf, es sei denn, wer den Rechner verwaltet, schränkt es ein.
 
 Verbundene Geräte heben außerdem die Obergrenze für die [Arbeitslimits](/de/platform/admin/sandboxes#ein-arbeitslimit-aendern) deiner Organisation: Deren Summe darf die Kapazität der Bereitstellung plus die Sandboxes deiner Geräte nutzen.
 

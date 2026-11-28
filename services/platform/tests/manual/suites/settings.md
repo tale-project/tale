@@ -878,6 +878,20 @@ Restore any toggled setting after the run.
   `tale sandbox disconnect --force` removes the `tale-device-*` containers and
   `~/.tale/sandbox`. The removed device's agent starts with a fresh workspace
   on its next task.
+- [ ] `SET-F114` · **A raw device's row** — As owner on
+  `/dashboard/{org}/settings/sandboxes`, connect a machine with a harness
+  installed (for example Claude Code) using the raw runtime: on a Linux machine
+  run `sudo tale sandbox connect {site} --token {token} --runtime raw` for an
+  isolated device, or the same without `sudo` for a shared one, with the token
+  from **Add device** (`sandboxes.devices.add`) → Once it is **Online**
+  (`sandboxes.devices.status.online`), its row's **Machine** cell reads
+  **On the machine** (`sandboxes.devices.runtime.raw`) with **Each sandbox as
+  its own account** (`sandboxes.devices.isolation.isolated`) or **Shared
+  account** (`sandboxes.devices.isolation.shared`) to match the mode used, and
+  **Agent runtimes: Claude Code {version}** (`sandboxes.devices.agentRuntimes`)
+  naming each harness the machine reports with its version; the row carries no
+  **Docker** label and never shows the Docker Engine warning
+  (`sandboxes.devices.engineTooOld`). After a reload the same lines read back.
 - [ ] `SET-F60` · **Devices raise the limits ceiling** — With a device online
   that runs N sandboxes, read **Total organization sessions**
   (`sandboxes.limits.total`) → It reads `{total} / {capacity + N}` and its hint

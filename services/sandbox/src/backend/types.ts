@@ -410,6 +410,14 @@ export interface SessionBackend {
     upkeep?: BuildCacheUpkeep,
   ): Promise<void>;
   /**
+   * The token of the session's running runnerd, where the backend gives each
+   * runnerd incarnation one of its own (raw: every session of a raw device
+   * shares the host's loopback, so a token one incarnation ever handed out
+   * must open no later one). Undefined: the token derived from SANDBOX_TOKEN
+   * (deriveRunnerdToken), as on every other backend.
+   */
+  runnerdToken?(sessionId: string): string | undefined;
+  /**
    * Does this backend hold a workspace for the session — a running container
    * or a stopped one's preserved data? The device hub asks before placing a
    * session on a device: a session that already lives here stays here.

@@ -1,5 +1,6 @@
 'use node';
 
+import { installedHarness } from '../../../../lib/harnesses/types';
 import type { ActionCtx } from '../../lib/ctx';
 import { internal } from '../../lib/handler_names';
 import {
@@ -113,6 +114,7 @@ export async function ensureAgentSession(
           organizationId,
           existing.profile === 'agent-light' ? 'agent-light' : 'agent',
           args.owner.type,
+          args.agentKind,
         );
       }
     } catch (error) {
@@ -149,6 +151,7 @@ export async function ensureAgentSession(
       organizationId,
       profile,
       args.owner.type,
+      args.agentKind,
     );
   } catch (error) {
     // The spawner may already hold what this create made (one cut short
@@ -207,16 +210,21 @@ async function createOrAcquireSession(
   organizationId: string,
   profile: 'agent' | 'agent-light',
   ownerType: AgentSessionOwner['type'],
+  harness: string | undefined,
 ): Promise<void> {
   try {
     // Agent and automation workspaces may start on one of the organization's
-    // connected devices; once started, a workspace keeps its machine.
+    // connected devices; once started, a workspace keeps its machine. A raw
+    // device takes only a session whose harness it has installed.
     await sessionCreate({
       sessionId,
       organizationId,
       profile,
       workload: ownerType === 'project_agent' ? 'project' : 'workflow',
       placement: 'device',
+      ...(harness === undefined
+        ? {}
+        : { requires: { harness: installedHarness(harness) } }),
     });
   } catch (error) {
     if (!(error instanceof SessionDuplicateError)) throw error;

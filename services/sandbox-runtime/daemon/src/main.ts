@@ -15,6 +15,7 @@
 // by the image's Node 24 — so this file uses only node: built-ins, no deps.
 
 import { timingSafeEqual } from 'node:crypto';
+import { renameSync, writeFileSync } from 'node:fs';
 import {
   createServer,
   type IncomingMessage,
@@ -53,7 +54,9 @@ import {
   RUNNERD_INCARNATION_HEADER,
   RUNNERD_MAX_LIVE_EXECS,
   RUNNERD_MEMORY_BUSY_ERROR,
+  RUNNERD_LISTEN_ENV,
   RUNNERD_PORT,
+  RUNNERD_READY_FILE_ENV,
   RUNNERD_TOKEN_HEADER,
   type RunnerdExecEvent,
   type RunnerdExecRequest,
@@ -70,6 +73,7 @@ import {
   readOomKills,
   readSessionMemory,
 } from './session-memory.ts';
+import { loadSessionView } from './session-view.ts';
 let execConsumers = 0;
 const MAX_EXEC_CONSUMERS = 8;
 const FILE_READ_MAX_BYTES = 20 * 1024 * 1024;
@@ -116,12 +120,84 @@ if (process.env.TALE_SESSION_ENV) {
     console.error('[runnerd] TALE_SESSION_ENV is not valid JSON:', err);
   }
 }
-const envStore = new EnvStore(seedEnv);
+// On a raw host runnerd runs as the device's own `tale` binary told to be
+// Bun (BUN_BE_BUN=1): the variable must reach nothing it starts, or a harness
+// that is itself a compiled Bun program (Claude Code's native build) would
+// start Bun instead of itself.
+delete process.env.BUN_BE_BUN;
+
+// A raw session's view of itself (session-view.ts): what the platform sends
+// in names `/agent` and the deployment's doors, which this runnerd maps onto
+// its real directory and its device's relays; what an exec prints is mapped
+// back. A container sets no view and translates nothing. A view that is set
+// but unusable stops runnerd here: a raw session never runs untranslated.
+const sessionView = loadSessionView();
+// A raw session links built-in skills only where its device ships them
+// (TALE_BAKED_SKILLS), into its real HOME; a container uses the image's bake.
+const skillPaths =
+  sessionView.spec === null
+    ? undefined
+    : {
+        baked: process.env.TALE_BAKED_SKILLS ?? '',
+        home: `${sessionView.spec.real}/.runtime/home`,
+        workspace: `${sessionView.spec.real}/workspace`,
+      };
+const linkBakedSkills = (): void => {
+  if (skillPaths === undefined) reconcileBakedSkills();
+  else if (skillPaths.baked !== '') reconcileBakedSkills(skillPaths);
+};
+const envStore = new EnvStore(sessionView.inboundEnv(seedEnv));
 // Every exec first brings the built-in skill links in line with the
 // workspace, so the repository's own copy of a skill decides each turn.
-const execManager = new ExecManager(envStore, touch, () =>
-  reconcileBakedSkills(),
+const execManager = new ExecManager(
+  envStore,
+  touch,
+  linkBakedSkills,
+  {},
+  sessionView.active ? { outputView: () => sessionView.outboundStream() } : {},
 );
+
+/** An exec request with the contract's names replaced by this session's
+ * real ones (a raw session; unchanged in a container). */
+function viewExecRequest(request: RunnerdExecRequest): RunnerdExecRequest {
+  if (!sessionView.active) return request;
+  const command = Array.isArray(request.command)
+    ? request.command.map((arg) =>
+        typeof arg === 'string' ? sessionView.inbound(arg) : arg,
+      )
+    : request.command;
+  return {
+    ...request,
+    ...(command === undefined ? {} : { command }),
+    ...(typeof request.shell === 'string'
+      ? { shell: sessionView.inbound(request.shell) }
+      : {}),
+    ...(typeof request.cwd === 'string'
+      ? { cwd: sessionView.inbound(request.cwd) }
+      : {}),
+    ...(isObject(request.env) ? { env: viewEnv(request.env) } : {}),
+    ...(typeof request.stdinBase64 === 'string' && request.stdinBase64 !== ''
+      ? {
+          stdinBase64: sessionView
+            .inboundBytes(Buffer.from(request.stdinBase64, 'base64'))
+            .toString('base64'),
+        }
+      : {}),
+  };
+}
+
+/** An environment's string values translated in; anything else is left for
+ * the validation downstream to refuse. */
+function viewEnv(env: Record<string, unknown>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [name, value] of Object.entries(env)) {
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+    out[name] = (
+      typeof value === 'string' ? sessionView.inbound(value) : value
+    ) as string;
+  }
+  return out;
+}
 const activity = new ActivityGate(
   () => execManager.liveCount(),
   () => lastActivityAtMs,
@@ -346,8 +422,10 @@ async function handleExec(
     sendJson(res, 503, { error: 'docker_unavailable' });
     return;
   }
-  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-  const parsed = body.value as RunnerdExecRequest;
+  const parsed = viewExecRequest(
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+    body.value as RunnerdExecRequest,
+  );
   // A session about to run out of memory starts nothing beside its running
   // execs: a new exec would push the kernel to kill one of them, most often
   // the agent. Refused before it starts, with a hint to ask again; the execs
@@ -652,7 +730,17 @@ async function handleOperation(
     }
     // writeStdin validates the payload (single NDJSON line, size cap).
     // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-    const body = stdinBody.value as RunnerdStdinWriteRequest;
+    const written = stdinBody.value as RunnerdStdinWriteRequest;
+    // A steer line names paths as the contract does, like the prompt did.
+    const body: RunnerdStdinWriteRequest =
+      sessionView.active && typeof written.b64 === 'string'
+        ? {
+            ...written,
+            b64: sessionView
+              .inboundBytes(Buffer.from(written.b64, 'base64'))
+              .toString('base64'),
+          }
+        : written;
     // 200 with a structured body in every reachable case (mirrors /cancel's
     // killed:false) — the caller branches on `reason`, not the status code.
     sendJson(res, 200, execManager.writeStdin(stdinMatch[1] ?? '', body));
@@ -737,7 +825,10 @@ async function handleOperation(
       return;
     }
     touch();
-    const denied = envStore.patch(patch.set, patch.unset);
+    const denied = envStore.patch(
+      sessionView.inboundEnv(patch.set),
+      patch.unset,
+    );
     sendJson(res, 200, { ok: true, denied });
     return;
   }
@@ -773,8 +864,11 @@ async function handleOperation(
           return;
         }
         files.push({
-          path: item.path,
-          url: item.url,
+          path: sessionView.inbound(item.path),
+          url:
+            typeof item.url === 'string'
+              ? sessionView.inbound(item.url)
+              : item.url,
           contentBase64: item.contentBase64,
           sourceId: item.sourceId,
           sha256: item.sha256,
@@ -793,7 +887,7 @@ async function handleOperation(
             sendJson(res, 400, { error: 'bad_request' });
             return;
           }
-          options[key] = value;
+          options[key] = value.map((entry) => sessionView.inbound(entry));
         }
       }
       const transfer = new AbortController();
@@ -825,12 +919,18 @@ async function handleOperation(
     // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
     const body = deleteBody.value as { paths?: string[] };
     touch();
-    const result = await deletePaths(body.paths ?? []);
+    const result = await deletePaths(
+      (body.paths ?? []).map((entry) =>
+        typeof entry === 'string' ? sessionView.inbound(entry) : entry,
+      ),
+    );
     sendJson(res, 200, result);
     return;
   }
   if (req.method === 'GET' && path === '/fs/list') {
-    const entries = await listDir(url.searchParams.get('path') ?? '.');
+    const entries = await listDir(
+      sessionView.inbound(url.searchParams.get('path') ?? '.'),
+    );
     if (entries === null) {
       sendJson(res, 404, { error: 'not_found' });
       return;
@@ -840,7 +940,7 @@ async function handleOperation(
   }
   if (req.method === 'GET' && path === '/fs/read') {
     const stream = await streamWorkspaceFile(
-      url.searchParams.get('path') ?? '',
+      sessionView.inbound(url.searchParams.get('path') ?? ''),
       FILE_READ_MAX_BYTES,
     );
     if (stream === null) {
@@ -907,7 +1007,7 @@ if (
 
   // Every harness finds the image's built-in skills among its own from the
   // session's first moment, not only after its first exec.
-  reconcileBakedSkills();
+  linkBakedSkills();
 
   if (RUNNERD_TOKEN.source === 'environment')
     console.warn(
@@ -917,11 +1017,48 @@ if (
     RUNNERD_TOKEN.dumpable === undefined
       ? 'unchecked'
       : String(RUNNERD_TOKEN.dumpable);
-  server.listen(RUNNERD_PORT, '0.0.0.0', () => {
+  const listen = runnerdListen();
+  server.listen(listen.port, listen.host, () => {
+    const address = server.address();
+    const port =
+      address !== null && typeof address === 'object'
+        ? address.port
+        : listen.port;
+    // A raw session's runnerd listens on a loopback port the kernel picks and
+    // says which in its ready file, the one thing its spawner waits for.
+    const ready = process.env[RUNNERD_READY_FILE_ENV];
+    if (ready !== undefined && ready !== '') {
+      writeReadyFile(ready, { port, pid: process.pid, ...incarnation });
+    }
     console.log(
-      `[runnerd] listening on :${RUNNERD_PORT}; tokenAuth=${TOKEN === '' ? 'OFF (dev)' : 'on'}; token=${RUNNERD_TOKEN.source}; dumpable=${dumpable}; execShim=${execManager.execShim ?? 'off'}`,
+      `[runnerd] listening on ${listen.host}:${port}; tokenAuth=${TOKEN === '' ? 'OFF (dev)' : 'on'}; token=${RUNNERD_TOKEN.source}; dumpable=${dumpable}; execShim=${execManager.execShim ?? 'off'}; view=${sessionView.active ? 'raw' : 'none'}`,
     );
   });
+}
+
+/** Where runnerd listens: `TALE_RUNNERD_LISTEN` (`host:port`, port 0 for one
+ * the kernel picks), else every address on {@link RUNNERD_PORT} as in a
+ * container. */
+function runnerdListen(): { host: string; port: number } {
+  const raw = process.env[RUNNERD_LISTEN_ENV];
+  if (raw === undefined || raw === '') {
+    return { host: '0.0.0.0', port: RUNNERD_PORT };
+  }
+  const match = /^([0-9.]+|\[[0-9a-fA-F:]+\]):(\d{1,5})$/.exec(raw);
+  const port = Number(match?.[2]);
+  if (match === null || !Number.isInteger(port) || port > 65_535) {
+    throw new Error(`${RUNNERD_LISTEN_ENV} must be host:port, not ${raw}`);
+  }
+  const host = (match[1] ?? '').replace(/^\[|\]$/g, '');
+  return { host, port };
+}
+
+/** Publish the ready file atomically (a reader never sees half of it),
+ * readable by runnerd's own uid alone. */
+function writeReadyFile(path: string, ready: Record<string, unknown>): void {
+  const temporary = `${path}.${process.pid}.tmp`;
+  writeFileSync(temporary, `${JSON.stringify(ready)}\n`, { mode: 0o600 });
+  renameSync(temporary, path);
 }
 
 function isStageItem(value: unknown): value is StageItem {

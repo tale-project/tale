@@ -94,6 +94,9 @@ async function setup(opts: {
         arch: 'x64',
         cpus: 8,
         memoryBytes: 16 * 1024 ** 3,
+        runtime: 'docker',
+        isolation: null,
+        harnesses: null,
         dockerVersion: '27.0.0',
       }),
     fetch: async (url, init) => {
@@ -361,6 +364,9 @@ describe('device connection upkeep', () => {
           arch: 'x64',
           cpus: null,
           memoryBytes: null,
+          runtime: 'docker',
+          isolation: null,
+          harnesses: null,
           dockerVersion: null,
         }),
       fetch: async () =>

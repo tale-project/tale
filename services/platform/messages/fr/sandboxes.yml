@@ -185,6 +185,14 @@ devices:
   sandboxCount: '{used} / {limit}'
   lastSeenNow: Maintenant
   machine: '{cpus, plural, one {# processeur} other {# processeurs}} · {memory} Gio'
+  runtime:
+    docker: Docker
+    raw: Sur la machine
+  isolation:
+    isolated: Chaque sandbox avec son propre compte
+    shared: Compte partagé
+  agentRuntimes: "Environnements d'agent : {list}"
+  noAgentRuntimes: Aucun environnement d'agent n'est installé sur cette machine
   updatingTo: 'Mise à jour vers {version}'
   updateFailedHint: La mise à jour vers {version} a échoué. L'appareil réessaie de lui-même.
   outdatedHint: Utilise une autre version que Tale ({version}). Exécute tale sandbox update sur la machine.

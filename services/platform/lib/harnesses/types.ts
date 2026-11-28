@@ -60,6 +60,20 @@ export const HARNESS_SLUGS = [
 ] as const;
 export type HarnessSlug = (typeof HARNESS_SLUGS)[number];
 
+/** The harness whose program a variant runs: a variant only changes the
+ * environment (`variants:` in its base's harness.yml), so a machine that has
+ * the base's program runs it. `registry.test.ts` holds this map to the
+ * variants the fact files declare. */
+export const HARNESS_VARIANT_BASES: Readonly<Record<string, HarnessSlug>> = {
+  'claude-code-compact': 'claude-code',
+};
+
+/** The harness a machine must have installed to run `slug`'s turns — what a
+ * raw sandbox device reports it found (services/sandbox/docs/raw.md). */
+export function installedHarness(slug: string): string {
+  return HARNESS_VARIANT_BASES[slug] ?? slug;
+}
+
 /** Narrow an arbitrary string to a harness slug. */
 export function isHarnessSlug(value: unknown): value is HarnessSlug {
   return (

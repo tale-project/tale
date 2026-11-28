@@ -28,6 +28,11 @@ import type {
 } from '@/lib/shared/schemas/sandbox-devices';
 
 import { AddDeviceDialog } from './add-device-dialog';
+import {
+  deviceRuntime,
+  dockerEngineOf,
+  harnessList,
+} from './sandbox-device-runtime';
 
 interface SandboxDevicesSectionProps {
   organizationId: string;
@@ -93,7 +98,7 @@ export function SandboxDevicesSection({
         header: t('devices.columns.name'),
         // Seven columns summing to 734 px — inside the settings pane in
         // every shipped locale, like the workspace table below.
-        size: 150,
+        size: 140,
         meta: { skeleton: { type: 'two-line' } },
         cell: ({ row }) => {
           const d = row.original;
@@ -115,12 +120,12 @@ export function SandboxDevicesSection({
       {
         id: 'status',
         header: t('devices.columns.status'),
-        size: 130,
+        size: 120,
         meta: { skeleton: { type: 'badge-text', lineGap: 1 } },
         cell: ({ row }) => {
           const d = row.original;
           const target = d.update?.targetVersion ?? '';
-          const engine = d.platform?.dockerVersion;
+          const engine = dockerEngineOf(d.platform);
           return (
             <Stack gap={1} className="min-w-0">
               <div>
@@ -170,7 +175,7 @@ export function SandboxDevicesSection({
       {
         id: 'sandboxes',
         header: t('devices.columns.sandboxes'),
-        size: 90,
+        size: 80,
         cell: ({ row }) => {
           const d = row.original;
           if (d.maxSessions === null) return '—';
@@ -191,19 +196,46 @@ export function SandboxDevicesSection({
       {
         id: 'machine',
         header: t('devices.columns.machine'),
-        size: 140,
+        size: 180,
         cell: ({ row }) => {
           const p = row.original.platform;
-          if (!p?.cpus || !p.memoryBytes) return '—';
+          if (p === null) return '—';
+          const runtime = deviceRuntime(p);
+          const hardware =
+            p.cpus && p.memoryBytes
+              ? t('devices.machine', {
+                  cpus: p.cpus,
+                  memory: formatNumber(p.memoryBytes / 1024 ** 3, {
+                    maximumFractionDigits: 0,
+                  }),
+                })
+              : null;
+          const harnesses = p.harnesses ?? null;
           return (
-            <span className="whitespace-nowrap tabular-nums">
-              {t('devices.machine', {
-                cpus: p.cpus,
-                memory: formatNumber(p.memoryBytes / 1024 ** 3, {
-                  maximumFractionDigits: 0,
-                }),
-              })}
-            </span>
+            <Stack gap={0} className="min-w-0">
+              {hardware !== null && (
+                <span className="whitespace-nowrap tabular-nums">
+                  {hardware}
+                </span>
+              )}
+              <span className="text-xs font-medium">
+                {t(`devices.runtime.${runtime}`)}
+              </span>
+              {runtime === 'raw' && p.isolation && (
+                <span className="text-muted-foreground text-xs">
+                  {t(`devices.isolation.${p.isolation}`)}
+                </span>
+              )}
+              {runtime === 'raw' && harnesses !== null && (
+                <span className="text-muted-foreground text-xs break-words">
+                  {harnesses.length === 0
+                    ? t('devices.noAgentRuntimes')
+                    : t('devices.agentRuntimes', {
+                        list: harnessList(harnesses),
+                      })}
+                </span>
+              )}
+            </Stack>
           );
         },
       },
@@ -221,7 +253,7 @@ export function SandboxDevicesSection({
       {
         accessorKey: 'lastSeenAt',
         header: t('devices.columns.lastSeen'),
-        size: 100,
+        size: 90,
         // A connected device is seen now; an offline one says when it left.
         cell: ({ row }) =>
           row.original.status !== 'offline' ? (

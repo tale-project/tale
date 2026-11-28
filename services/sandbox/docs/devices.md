@@ -19,6 +19,12 @@ The device dials out over HTTPS, so it works behind NAT with nothing
 listening. Code: `src/devices/` (hub, device agent, tunnel, tickets,
 placements, relay policy, device stack).
 
+A device runs its sessions in Docker containers, as below, or **raw**:
+directly on its machine, with no container, from the release's `tale` binary
+(`tale sandbox connect … --runtime raw`). Everything on this page holds for
+both; what is raw's alone — its process model, isolation, cleanup and the
+session view — is in [raw.md](raw.md).
+
 ## Hub
 
 The hub runs inside the spawner when `SANDBOX_HUB_PORT` is set (compose and
@@ -64,7 +70,9 @@ The proxy publishes the door at `<site>/sandbox/tunnel` (`services/proxy/Caddyfi
 
 - A create with `placement: 'device'` goes to the organization's
   release-compatible device with the most free slots after limiting them
-  to the observed memory headroom. Devices enforce local-host memory and disk admission
+  to the observed memory headroom. A create that names the harness its
+  turns run (`requires: { harness }`) passes over a raw device that did not
+  report that harness ([raw.md](raw.md#harnesses)). Devices enforce local-host memory and disk admission
   while retaining their configured session ceiling. Before each attempt the hub
   rechecks that the selected connection is still registered, compatible and has
   room. For a new placement, a confirmed 429 or a refusal known to occur before
@@ -156,9 +164,9 @@ HTTP exchanges multiplexed over one WebSocket (binary frames,
 
 | Type   | Frame        | Direction    | Payload                                                                 |
 | ------ | ------------ | ------------ | ----------------------------------------------------------------------- |
-| `0x01` | `HELLO`      | device → hub | protocol, release, slots, platform, held sessions, update state         |
+| `0x01` | `HELLO`      | device → hub | protocol, release, slots, platform (with `runtime`, a raw device's `isolation` and `harnesses`), held sessions, update state |
 | `0x02` | `WELCOME`    | hub → device | protocol, hub release, ids, `statusIntervalMs`                          |
-| `0x03` | `STATUS`     | device → hub | slots, running/starting, sessions, resources, update state (every 15 s, and when its sessions change) |
+| `0x03` | `STATUS`     | device → hub | slots, running/starting, sessions, resources, update state, a raw device's `harnesses` when they changed (every 15 s, and when its sessions change) |
 | `0x04` | `RENEW`      | device → hub | `{ticket}`                                                              |
 | `0x06` | `STATUS_ACK` | hub → device | `{}` — keeps the device's silence watchdog fed                          |
 | `0x10` | `OPEN`       | initiator    | request head (JSON: method, path, headers, relay)                       |

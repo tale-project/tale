@@ -6,6 +6,21 @@
 import type { RuntimeState } from '../capacity.ts';
 import { ID_ALPHABET_RE } from '../wire.ts';
 
+/** How a device runs its sessions: in Docker containers, or as plain
+ * processes on its own host (raw, docs/raw.md). */
+export type DeviceRuntime = 'docker' | 'raw';
+
+/** How a raw device keeps its sessions apart: each as an account of its own
+ * (`isolated`), or all as the device's one account (`shared`). */
+export type DeviceIsolation = 'isolated' | 'shared';
+
+/** A harness a raw device found it can run, and its version as the harness
+ * printed it (null when it printed none that reads as one). */
+export interface DeviceHarness {
+  id: string;
+  version: string | null;
+}
+
 export interface DevicePlatform {
   /** The device's operating system as the CLI saw it (`linux`, `darwin`). */
   os: string;
@@ -14,6 +29,13 @@ export interface DevicePlatform {
   cpus: number | null;
   memoryBytes: number | null;
   dockerVersion: string | null;
+  /** `docker` from a device older than raw devices. */
+  runtime: DeviceRuntime;
+  /** A raw device's isolation; null on Docker. */
+  isolation: DeviceIsolation | null;
+  /** The harnesses a raw device runs; null on Docker, whose runtime image
+   * carries every harness of its release. */
+  harnesses: DeviceHarness[] | null;
 }
 
 export interface DeviceSessionReport {
@@ -49,6 +71,9 @@ export interface DeviceStatus {
   sessions: DeviceSessionReport[];
   resources: DeviceResources;
   update: DeviceUpdateReport;
+  /** A raw device's harnesses when they changed since its HELLO (one was
+   * installed or removed while it ran); absent otherwise. */
+  harnesses?: DeviceHarness[];
 }
 
 export interface HubWelcome {
@@ -128,6 +153,23 @@ function parseUpdate(value: unknown): DeviceUpdateReport {
   };
 }
 
+/** The most harnesses a device may report: there are a handful. */
+const MAX_HARNESSES = 32;
+const HARNESS_ID = /^[a-z0-9][a-z0-9-]{0,47}$/;
+
+/** A harness list, or null when there is none or it is malformed (a raw
+ * device whose list is unreadable runs nothing that needs one). */
+function parseHarnesses(value: unknown): DeviceHarness[] | null {
+  if (!Array.isArray(value) || value.length > MAX_HARNESSES) return null;
+  const out: DeviceHarness[] = [];
+  for (const entry of value) {
+    const id = field(entry, 'id');
+    if (typeof id !== 'string' || !HARNESS_ID.test(id)) return null;
+    out.push({ id, version: str(field(entry, 'version'), 64) });
+  }
+  return out;
+}
+
 function parseResources(value: unknown): DeviceResources {
   const cpu = field(value, 'cpu');
   const memory = field(value, 'memory');
@@ -140,6 +182,34 @@ function parseResources(value: unknown): DeviceResources {
       totalBytes: measure(field(memory, 'totalBytes')),
       usedBytes: measure(field(memory, 'usedBytes')),
     },
+  };
+}
+
+function parsePlatform(
+  platform: unknown,
+  os: string,
+  arch: string,
+): DevicePlatform {
+  const runtime: DeviceRuntime =
+    field(platform, 'runtime') === 'raw' ? 'raw' : 'docker';
+  const isolation = field(platform, 'isolation');
+  return {
+    os,
+    arch,
+    cpus: measure(field(platform, 'cpus')),
+    memoryBytes: measure(field(platform, 'memoryBytes')),
+    dockerVersion: str(field(platform, 'dockerVersion'), 64),
+    runtime,
+    isolation:
+      runtime === 'raw' && (isolation === 'isolated' || isolation === 'shared')
+        ? isolation
+        : null,
+    // A raw device that names no readable list runs no harness at all, never
+    // "every harness" as a Docker device does.
+    harnesses:
+      runtime === 'raw'
+        ? (parseHarnesses(field(platform, 'harnesses')) ?? [])
+        : null,
   };
 }
 
@@ -168,13 +238,7 @@ export function parseHello(value: Record<string, unknown>): DeviceHello | null {
     version,
     maxSessions,
     sessions,
-    platform: {
-      os,
-      arch,
-      cpus: measure(field(platform, 'cpus')),
-      memoryBytes: measure(field(platform, 'memoryBytes')),
-      dockerVersion: str(field(platform, 'dockerVersion'), 64),
-    },
+    platform: parsePlatform(platform, os, arch),
     update: parseUpdate(value.update),
   };
 }
@@ -203,6 +267,9 @@ export function parseStatus(
     sessions,
     resources: parseResources(value.resources),
     update: parseUpdate(value.update),
+    ...(value.harnesses === undefined
+      ? {}
+      : { harnesses: parseHarnesses(value.harnesses) ?? [] }),
   };
 }
 

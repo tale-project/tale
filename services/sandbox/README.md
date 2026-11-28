@@ -1,7 +1,8 @@
 # @tale/sandbox
 
 Tale sandbox spawner manages reusable `@tale/sandbox-runtime` sessions on
-Docker, Kubernetes or Incus. Each session runs runnerd, which starts commands, streams
+Docker, Kubernetes or Incus — or, on a connected device, directly on that
+machine with no container ([docs/raw.md](docs/raw.md)). Each session runs runnerd, which starts commands, streams
 output, and manages workspace files through the authenticated session API.
 Project agents reuse their workspace across tasks; workflow runs share a
 session across their agent and script nodes; crawler render sessions are

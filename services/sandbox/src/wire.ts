@@ -163,7 +163,9 @@ export interface SessionInfo {
   /** Whether this incarnation has inner Docker; absent on older spawners. */
   docker?: boolean;
   state: SandboxSessionState;
-  backend: 'docker' | 'kubernetes' | 'incus';
+  /** Where the session runs: `raw` is a connected device's own host, with
+   * no container (services/sandbox/docs/raw.md). */
+  backend: 'docker' | 'kubernetes' | 'incus' | 'raw';
   createdAtMs: number;
   expiresAtMs: number;
   idleTimeoutMs: number;

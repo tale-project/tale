@@ -16,6 +16,7 @@ import { parse } from 'yaml';
 
 import { fixtureGit } from '../src/lib/config/releases/tests/fixture-git';
 import { commandTargets } from '../tests/fixtures/command-targets';
+import { RAW_HELPERS } from './generate-raw-runtime';
 
 type Platform = {
   os: string;
@@ -72,6 +73,7 @@ async function buildFixture(sourceLayout: WindowsSource = 'current') {
   for (const file of [
     'tools/cli/package.json',
     'tools/cli/scripts/generate-embedded.ts',
+    'tools/cli/scripts/generate-raw-runtime.ts',
     'tools/cli/scripts/embedded-key.ts',
     'tools/cli/scripts/check-bundle.ts',
     'tools/cli/src/lib/deployment/build.ts',
@@ -111,6 +113,16 @@ async function buildFixture(sourceLayout: WindowsSource = 'current') {
     'configs/platform/system/connectors/mock/connector.yml',
     'command: MOCK_SCRIPT_RUN[fixture]\n',
   );
+  // The raw device runtime `generate` bundles: synthetic entry points and
+  // helpers stand in for the sandbox service's sources.
+  await write('services/sandbox/src/server.ts', "console.log('device');\n");
+  await write(
+    'services/sandbox-runtime/daemon/src/main.ts',
+    "console.log('runnerd');\n",
+  );
+  for (const helper of RAW_HELPERS)
+    await write(`services/sandbox-runtime/${helper}`, '#!/bin/sh\n');
+  await write('services/sandbox-runtime/managed-settings.json', '{}\n');
   await write(
     'tools/cli/src/index.ts',
     `import { EMBEDDED_CLI_BUILD, EMBEDDED_CONNECTORS } from './generated/embedded-files';

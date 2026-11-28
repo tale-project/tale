@@ -3,7 +3,7 @@
 // the signed capacity endpoint. A failed inventory must never become zero.
 
 import { readFile } from 'node:fs/promises';
-import { release } from 'node:os';
+import { cpus, freemem, release, totalmem } from 'node:os';
 
 import type { IncusClient } from '@tale/incus/client';
 
@@ -96,7 +96,7 @@ interface HostFacts {
 }
 
 function capacityScope(backend: SandboxBackendKind): SandboxCapacity['scope'] {
-  if (backend === 'docker') return 'host';
+  if (backend === 'docker' || backend === 'raw') return 'host';
   return backend === 'incus' ? 'project' : 'namespace';
 }
 
@@ -348,6 +348,15 @@ export class CapacityReader {
     }
 
     if (this.cfg.backend === 'incus') return this.observeIncus();
+    if (this.cfg.backend === 'raw') {
+      // A raw device's sessions are its spawner's own (the registry, which
+      // the device reports); its host is this one.
+      return {
+        observedAt: this.now(),
+        sessions: [],
+        resources: await this.observeHost().catch(() => unavailableResources()),
+      };
+    }
 
     const [inventory, resources] = await Promise.allSettled([
       this.docker(
@@ -464,6 +473,17 @@ export class CapacityReader {
   }
 
   private async observeHostFacts(): Promise<HostFacts> {
+    if (this.cfg.backend === 'raw') {
+      // The sessions run on this very host: its own totals, and its /proc
+      // where it has one (Linux).
+      return {
+        observedAt: this.now(),
+        ttlMs: HOST_FACTS_TTL_MS,
+        totalCores: positive(cpus().length),
+        totalBytes: positive(totalmem()),
+        local: process.platform === 'linux',
+      };
+    }
     const info = record(
       JSON.parse(
         commandOutput(
@@ -527,6 +547,42 @@ export class CapacityReader {
     return facts;
   }
 
+  private ownCpu: { busy: number; total: number; atMs: number } | null = null;
+
+  /** A raw device's host without /proc: memory in use as the operating
+   * system counts it, and the CPUs' busy share between two samples of their
+   * own counters. */
+  private observeOwnHost(resources: HostResources): HostResources {
+    const total = resources.memory.totalBytes;
+    if (total !== null) {
+      resources.memory.usedBytes = Math.max(
+        0,
+        Math.min(total, total - freemem()),
+      );
+    }
+    let busy = 0;
+    let all = 0;
+    for (const cpu of cpus()) {
+      const { user, nice, sys, idle, irq } = cpu.times;
+      busy += user + nice + sys + irq;
+      all += user + nice + sys + idle + irq;
+    }
+    const now = this.now();
+    const before = this.ownCpu;
+    this.ownCpu = { busy, total: all, atMs: now };
+    const cores = resources.cpu.totalCores;
+    if (
+      before !== null &&
+      cores !== null &&
+      now - before.atMs <= PREVIOUS_CPU_SAMPLE_MAX_AGE_MS &&
+      all > before.total
+    ) {
+      const share = (busy - before.busy) / (all - before.total);
+      resources.cpu.usedCores = Math.max(0, Math.min(cores, share * cores));
+    }
+    return resources;
+  }
+
   /** The host's CPUs and memory alone, without the Docker inventory: the
    * totals the daemon reported (asked at most every ten minutes) and, where
    * /proc describes the Docker host, what is in use. Unknown, never an
@@ -546,6 +602,11 @@ export class CapacityReader {
       cpu: { totalCores: facts.totalCores, usedCores: null },
       memory: { totalBytes: facts.totalBytes, usedBytes: null },
     };
+    if (!facts.local && this.cfg.backend === 'raw') {
+      // A raw device without /proc (macOS): the operating system's own
+      // counters, through the runtime.
+      return this.observeOwnHost(resources);
+    }
     if (!facts.local) {
       this.previousCpu = null;
       return resources;
