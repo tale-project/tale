@@ -17,13 +17,74 @@
 // environment whenever it is asked for: how the tests and a runnerd started
 // by hand get it, and empty (no token) in the unsigned dev mode.
 
-import { closeSync, readFileSync } from 'node:fs';
+import { closeSync, existsSync, readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 
 /** Where the image keeps the addon runnerd makes itself non-dumpable with. */
 export const NON_DUMPABLE_ADDON = '/usr/local/lib/tale/tale-nondumpable.node';
 
 /** The variable that names the descriptor the token arrives on. */
 export const RUNNERD_TOKEN_FD_ENV = 'TALE_RUNNERD_TOKEN_FD';
+
+/** `platform`: runnerd runs on a raw host, where no image ships the addon
+ * (services/sandbox/docs/raw.md): Linux clears the flag through the C
+ * library's own `prctl`, and macOS, which has no `/proc` and gives no process
+ * another's task port without privilege, has nothing to clear. */
+export const RUNNERD_NON_DUMPABLE_ENV = 'TALE_RUNNERD_NONDUMPABLE';
+
+const PR_GET_DUMPABLE = 3;
+const PR_SET_DUMPABLE = 4;
+
+/** `prctl` from the C library, where runnerd runs under Bun on Linux. */
+function libcPrctl(): NonDumpable {
+  // Resolved at run time: the image's Node bundle never reaches this, and
+  // must not try to resolve a Bun-only module when it is built.
+  const ffiModule: unknown = createRequire(import.meta.url)('bun:ffi');
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+  const ffi = ffiModule as typeof import('bun:ffi');
+  const libc = ffi.dlopen('libc.so.6', {
+    prctl: {
+      args: [
+        ffi.FFIType.i32,
+        ffi.FFIType.u64,
+        ffi.FFIType.u64,
+        ffi.FFIType.u64,
+        ffi.FFIType.u64,
+      ],
+      returns: ffi.FFIType.i32,
+    },
+  });
+  const prctl = (option: number, value: number): number =>
+    libc.symbols.prctl(option, value, 0, 0, 0);
+  return {
+    setNonDumpable() {
+      if (prctl(PR_SET_DUMPABLE, 0) !== 0)
+        throw new Error('prctl(PR_SET_DUMPABLE, 0) failed');
+    },
+    isDumpable() {
+      return prctl(PR_GET_DUMPABLE, 0) !== 0;
+    },
+  };
+}
+
+/**
+ * The guard runnerd clears its dumpable flag with: the image's addon in a
+ * container (a hard requirement there), and on a raw host the addon where one
+ * was installed, Linux's `prctl` otherwise, and none on macOS (null: the
+ * token is still read from its descriptor, never from the environment).
+ */
+export function platformNonDumpable(
+  env: NodeJS.ProcessEnv,
+  platform: NodeJS.Platform = process.platform,
+  addonPath = NON_DUMPABLE_ADDON,
+): (() => NonDumpable) | null {
+  if (env[RUNNERD_NON_DUMPABLE_ENV] !== 'platform') {
+    return () => loadNonDumpable(addonPath);
+  }
+  if (existsSync(addonPath)) return () => loadNonDumpable(addonPath);
+  if (platform === 'linux') return libcPrctl;
+  return null;
+}
 
 /** What the addon gives runnerd. */
 export interface NonDumpable {
@@ -65,7 +126,9 @@ export interface RunnerdToken {
 
 export interface ReadRunnerdTokenOptions {
   env?: NodeJS.ProcessEnv;
-  nonDumpable?: () => NonDumpable;
+  /** The guard to clear the dumpable flag with; null for none (macOS on a
+   * raw host). Unset, {@link platformNonDumpable}'s. */
+  nonDumpable?: (() => NonDumpable) | null;
   read?: (fd: number) => string;
   close?: (fd: number) => void;
 }
@@ -95,11 +158,17 @@ export function readRunnerdToken(
   const read = options.read ?? ((from) => readFileSync(from, 'utf8'));
   const close = options.close ?? closeSync;
   let text: string;
+  const guard =
+    options.nonDumpable === undefined
+      ? platformNonDumpable(env)
+      : options.nonDumpable;
   try {
-    const addon = (options.nonDumpable ?? loadNonDumpable)();
-    addon.setNonDumpable();
-    if (addon.isDumpable())
-      throw new Error('runnerd is still dumpable after it cleared the flag');
+    if (guard !== null) {
+      const addon = guard();
+      addon.setNonDumpable();
+      if (addon.isDumpable())
+        throw new Error('runnerd is still dumpable after it cleared the flag');
+    }
     try {
       text = read(fd);
     } catch (error) {
@@ -120,7 +189,11 @@ export function readRunnerdToken(
   }
   const token = text.endsWith('\n') ? text.slice(0, -1) : text;
   if (token === '') throw new Error(`descriptor ${fd} held no token`);
-  return { token, source: 'descriptor', dumpable: false };
+  return {
+    token,
+    source: 'descriptor',
+    ...(guard === null ? {} : { dumpable: false }),
+  };
 }
 
 let fromDescriptor: RunnerdToken | Error | undefined;

@@ -269,6 +269,11 @@ export class ExecManager {
         oomKills?: () => Promise<number | null>;
         peak?: () => Promise<number | null>;
       };
+      /** A translator for each output stream of an exec: a raw session's
+       * view (session-view.ts) names its real directory and relays as the
+       * contract does before the output is journaled. Unset, output passes
+       * as it is. */
+      outputView?: () => { push(chunk: Buffer): Buffer; flush(): Buffer };
     } = {},
   ) {
     this.replayBudget = new ReplayBudget(options.replayBudgetBytes);
@@ -728,7 +733,17 @@ export class ExecManager {
       stdout: new Utf8FrameBoundary(),
       stderr: new Utf8FrameBoundary(),
     };
+    const makeView = this.options.outputView;
+    const outputViews =
+      makeView === undefined
+        ? null
+        : { stdout: makeView(), stderr: makeView() };
     const flushOutput = (stream: 'stdout' | 'stderr') => {
+      const held = outputViews?.[stream].flush();
+      if (held !== undefined && held.length > 0) {
+        for (const bytes of outputFrames[stream].pushFrames(held))
+          publishEvent({ t: stream, b64: bytes.toString('base64') });
+      }
       const bytes = outputFrames[stream].flush();
       if (bytes.length > 0)
         publishEvent({ t: stream, b64: bytes.toString('base64') });
@@ -738,7 +753,9 @@ export class ExecManager {
       chunk: Buffer,
       atLimit = false,
     ) => {
-      for (const bytes of outputFrames[stream].pushFrames(chunk))
+      const viewed =
+        outputViews === null ? chunk : outputViews[stream].push(chunk);
+      for (const bytes of outputFrames[stream].pushFrames(viewed))
         publishEvent({ t: stream, b64: bytes.toString('base64') });
       if (atLimit) flushOutput(stream);
     };
