@@ -18,6 +18,14 @@ import { parse } from 'yaml';
 
 import { BUILD_FILTERS, buildScope } from './ci-ready';
 
+// What a cross leg installs: the CLI's closure, and the workspaces the raw
+// device runtime it embeds bundles (scripts/generate-raw-runtime.ts).
+const CROSS_FILTERS = [
+  '@tale/cli',
+  '@tale/sandbox',
+  '@tale/sandbox-runtime-daemon',
+];
+
 type Step = {
   name?: string;
   uses?: string;
@@ -893,7 +901,12 @@ ${install.run}`,
       `cache=${cacheDirectory}`,
       'argument=install',
       'argument=--frozen-lockfile',
-      ...(expected.cross ? ['argument=--filter', 'argument=@tale/cli'] : []),
+      ...(expected.cross
+        ? CROSS_FILTERS.flatMap((filtered) => [
+            'argument=--filter',
+            `argument=${filtered}`,
+          ])
+        : []),
     ]);
   }
 });
@@ -1270,7 +1283,11 @@ test.skipIf(process.platform === 'win32')(
       expect(result.code, result.stdout + result.stderr).toBe(0);
       expect(result.stdout.trim().split('\n')).toEqual(
         cross === 'true'
-          ? ['install', '--frozen-lockfile', '--filter', '@tale/cli']
+          ? [
+              'install',
+              '--frozen-lockfile',
+              ...CROSS_FILTERS.flatMap((filtered) => ['--filter', filtered]),
+            ]
           : ['install', '--frozen-lockfile'],
       );
     }
