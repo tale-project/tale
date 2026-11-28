@@ -1,7 +1,11 @@
 import { mkdir, rm, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { posix } from 'node:path';
 
 import { must, type RawHost } from './host';
+
+// A raw device runs on Linux or macOS: its service definitions name POSIX
+// paths wherever this module runs.
+const { dirname, join } = posix;
 
 /**
  * The service that keeps a raw device running: `tale sandbox device run`
@@ -22,8 +26,8 @@ export type RawServiceKind =
   | 'launchd-agent'
   | 'none';
 
-export const SYSTEMD_UNIT = 'tale-sandbox-device.service';
-export const LAUNCHD_LABEL = 'dev.tale.sandbox-device';
+const SYSTEMD_UNIT = 'tale-sandbox-device.service';
+const LAUNCHD_LABEL = 'dev.tale.sandbox-device';
 
 export interface RawServiceSpec {
   kind: RawServiceKind;

@@ -123,7 +123,7 @@ export async function rawDevicePlatform(
 
 /** How long a raw device trusts what it found: a harness installed while
  * it runs is reported within this. */
-export const HARNESS_RECHECK_MS = 10 * 60_000;
+const HARNESS_RECHECK_MS = 10 * 60_000;
 
 /** The harness list, found again at most every {@link HARNESS_RECHECK_MS}. */
 export class HarnessInventory {

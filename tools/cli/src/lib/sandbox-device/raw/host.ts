@@ -20,7 +20,7 @@ export interface RawHost {
   execPath(): string;
 }
 
-export async function runProgram(
+async function runProgram(
   argv: string[],
   options: { input?: string; timeoutMs?: number } = {},
 ): Promise<{ code: number; stdout: string; stderr: string }> {

@@ -162,7 +162,7 @@ function replaceAll(
  * a name split across two chunks is still replaced, and only a suffix that
  * may begin a name waits for the next chunk, so a line that ends in a
  * newline is never held back. */
-export class ViewStream {
+class ViewStream {
   private pending: Buffer = Buffer.alloc(0);
   /** The last byte this stream passed on, the context of the next name. */
   private last = -1;

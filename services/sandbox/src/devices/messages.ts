@@ -159,7 +159,7 @@ const HARNESS_ID = /^[a-z0-9][a-z0-9-]{0,47}$/;
 
 /** A harness list, or null when there is none or it is malformed (a raw
  * device whose list is unreadable runs nothing that needs one). */
-export function parseHarnesses(value: unknown): DeviceHarness[] | null {
+function parseHarnesses(value: unknown): DeviceHarness[] | null {
   if (!Array.isArray(value) || value.length > MAX_HARNESSES) return null;
   const out: DeviceHarness[] = [];
   for (const entry of value) {

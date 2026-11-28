@@ -24,7 +24,6 @@ import {
   defaultIsolatedRoot,
   defaultMaxSessions,
   isReleaseVersion,
-  readSandboxDeviceConfig,
   sandboxDeviceConfigPath,
   type SandboxDeviceConfig,
   type SandboxDeviceJoinAnswer,
@@ -39,7 +38,7 @@ import {
   type SlotAccount,
 } from './accounts';
 import { realHost, type RawHost } from './host';
-import { deviceVersion, systemPath } from './launch';
+import { deviceVersion } from './launch';
 import {
   installService,
   logCommand,
@@ -60,7 +59,7 @@ import {
 
 /** Where an isolated device's harnesses are installed by default (the
  * prefix hostkit installs them under), before the system's own. */
-export const DEFAULT_ISOLATED_PATH = ['/opt/tale-agents/bin'];
+const DEFAULT_ISOLATED_PATH = ['/opt/tale-agents/bin'];
 
 /** A path a session's view carries verbatim: no space or quote. */
 const PLAIN_PATH = /^\/[A-Za-z0-9._~/+@%-]*[A-Za-z0-9._~+@%-]$/;
@@ -566,11 +565,3 @@ export function assertCompiledCli(): void {
     );
   }
 }
-
-export async function readRawConfig(
-  home: string,
-): Promise<SandboxDeviceConfig | null> {
-  return await readSandboxDeviceConfig(sandboxDeviceConfigPath(home));
-}
-
-export { systemPath };

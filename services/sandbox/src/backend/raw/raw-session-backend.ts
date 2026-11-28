@@ -171,7 +171,7 @@ export interface RawHostActs {
   reclaimSlot(slot: RawSlot): Promise<void>;
 }
 
-export function hostActs(processes: RawProcesses = hostProcesses): RawHostActs {
+function hostActs(processes: RawProcesses = hostProcesses): RawHostActs {
   const must = async (argv: string[], what: string) => {
     const result = await processes.run(argv, { timeoutMs: 120_000 });
     if (result.code !== 0) {
