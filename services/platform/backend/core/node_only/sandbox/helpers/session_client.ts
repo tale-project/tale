@@ -687,6 +687,11 @@ export interface SessionCreateBody {
    * (the hub picks one with room, else the server). Absent = the server. A
    * session keeps the machine it first started on either way. */
   placement?: 'device' | 'server';
+  /** What the machine a `device` placement picks must offer: the harness the
+   * session's turns run, which a raw device (services/sandbox/docs/raw.md)
+   * runs only when it found it installed. The server and Docker devices run
+   * every harness. */
+  requires?: { harness?: string };
 }
 
 export interface SessionInfo {
@@ -1420,7 +1425,7 @@ export async function sessionDestroyWorkspace(
 }
 
 const workspaceInventorySchema = z.object({
-  backend: z.enum(['docker', 'kubernetes', 'incus']),
+  backend: z.enum(['docker', 'kubernetes', 'incus', 'raw']),
   workspaces: z.array(
     z.object({
       sessionId: z.string().regex(/^[a-zA-Z0-9_-]{1,64}$/),

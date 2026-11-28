@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import type { Sql, TransactionSql } from 'postgres';
 
+import { installedHarness } from '../../../lib/harnesses/types';
 import {
   isAgentRunWaitingReason,
   type AgentRunWaitingReason,
@@ -293,6 +294,25 @@ export async function claimAgentWorker(
 }
 
 /**
+ * Whether a connected device can run a harness's turns: a Docker device runs
+ * every harness its runtime image carries, a raw device the ones it reported
+ * finding on its host (services/sandbox/docs/raw.md). Read defensively: a
+ * hub older than raw devices reports neither field.
+ */
+export function deviceRunsHarness(platform: unknown, harness: string): boolean {
+  if (platform === null || typeof platform !== 'object') return true;
+  if (Reflect.get(platform, 'runtime') !== 'raw') return true;
+  const harnesses: unknown = Reflect.get(platform, 'harnesses');
+  if (!Array.isArray(harnesses)) return false;
+  return harnesses.some(
+    (entry: unknown) =>
+      entry !== null &&
+      typeof entry === 'object' &&
+      Reflect.get(entry, 'id') === harness,
+  );
+}
+
+/**
  * Where the organization's connected devices have room now
  * ({@link WorkerFacts.devices}), for a run a sandbox host refused, as the
  * sandbox hub answers the device settings. Asked before the claim's
@@ -304,21 +324,28 @@ async function readDeviceRoom(
   sql: Sql,
   args: { organizationId: string; runId: string },
 ): Promise<WorkerFacts['devices']> {
-  const rows = await sql<{ ask: boolean }[]>`
+  const rows = await sql<{ ask: boolean; harness: string }[]>`
     SELECT EXISTS (
       SELECT 1 FROM app.sandbox_devices d
       WHERE d.org_id = r.org_id AND d.revoked_at_ms IS NULL
-    ) AS ask
+    ) AS ask, r.harness
     FROM app.project_agent_runs r
     WHERE r.id = ${args.runId} AND r.org_id = ${args.organizationId}
       AND cardinality(r.host_refused_session_ids) > 0
   `;
-  if (!rows[0]?.ask) return undefined;
+  const row = rows[0];
+  if (!row?.ask) return undefined;
   try {
     const hub = await sandboxDevices(args.organizationId);
+    // A raw device runs only the harnesses it found installed: one without
+    // the run's has no room for it, however many slots it has free.
     const roomy = new Set(
       hub.devices
-        .filter((device) => (device.freeSlots ?? 0) > 0)
+        .filter(
+          (device) =>
+            (device.freeSlots ?? 0) > 0 &&
+            deviceRunsHarness(device.platform, installedHarness(row.harness)),
+        )
         .map((device) => device.deviceId),
     );
     return {

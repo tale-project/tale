@@ -1,5 +1,6 @@
 import postgres, { type Sql, type TransactionSql } from 'postgres';
 
+import { installedHarness } from '../../../lib/harnesses/types';
 import {
   SessionDuplicateError,
   sandboxWorkspaceInventory,
@@ -698,6 +699,10 @@ function recreateBody(row: SessionRow): SessionCreateBody | null {
       profile: row.profile,
       workload: row.ownerType === 'workflow_run' ? 'workflow' : 'project',
       placement: 'device',
+      // A raw device takes only a session whose harness it has installed.
+      ...(typeof row.agentKind === 'string' && row.agentKind !== ''
+        ? { requires: { harness: installedHarness(row.agentKind) } }
+        : {}),
     };
   }
   if (row.profile === 'default') return null;

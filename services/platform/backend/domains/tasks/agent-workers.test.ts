@@ -13,6 +13,7 @@ import {
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import {
+  deviceRunsHarness,
   agentRunWorkDeadline,
   chooseWorker,
   claimAgentWorker,
@@ -1089,5 +1090,30 @@ describe('telling a start whether its run waits [TASK-R26]', () => {
     await expect(predictWorkerWait(parked.sql, PREDICT)).resolves.toBe('host');
     const running = claimSql({ run: { ...QUEUED, status: 'running' } });
     await expect(predictWorkerWait(running.sql, PREDICT)).resolves.toBeNull();
+  });
+});
+
+describe('a device has room only for a run whose harness it runs [TASK-R85]', () => {
+  it('reads every Docker device, and a hub older than raw devices, as running it', () => {
+    expect(deviceRunsHarness(null, 'codex')).toBe(true);
+    expect(deviceRunsHarness({ os: 'linux', arch: 'x64' }, 'codex')).toBe(true);
+    expect(
+      deviceRunsHarness(
+        { os: 'linux', runtime: 'docker', harnesses: null },
+        'codex',
+      ),
+    ).toBe(true);
+  });
+
+  it('reads a raw device as running only the harnesses it reported', () => {
+    const laptop = {
+      os: 'darwin',
+      runtime: 'raw',
+      isolation: 'shared',
+      harnesses: [{ id: 'claude-code', version: '2.1.285' }],
+    };
+    expect(deviceRunsHarness(laptop, 'claude-code')).toBe(true);
+    expect(deviceRunsHarness(laptop, 'codex')).toBe(false);
+    expect(deviceRunsHarness({ runtime: 'raw' }, 'claude-code')).toBe(false);
   });
 });

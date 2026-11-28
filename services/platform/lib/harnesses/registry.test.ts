@@ -13,11 +13,16 @@
 // What the composed glue BUILDS is pinned elsewhere: golden-exec.test.ts
 // (byte-for-byte fixtures) and exec-builder.test.ts (hygiene invariants).
 
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import {
   harnessDefinitionSchema,
   type HarnessDefinition,
 } from '@tale/shared/schemas/providers';
 import { describe, expect, it } from 'vitest';
+import { parse as parseYaml } from 'yaml';
 
 import { loadHarnesses } from '../../backend/core/lib/providers/load_system_config';
 import {
@@ -25,7 +30,11 @@ import {
   getHarnessGlue,
   validateHarnessFacts,
 } from './registry';
-import { HARNESS_SLUGS } from './types';
+import {
+  HARNESS_SLUGS,
+  HARNESS_VARIANT_BASES,
+  installedHarness,
+} from './types';
 
 /** Deep-cloned shipped facts, safe to doctor (the loader caches and returns
  * stable references — mutating those would poison sibling tests). */
@@ -279,5 +288,31 @@ describe('schema coherence (the retired behavior-probing validator)', () => {
     expect(schemaProblems(cursor)).toMatch(
       /stagedInstructions and an instructionsRef doc fragment require each other/,
     );
+  });
+});
+
+describe('the harness a machine must have installed', () => {
+  it('maps every declared variant to its base, and nothing else', () => {
+    const root = join(
+      dirname(fileURLToPath(import.meta.url)),
+      '../../../../configs/platform/system/harnesses',
+    );
+    const declared: Record<string, string> = {};
+    for (const dir of readdirSync(root)) {
+      const file = join(root, dir, 'harness.yml');
+      if (!existsSync(file)) continue;
+      const fact: unknown = parseYaml(readFileSync(file, 'utf8'));
+      const variants =
+        fact !== null && typeof fact === 'object'
+          ? Reflect.get(fact, 'variants')
+          : undefined;
+      for (const variant of Array.isArray(variants) ? variants : []) {
+        const slug: unknown = Reflect.get(variant, 'slug');
+        if (typeof slug === 'string') declared[slug] = dir;
+      }
+    }
+    expect(HARNESS_VARIANT_BASES).toEqual(declared);
+    expect(installedHarness('claude-code-compact')).toBe('claude-code');
+    expect(installedHarness('codex')).toBe('codex');
   });
 });

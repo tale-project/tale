@@ -438,7 +438,8 @@ memory, disk or CPU), the run waits for room (`TASK-R25`) and remembers that wor
 as it lives. Its next start passes over the workers it was refused in, unless one sits on a
 connected device that has room now, and takes, in this order: its task's worker, another worker
 of its agent that is already up, a stopped one on a device with room, or a new one while a
-device has room. On a worker other than its task's it starts fresh (`TASK-R27`). When none of
+device has room. A device that runs its sandboxes directly on its machine (a raw device) has
+room only for a run whose harness it found installed there. On a worker other than its task's it starts fresh (`TASK-R27`). When none of
 these fits, it chooses as if it had not been refused, so mostly its task's worker, and waits for
 that host. Nothing is deleted: the refused worker keeps its files for the task's later runs. A
 run no host refused goes back to its task's worker first, as before.
@@ -451,6 +452,9 @@ run no host refused goes back to its task's worker first, as before.
   in worker 3 once the server has room, or fails after waiting 12 hours.
 - **Example**: Every agent worker of Ada's organization is busy → "Changelog" waits for a worker
   and remembers none: when a worker frees, it goes back to worker 3 first.
+- **Example**: As in the first example, but Ada's laptop is a raw device with Claude Code
+  installed and no Codex, and Scribe runs Codex → the laptop has no room for the run, which
+  waits for the server.
 
 ### TASK-R40 · A model at capacity makes every run on it wait instead of failing
 
