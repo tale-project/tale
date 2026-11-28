@@ -2,6 +2,7 @@
 // wire shapes moved out with the retired one-shot execution path; every sandbox
 // run is a session now.)
 
+import type { RawConfig } from './backend/raw/raw-config.ts';
 import type {
   AdmissionPresetName,
   PressureThresholds,
@@ -9,7 +10,7 @@ import type {
 import type { RuntimeTier } from './runtime-tier.ts';
 
 /** Where a deployment's session compute runs (env SANDBOX_BACKEND). */
-export type SandboxBackendKind = 'docker' | 'kubernetes' | 'incus';
+export type SandboxBackendKind = 'docker' | 'kubernetes' | 'incus' | 'raw';
 
 export interface SpawnerConfig {
   // Execution backend (env SANDBOX_BACKEND). 'docker' spawns sibling
@@ -140,6 +141,9 @@ export interface SpawnerConfig {
   // Incus-backend settings (env SANDBOX_INCUS_*). Present only when
   // backend === 'incus': they have no defaults to fall back on.
   incus?: IncusConfig;
+  /** The raw backend's settings (SANDBOX_RAW; backend/raw/raw-config.ts),
+   * present exactly when `backend` is 'raw'. */
+  raw?: RawConfig;
   maxTimeoutMs: number;
   // Single flat host session root. The sandbox tier is one container that rolls
   // in-place via a serialized drain — no blue/green colour, so no per-colour

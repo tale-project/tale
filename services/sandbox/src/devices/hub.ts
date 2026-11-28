@@ -151,10 +151,27 @@ function sessionIdFromPath(pathname: string): string | null {
   return match?.[1] ?? null;
 }
 
+/** What a create asks of the machine it lands on. */
+interface CreateRequirements {
+  /** The harness its turns run (`claude-code`, …): a raw device that did not
+   * find it is passed over. */
+  harness?: string;
+}
+
+function readRequirements(value: unknown): CreateRequirements {
+  if (value === null || typeof value !== 'object') return {};
+  const harness: unknown = Reflect.get(value, 'harness');
+  return typeof harness === 'string' &&
+    /^[a-z0-9][a-z0-9-]{0,47}$/.test(harness)
+    ? { harness }
+    : {};
+}
+
 function readCreate(body: string): {
   sessionId: string;
   organizationId: string;
   placement: unknown;
+  requires: CreateRequirements;
 } | null {
   let parsed: unknown;
   try {
@@ -177,7 +194,27 @@ function readCreate(body: string): {
     sessionId,
     organizationId,
     placement: Reflect.get(parsed, 'placement'),
+    requires: readRequirements(Reflect.get(parsed, 'requires')),
   };
+}
+
+/** The device's platform with the harnesses it reported last: a raw device
+ * reports them again when one was installed or removed while it ran. */
+function currentPlatform(d: ConnectedDevice): DevicePlatform | null {
+  if (d.hello === null) return null;
+  const platform = d.hello.platform;
+  const harnesses = d.status?.harnesses;
+  return harnesses === undefined || platform.runtime !== 'raw'
+    ? platform
+    : { ...platform, harnesses };
+}
+
+/** Whether a device can run a harness: a Docker device runs every one its
+ * runtime image carries; a raw device those it found on its host. */
+function runsHarness(d: ConnectedDevice, harness: string | undefined): boolean {
+  if (harness === undefined) return true;
+  const list = currentPlatform(d)?.harnesses ?? null;
+  return list === null || list.some((entry) => entry.id === harness);
 }
 
 /** Drop an answer nobody will read. */
@@ -431,7 +468,7 @@ export class DeviceHub {
           starting: d.status?.starting ?? 0,
         },
         resources: d.status?.resources ?? null,
-        platform: d.hello.platform,
+        platform: currentPlatform(d),
         update: d.status?.update ?? d.hello.update,
         freeSlots: this.placeableSlots(d),
       });
@@ -594,7 +631,8 @@ export class DeviceHub {
     const eligible = (device: ConnectedDevice) =>
       this.devices.get(device.deviceId) === device &&
       device.organizationId === create.organizationId &&
-      this.placeableSlots(device) > 0;
+      this.placeableSlots(device) > 0 &&
+      runsHarness(device, create.requires.harness);
     const candidates = [...this.devices.values()]
       .filter(eligible)
       .sort(

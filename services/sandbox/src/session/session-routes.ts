@@ -738,11 +738,15 @@ export class SessionRoutes {
       : BUSY_STOP_GRACE_MS;
   }
 
-  /** runnerd token for a session: derived from SANDBOX_TOKEN (always set —
-   * loadConfig fails closed without it, so every session carries a real
-   * token and runnerd always verifies). */
+  /** runnerd token for a session: the backend's own where it gives each
+   * runnerd incarnation a token of its own (raw), derived from SANDBOX_TOKEN
+   * otherwise (always set — loadConfig fails closed without it, so every
+   * session carries a real token and runnerd always verifies). */
   private tokenFor(sessionId: string): string {
-    return deriveRunnerdToken(this.cfg.sandboxToken, sessionId);
+    return (
+      this.backend.runnerdToken?.(sessionId) ??
+      deriveRunnerdToken(this.cfg.sandboxToken, sessionId)
+    );
   }
 
   /** Admission decisions run one at a time: the registry and `creating`

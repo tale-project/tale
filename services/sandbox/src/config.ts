@@ -8,6 +8,7 @@ import { parse as parseYaml } from 'yaml';
 
 import { readIncusConfig } from './backend/incus/incus-config.ts';
 import { DOCKER_STORAGE_SIZE_LIMIT } from './backend/kubernetes/k8s-session-pod-spec.ts';
+import { parseRawConfig } from './backend/raw/raw-config.ts';
 import { DEFAULT_CPU_PRESSURE_PERCENT } from './host-memory.ts';
 import {
   ADMISSION_PRESETS,
@@ -561,13 +562,23 @@ export function loadConfig(): SpawnerConfig {
   if (
     rawBackend !== 'docker' &&
     rawBackend !== 'kubernetes' &&
-    rawBackend !== 'incus'
+    rawBackend !== 'incus' &&
+    rawBackend !== 'raw'
   ) {
     throw new Error(
-      `SANDBOX_BACKEND must be 'docker', 'kubernetes' or 'incus'; got: ${JSON.stringify(rawBackend)}`,
+      `SANDBOX_BACKEND must be 'docker', 'kubernetes', 'incus' or 'raw'; got: ${JSON.stringify(rawBackend)}`,
     );
   }
   const backend: SandboxBackendKind = rawBackend;
+  // A raw spawner runs only as a connected device: its sessions run on the
+  // machine that dialled the hub (docs/raw.md), never beside a deployment.
+  const raw =
+    backend === 'raw' ? parseRawConfig(process.env.SANDBOX_RAW) : undefined;
+  if (backend === 'raw' && !process.env.SANDBOX_DEVICE_CONFIG?.trim()) {
+    throw new Error(
+      'SANDBOX_BACKEND=raw runs only on a connected device (SANDBOX_DEVICE_CONFIG); connect the machine with `tale sandbox connect --runtime raw`',
+    );
+  }
   const dockerDataRoot =
     process.env.SANDBOX_DOCKER_DATA_ROOT?.trim() || undefined;
   const dockerDataPath =
@@ -1003,7 +1014,14 @@ export function loadConfig(): SpawnerConfig {
         : {}),
     },
     ...(incus === undefined ? {} : { incus: incus.config }),
-    port: numEnv('SANDBOX_PORT', 8003, { min: 1, max: 65535 }),
+    ...(raw === undefined ? {} : { raw }),
+    // A raw device takes a loopback port the kernel picks (0): its API is
+    // reached only through its tunnel, in-process, and the host it shares
+    // with its owner's programs may hold 8003.
+    port: numEnv('SANDBOX_PORT', 8003, {
+      min: deviceConfigPath !== null && backend === 'raw' ? 0 : 1,
+      max: 65535,
+    }),
     // The shared HMAC secret every state-changing route is verified against
     // (request-auth.ts). Always set — validated above.
     sandboxToken,

@@ -1594,6 +1594,92 @@ describe('DeviceHub placement', () => {
     expect(d1.served).toHaveLength(1);
   });
 
+  test('a raw device takes only a create whose harness it found', async () => {
+    const { hub } = await makeHub();
+    const raw = connectDevice(hub, 'dev-raw');
+    await raw.hello({
+      platform: {
+        os: 'darwin',
+        arch: 'arm64',
+        runtime: 'raw',
+        isolation: 'isolated',
+        harnesses: [{ id: 'claude-code', version: '2.1.285' }],
+      },
+    });
+    const withHarness = (sessionId: string, harness: string) => {
+      const body = JSON.stringify({
+        sessionId,
+        organizationId: ORG,
+        profile: 'agent',
+        placement: 'device',
+        requires: { harness },
+      });
+      const url = new URL('http://sandbox/v1/sessions');
+      return {
+        req: new Request(url.toString(), { method: 'POST', body }),
+        url,
+        body,
+      };
+    };
+    const codex = withHarness('pa-codex', 'codex');
+    // No device runs Codex: the server (the local backend) takes it.
+    expect(await hub.maybeForward(codex.req, codex.url, codex.body)).toBeNull();
+    expect(raw.served).toHaveLength(0);
+    const claude = withHarness('pa-claude', 'claude-code');
+    const res = await hub.maybeForward(claude.req, claude.url, claude.body);
+    expect(res?.status).toBe(201);
+    expect(raw.served).toHaveLength(1);
+    expect(hub.devicesFor(ORG)[0]?.platform).toMatchObject({
+      runtime: 'raw',
+      isolation: 'isolated',
+      harnesses: [{ id: 'claude-code', version: '2.1.285' }],
+    });
+  });
+
+  test('a Docker device runs every harness, and a create that names none goes anywhere', async () => {
+    const { hub } = await makeHub();
+    const docker = connectDevice(hub, 'dev-docker');
+    await docker.hello();
+    expect(hub.devicesFor(ORG)[0]?.platform).toMatchObject({
+      runtime: 'docker',
+      isolation: null,
+      harnesses: null,
+    });
+    const body = JSON.stringify({
+      sessionId: 'pa-any',
+      organizationId: ORG,
+      profile: 'agent',
+      placement: 'device',
+      requires: { harness: 'opencode' },
+    });
+    const url = new URL('http://sandbox/v1/sessions');
+    const res = await hub.maybeForward(
+      new Request(url.toString(), { method: 'POST', body }),
+      url,
+      body,
+    );
+    expect(res?.status).toBe(201);
+    expect(docker.served).toHaveLength(1);
+  });
+
+  test('a raw device reports the harnesses it found again while it runs', async () => {
+    const { hub } = await makeHub();
+    const raw = connectDevice(hub, 'dev-raw');
+    await raw.hello({
+      platform: {
+        os: 'linux',
+        arch: 'x64',
+        runtime: 'raw',
+        isolation: 'shared',
+        harnesses: [],
+      },
+    });
+    await raw.status({ harnesses: [{ id: 'codex', version: '0.160.0' }] });
+    expect(hub.devicesFor(ORG)[0]?.platform?.harnesses).toEqual([
+      { id: 'codex', version: '0.160.0' },
+    ]);
+  });
+
   test('capacity: limits, summaries and the runtime overlay', async () => {
     const { hub } = await makeHub();
     const d1 = connectDevice(hub, 'dev-1');

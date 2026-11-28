@@ -25,6 +25,12 @@
 // (governance `sandbox_quota`), bounded by the host cap `SANDBOX_MAX_SESSIONS`.
 
 import { loadBackends } from './backend/index.ts';
+import {
+  HarnessInventory,
+  rawDevicePlatform,
+  sessionPath,
+} from './backend/raw/raw-harnesses.ts';
+import { rawRelays } from './backend/raw/raw-relays.ts';
 import type { SessionBackend } from './backend/types.ts';
 import { CapacityReader } from './capacity.ts';
 import { installSignalHandlers, startPeriodicSweep } from './cleanup.ts';
@@ -34,6 +40,7 @@ import { launchSelfUpdate } from './devices/apply.ts';
 import { loadDeviceConfig } from './devices/device-config.ts';
 import { DeviceAgent } from './devices/device.ts';
 import { DeviceHub, serveHub } from './devices/hub.ts';
+import { launchRawSelfUpdate } from './devices/raw-update.ts';
 import { DockerDataDiskProbe, SandboxDiskProbe } from './docker-data-disk.ts';
 import {
   flushSandboxErrorReporting,
@@ -941,7 +948,25 @@ async function main(): Promise<void> {
   if (cfg.deviceConfigPath !== null) {
     const configPath = cfg.deviceConfigPath;
     const deviceConfig = await loadDeviceConfig(configPath);
+    // A raw device reports the harnesses its host carries (found again every
+    // ten minutes), hands its sessions its relays' loopback ports, and moves
+    // to a new release through the `tale` binary it runs from.
+    const raw = cfg.raw;
+    const harnesses =
+      raw === undefined ? null : new HarnessInventory(sessionPath(raw));
+    const rawDevice =
+      raw === undefined || harnesses === null
+        ? {}
+        : {
+            platform: async () => ({
+              ...(await rawDevicePlatform(raw, deviceConfig.host)),
+              harnesses: await harnesses.refresh(),
+            }),
+            relayOrigins: (origins: ReadonlyArray<readonly [string, string]>) =>
+              rawRelays.publish(origins),
+          };
     deviceAgent = new DeviceAgent({
+      ...rawDevice,
       config: deviceConfig,
       version: spawnerVersion,
       maxRequestBodyBytes: cfg.maxRequestBodyBytes,
@@ -954,11 +979,13 @@ async function main(): Promise<void> {
         const sessions = getSessionRoutes().inventory(
           deviceConfig.organizationId,
         );
+        const found = harnesses?.current();
         return {
           running: sessions.filter((s) => s.state === 'running').length,
           starting: sessions.filter((s) => s.state === 'starting').length,
           sessions,
           resources: await capacity.hostResources(),
+          ...(found === undefined ? {} : { harnesses: found }),
         };
       },
       inventoryKey: () =>
@@ -966,7 +993,9 @@ async function main(): Promise<void> {
           getSessionRoutes().inventory(deviceConfig.organizationId),
         ),
       selfUpdate: (version) =>
-        launchSelfUpdate(deviceConfig, configPath, version),
+        raw === undefined
+          ? launchSelfUpdate(deviceConfig, configPath, version)
+          : launchRawSelfUpdate(configPath, version),
     });
     void deviceAgent.start().catch((err: unknown) => {
       reportSandboxError(err, 'device-connection');
@@ -982,8 +1011,11 @@ async function main(): Promise<void> {
   void stopSessionSweep;
 }
 
-if (import.meta.main)
-  main().catch(async (err: unknown) => {
+/** Boot the spawner, as running this file does: a raw device's launcher
+ * (`tale sandbox device run`, tools/cli) imports the bundle of this module
+ * and calls it, since an import does not run it. */
+export function runSpawner(): Promise<void> {
+  return main().catch(async (err: unknown) => {
     // Without this catch a boot failure after init() (e.g. Bun.serve EADDRINUSE)
     // would be swallowed by the global unhandledRejection backstop above,
     // leaving a zombie process that neither listens nor exits.
@@ -992,3 +1024,6 @@ if (import.meta.main)
     await flushSandboxErrorReporting();
     process.exit(1);
   });
+}
+
+if (import.meta.main) void runSpawner();
