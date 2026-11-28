@@ -28,6 +28,7 @@ import {
   SANDBOX_OWNED_VARIABLES,
   sandboxDeclarationSchema,
 } from './runtime-sandbox';
+import { parseSourceRepository } from './source-repository';
 
 const text = z
   .string()
@@ -51,14 +52,9 @@ const origin = text.refine((input) => {
     return false;
   }
 }, 'expected a canonical HTTPS origin');
-const githubRepository = text.refine(
-  (input) =>
-    /^https:\/\/github\.com\/[A-Za-z0-9_-]+\/[A-Za-z0-9_.-]+(?![\s\S])/.test(
-      input,
-    ) &&
-    !input.endsWith('.git') &&
-    new URL(input).href === input,
-  'expected a canonical GitHub repository URL',
+const sourceRepository = text.refine(
+  (input) => parseSourceRepository(input) !== undefined,
+  'expected a canonical GitHub repository URL or one on an allowed Forgejo host',
 );
 const ref = z.union([gitSha, environmentReference]);
 const project = z.string().regex(/^[a-z0-9][a-z0-9-]{0,39}(?![\s\S])/);
@@ -220,7 +216,7 @@ const deploymentFields = z.strictObject({
   configs: z
     .array(
       z.strictObject({
-        repository: githubRepository,
+        repository: sourceRepository,
         revision: ref,
         client: slug,
         descriptor: relativePath,

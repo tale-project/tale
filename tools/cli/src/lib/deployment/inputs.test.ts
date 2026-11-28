@@ -210,6 +210,15 @@ test('refuses additional origins the managed proxy cannot serve as distinct entr
   ).toEqual(['https://desk.local']);
 });
 
+test('accepts a configuration source on an allowed Forgejo host', () => {
+  const repository = 'https://git.tale.dev/north-labs/desk';
+  const parsed = deploymentSpecSchema.parse({
+    ...spec(),
+    configs: [{ ...spec().configs[0], repository }],
+  });
+  expect(parsed.configs[0]?.repository).toBe(repository);
+});
+
 test('refuses moving pins, path escapes, duplicate targets and invalid public policy', () => {
   for (const bad of ['main', 'sha-abcd123', `${revision}\n`, 'v1.2.3'])
     expect(() =>
@@ -224,6 +233,11 @@ test('refuses moving pins, path escapes, duplicate targets and invalid public po
     'https://github.com/owner/repo.git',
     'https://user@github.com/owner/repo',
     'https://github.com/owner/repo?token=private',
+    'https://gitlab.com/owner/repo',
+    'http://git.tale.dev/owner/repo',
+    'https://user@git.tale.dev/owner/repo',
+    'https://git.tale.dev/owner/repo.git',
+    'https://git.tale.dev/owner/repo?token=private',
   ])
     expect(() =>
       deploymentSpecSchema.parse({
