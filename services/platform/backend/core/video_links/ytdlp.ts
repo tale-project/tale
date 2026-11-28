@@ -1315,6 +1315,21 @@ function isYtDlpMetadata(value: unknown): value is YtDlpMetadata {
   return typeof value === 'object' && value !== null;
 }
 
+/**
+ * A metadata run's arguments, without the video: the video's description as
+ * one JSON object, its caption tracks listed, and nothing downloaded.
+ */
+export const METADATA_RUN_ARGS: readonly string[] = [
+  '-J',
+  // A page may offer an address no format to download while it still
+  // describes the video and serves its captions, as YouTube answers a walled
+  // datacenter address. yt-dlp selects a format for -J too, and with none to
+  // select it ends the run ("Requested format is not available") before the
+  // captions are ever asked for. The flag has it warn instead and describe
+  // the video (#5507).
+  '--ignore-no-formats-error',
+];
+
 export async function ytdlpJson(
   url: string,
   jobDir: string,
@@ -1323,7 +1338,7 @@ export async function ytdlpJson(
   route?: YtdlpRoute,
 ): Promise<YtDlpMetadata> {
   const { stdout } = await runYtdlp(
-    ['-J', '--', url],
+    [...METADATA_RUN_ARGS, '--', url],
     jobDir,
     timeoutMs,
     session,

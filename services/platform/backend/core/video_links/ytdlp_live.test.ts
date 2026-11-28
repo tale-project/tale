@@ -32,6 +32,7 @@ import { join } from 'node:path';
 import { beforeAll, describe, expect, it, type TestContext } from 'vitest';
 
 import {
+  METADATA_RUN_ARGS,
   YtDlpError,
   buildSpawnPath,
   captionRunArgs,
@@ -379,12 +380,13 @@ describe.skipIf(!LIVE)(
       expect(headerLine).toContain('yt_dlp_plugins');
     }, 60_000);
 
-    // A page may offer an address no format to download while it still serves
-    // the captions, as YouTube answers a walled datacenter address (#5507).
-    // Offline: the toolchain's yt-dlp reads a video's description
-    // (`--load-info-json`) whose only format is a storyboard and fetches its
-    // subtitle from loopback, with the caption run's own arguments.
-    it('takes the captions of a video whose page offers no format', async () => {
+    // A page may offer an address no format to download while it still
+    // describes the video and serves its captions, as YouTube answers a walled
+    // datacenter address (#5507). Offline: the toolchain's yt-dlp reads a
+    // video's description (`--load-info-json`) whose only format is a
+    // storyboard, with the metadata run's and then the caption run's own
+    // arguments, and fetches the subtitle from loopback.
+    it('describes a video whose page offers no format, and takes its captions', async () => {
       const dir = await mkdtemp(join(tmpdir(), 'ytlive-no-formats-'));
       const cue = 'Never gonna give you up';
       const server = createServer((_request, response) => {
@@ -429,39 +431,55 @@ describe.skipIf(!LIVE)(
             },
           }),
         );
-        const stderr = await new Promise<string>((resolve, reject) => {
-          const proc = spawn(
-            'yt-dlp',
-            [
-              '--no-config',
-              '--ignore-config',
-              '--no-update',
-              ...ffmpegLocationFlags(process.env),
-              '--load-info-json',
-              info,
-              ...captionRunArgs('en', dir),
-            ],
-            {
-              stdio: ['ignore', 'ignore', 'pipe'],
-              env: {
-                PATH: buildSpawnPath(process.env),
-                HOME: dir,
-                LANG: 'C.UTF-8',
+        /** The toolchain's yt-dlp on that description: what it printed. */
+        const ytdlp = (args: readonly string[]) =>
+          new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
+            const proc = spawn(
+              'yt-dlp',
+              [
+                '--no-config',
+                '--ignore-config',
+                '--no-update',
+                ...ffmpegLocationFlags(process.env),
+                '--load-info-json',
+                info,
+                ...args,
+              ],
+              {
+                stdio: ['ignore', 'pipe', 'pipe'],
+                env: {
+                  PATH: buildSpawnPath(process.env),
+                  HOME: dir,
+                  LANG: 'C.UTF-8',
+                },
               },
-            },
-          );
-          let out = '';
-          proc.stderr.on('data', (d) => {
-            out += d.toString();
+            );
+            let stdout = '';
+            let stderr = '';
+            proc.stdout.on('data', (d) => {
+              stdout += d.toString();
+            });
+            proc.stderr.on('data', (d) => {
+              stderr += d.toString();
+            });
+            proc.on('close', (code) =>
+              code === 0
+                ? resolve({ stdout, stderr })
+                : reject(
+                    new Error(`yt-dlp exited ${code}: ${stderr.slice(-400)}`),
+                  ),
+            );
+            proc.on('error', reject);
           });
-          proc.on('close', (code) =>
-            code === 0
-              ? resolve(out)
-              : reject(new Error(`yt-dlp exited ${code}: ${out.slice(-400)}`)),
-          );
-          proc.on('error', reject);
-        });
-        expect(stderr).not.toContain('ERROR');
+
+        const described = await ytdlp(METADATA_RUN_ARGS);
+        expect(described.stderr).not.toContain('ERROR');
+        expect(
+          captionLangs(JSON.parse(described.stdout) as YtDlpMetadata),
+        ).toEqual(['en']);
+
+        const captioned = await ytdlp(captionRunArgs('en', dir));
+        expect(captioned.stderr).not.toContain('ERROR');
         expect(await readFile(join(dir, 'probe.en.vtt'), 'utf8')).toContain(
           cue,
         );
