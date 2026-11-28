@@ -995,6 +995,7 @@ export async function configureInstance(
           `Refusing to ${verb} an unrecognized managed SSO connection (provider ${label}): it is neither the managed Entra connection nor the OpenID Connect connection for ${issuer}.`,
         );
       };
+      let otherOrgsEnabled = false;
       if (input.ssoEnabled) {
         if (managesOidc) {
           const stored = await storedConnection();
@@ -1023,12 +1024,16 @@ export async function configureInstance(
             : 'Entra SSO configuration',
         );
       } else {
+        // Another organization's own connection is no reason to refuse when
+        // this one has none: there is nothing to remove, and its people keep
+        // signing in. A stored connection still is not removed while another
+        // organization has SSO.
         const config = await storedConnection();
-        if (config.otherOrgsEnabled)
-          throw preconditionError(
-            `Only the managed ${provider} connection may be removed; another organization has SSO.`,
-          );
         if (config.configured) {
+          if (config.otherOrgsEnabled)
+            throw preconditionError(
+              `Only the managed ${provider} connection may be removed; another organization has SSO.`,
+            );
           if (!recognised(config)) throw refuseUnrecognised(config, 'remove');
           await requireJson(
             await request(configPath, 'DELETE'),
@@ -1041,15 +1046,11 @@ export async function configureInstance(
             'SSO removal verification',
           ),
         );
-        if (
-          !after.success ||
-          after.data.configured ||
-          after.data.enabled ||
-          after.data.otherOrgsEnabled
-        )
+        if (!after.success || after.data.configured || after.data.enabled)
           throw preconditionError(
             `Managed ${provider} connection remains configured.`,
           );
+        otherOrgsEnabled = after.data.otherOrgsEnabled;
       }
       const status = z
         .object({ enabled: z.boolean(), multiple: z.boolean().optional() })
@@ -1059,11 +1060,13 @@ export async function configureInstance(
             'SSO discovery',
           ),
         );
+      // Discovery answers for the whole deployment: another organization's
+      // enabled connection keeps it on while this one has none.
       if (
         !status.success ||
         (input.ssoEnabled
           ? !status.data.enabled || status.data.multiple !== false
-          : status.data.enabled)
+          : status.data.enabled && !otherOrgsEnabled)
       )
         throw preconditionError(
           'SSO discovery does not match the destination policy.',
