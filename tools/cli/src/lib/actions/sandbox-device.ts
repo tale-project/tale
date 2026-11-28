@@ -1,4 +1,4 @@
-import { mkdir, rm } from 'node:fs/promises';
+import { mkdir, readFile, rm } from 'node:fs/promises';
 import { hostname as osHostname } from 'node:os';
 
 import {
@@ -10,7 +10,10 @@ import {
 import { emitJson } from '../../utils/json-output';
 import * as logger from '../../utils/logger';
 import { getOutputMode } from '../../utils/output-mode';
-import { confirm as promptConfirm } from '../../utils/prompt';
+import {
+  confirm as promptConfirm,
+  password as promptPassword,
+} from '../../utils/prompt';
 import { ensureDocker } from '../docker/ensure-docker';
 import type { ExecResult } from '../docker/exec';
 import { assertDockerEngineSupported } from '../docker/setup-checks';
@@ -28,6 +31,13 @@ import {
   type SandboxDeviceConfig,
   writeSandboxDeviceConfig,
 } from '../sandbox-device/config';
+import {
+  DEVICE_LOGIN_HARNESSES,
+  isLoginHarness,
+  listDeviceLogins,
+  removeDeviceLogin,
+  saveDeviceLogin,
+} from '../sandbox-device/logins';
 import {
   assertCompiledCli,
   finishRawConnect,
@@ -879,4 +889,93 @@ export async function sandboxDeviceLogs(
       'tale sandbox update   # lays the device out again',
     );
   }
+}
+
+// ── Sign-ins ──────────────────────────────────────────────────────────────
+
+/** The connected device's home, or a refusal: a sign-in belongs to a device. */
+async function connectedHome(deps: SandboxDeviceDeps): Promise<string> {
+  const home = deps.home();
+  const config = await readSandboxDeviceConfig(sandboxDeviceConfigPath(home));
+  if (config === null) {
+    throw preconditionError('This machine is not connected to Tale.', [
+      'tale sandbox connect <site> --token <token>',
+    ]);
+  }
+  return config.stateDir;
+}
+
+/**
+ * `tale sandbox login <harness>`: keep a harness's sign-in on this device.
+ * Runs the organization starts on "Sign-in on a sandbox device" use it on
+ * this machine; it never leaves the machine (the device swaps it into each
+ * turn). The token comes from `--token-file`, standard input, or a hidden
+ * prompt — never the command line.
+ */
+export async function loginSandboxDevice(
+  harness: string,
+  options: { tokenFile?: string },
+  deps: SandboxDeviceDeps = defaultSandboxDeviceDeps,
+): Promise<void> {
+  if (!isLoginHarness(harness)) {
+    throw usageError(
+      `A device can hold a sign-in for ${Object.keys(DEVICE_LOGIN_HARNESSES).join(', ')}; not for ${harness}.`,
+    );
+  }
+  const home = await connectedHome(deps);
+  const help = DEVICE_LOGIN_HARNESSES[harness];
+  let token: string;
+  if (options.tokenFile !== undefined) {
+    token = await readFile(options.tokenFile, 'utf8');
+  } else if (!process.stdin.isTTY) {
+    token = await new Response(Bun.stdin.stream()).text();
+  } else {
+    logger.info(help?.how ?? '');
+    token = await promptPassword({
+      message: `${help?.name ?? harness} sign-in token`,
+    });
+  }
+  try {
+    await saveDeviceLogin(home, harness, token);
+  } catch (err) {
+    throw usageError(err instanceof Error ? err.message : String(err));
+  }
+  logger.success(
+    `This device keeps a ${help?.name ?? harness} sign-in. Runs on a device sign-in can start here; the token stays on this machine.`,
+  );
+}
+
+export async function logoutSandboxDevice(
+  harness: string,
+  deps: SandboxDeviceDeps = defaultSandboxDeviceDeps,
+): Promise<void> {
+  const home = await connectedHome(deps);
+  if (await removeDeviceLogin(home, harness)) {
+    logger.success(`Removed this device's ${harness} sign-in.`);
+  } else {
+    logger.info(`This device holds no ${harness} sign-in.`);
+  }
+}
+
+export async function listSandboxDeviceLogins(
+  deps: SandboxDeviceDeps = defaultSandboxDeviceDeps,
+): Promise<void> {
+  const home = await connectedHome(deps);
+  const logins = await listDeviceLogins(home);
+  if (deps.json()) {
+    emitJson('sandbox logins', { logins });
+    return;
+  }
+  if (logins.length === 0) {
+    logger.info(
+      'This device holds no sign-in. Add one: tale sandbox login claude-code',
+    );
+    return;
+  }
+  logger.table(
+    logins.map((login) => [
+      DEVICE_LOGIN_HARNESSES[login.harness]?.name ?? login.harness,
+      `since ${new Date(login.addedAtMs).toISOString().slice(0, 10)}`,
+    ]),
+  );
 }
