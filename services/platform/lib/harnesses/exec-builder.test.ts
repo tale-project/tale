@@ -1116,3 +1116,62 @@ describe('operator reasoning effort', () => {
     },
   );
 });
+
+describe("a CLI starts without the workspace's own configuration", () => {
+  it('claude-code reads its user setting source and the CLAUDE.md of the working directory', () => {
+    const exec = buildHarnessExec(fact('claude-code'), managedSpec());
+    const at = exec.argv.indexOf('--setting-sources');
+    expect(exec.argv.slice(at, at + 4)).toEqual([
+      '--setting-sources',
+      'user',
+      '--add-dir',
+      '/agent/workspace',
+    ]);
+    expect(exec.env.CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD).toBe('1');
+  });
+
+  it('codex marks the working directory untrusted, the path a TOML string', () => {
+    const exec = buildHarnessExec(
+      fact('codex'),
+      managedSpec({ workdir: '/agent/workspace/a "quoted" dir' }),
+    );
+    expect(exec.argv).toContain(
+      'projects={"/agent/workspace/a \\"quoted\\" dir"={trust_level="untrusted"}}',
+    );
+  });
+
+  it("codex names the repository's AGENTS.md ahead of the addendum, or alone", () => {
+    const note =
+      'If the repository you are working in contains an AGENTS.md file, read it and follow its instructions.';
+    const withAddendum = buildHarnessExec(
+      fact('codex'),
+      managedSpec({ instructions: 'Follow the runbook.' }),
+    );
+    expect(withAddendum.argv).toContain(
+      `developer_instructions=${JSON.stringify(`${note}\n\nFollow the runbook.`)}`,
+    );
+    const alone = buildHarnessExec(fact('codex'), managedSpec());
+    expect(alone.argv).toContain(
+      `developer_instructions=${JSON.stringify(note)}`,
+    );
+  });
+
+  it("opencode loads no project configuration, and names the repository's AGENTS.md", () => {
+    const opencode = fact('opencode');
+    const config = (exec: HarnessExec) =>
+      JSON.parse(exec.env.OPENCODE_CONFIG_CONTENT ?? '{}') as {
+        instructions?: string[];
+      };
+    const staged = buildHarnessExec(
+      opencode,
+      managedSpec({ instructions: 'Follow the runbook.', execId: 'exec-7' }),
+    );
+    expect(staged.env.OPENCODE_DISABLE_PROJECT_CONFIG).toBe('1');
+    expect(config(staged).instructions).toEqual([
+      '/agent/.runtime/tale/instructions/exec-7.md',
+      '/agent/workspace/AGENTS.md',
+    ]);
+    const bare = buildHarnessExec(opencode, managedSpec());
+    expect(config(bare).instructions).toEqual(['/agent/workspace/AGENTS.md']);
+  });
+});

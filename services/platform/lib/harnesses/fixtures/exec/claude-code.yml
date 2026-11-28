@@ -8,6 +8,10 @@ managed-baseline:
     - stream-json
     - --verbose
     - --include-partial-messages
+    - --setting-sources
+    - user
+    - --add-dir
+    - /agent/workspace
     - --permission-mode
     - bypassPermissions
     - --max-turns
@@ -46,6 +50,7 @@ managed-baseline:
     ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
     API_FORCE_IDLE_TIMEOUT: '0'
     API_TIMEOUT_MS: '960000'
+    CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1'
     CLAUDE_CODE_AUTO_COMPACT_WINDOW: ''
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
@@ -64,6 +69,10 @@ managed-model-opus:
     - stream-json
     - --verbose
     - --include-partial-messages
+    - --setting-sources
+    - user
+    - --add-dir
+    - /agent/workspace
     - --permission-mode
     - bypassPermissions
     - --max-turns
@@ -109,6 +118,7 @@ managed-model-opus:
     ANTHROPIC_MODEL: claude-opus-4-6[1m]
     API_FORCE_IDLE_TIMEOUT: '0'
     API_TIMEOUT_MS: '960000'
+    CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1'
     CLAUDE_CODE_AUTO_COMPACT_WINDOW: ''
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CODE_SUBAGENT_MODEL: claude-opus-4-6
@@ -129,6 +139,10 @@ managed-model-gateway-ref:
     - stream-json
     - --verbose
     - --include-partial-messages
+    - --setting-sources
+    - user
+    - --add-dir
+    - /agent/workspace
     - --permission-mode
     - bypassPermissions
     - --max-turns
@@ -174,6 +188,7 @@ managed-model-gateway-ref:
     ANTHROPIC_MODEL: openrouter/anthropic/claude-sonnet-4.6
     API_FORCE_IDLE_TIMEOUT: '0'
     API_TIMEOUT_MS: '960000'
+    CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1'
     CLAUDE_CODE_AUTO_COMPACT_WINDOW: ''
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CODE_SUBAGENT_MODEL: openrouter/anthropic/claude-sonnet-4.6
@@ -194,6 +209,10 @@ managed-model-default:
     - stream-json
     - --verbose
     - --include-partial-messages
+    - --setting-sources
+    - user
+    - --add-dir
+    - /agent/workspace
     - --permission-mode
     - bypassPermissions
     - --max-turns
@@ -239,6 +258,7 @@ managed-model-default:
     ANTHROPIC_MODEL: default
     API_FORCE_IDLE_TIMEOUT: '0'
     API_TIMEOUT_MS: '960000'
+    CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1'
     CLAUDE_CODE_AUTO_COMPACT_WINDOW: ''
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CODE_SUBAGENT_MODEL: default
@@ -259,6 +279,10 @@ managed-model-context-window:
     - stream-json
     - --verbose
     - --include-partial-messages
+    - --setting-sources
+    - user
+    - --add-dir
+    - /agent/workspace
     - --permission-mode
     - bypassPermissions
     - --max-turns
@@ -304,6 +328,7 @@ managed-model-context-window:
     ANTHROPIC_MODEL: golden-local/golden-small-model
     API_FORCE_IDLE_TIMEOUT: '0'
     API_TIMEOUT_MS: '960000'
+    CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1'
     CLAUDE_CODE_ATTRIBUTION_HEADER: '0'
     CLAUDE_CODE_AUTO_COMPACT_WINDOW: '32768'
     CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING: '1'
@@ -327,6 +352,10 @@ managed-plan:
     - stream-json
     - --verbose
     - --include-partial-messages
+    - --setting-sources
+    - user
+    - --add-dir
+    - /agent/workspace
     - --permission-mode
     - plan
     - --max-turns
@@ -365,6 +394,7 @@ managed-plan:
     ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
     API_FORCE_IDLE_TIMEOUT: '0'
     API_TIMEOUT_MS: '960000'
+    CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1'
     CLAUDE_CODE_AUTO_COMPACT_WINDOW: ''
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
@@ -383,6 +413,10 @@ managed-act:
     - stream-json
     - --verbose
     - --include-partial-messages
+    - --setting-sources
+    - user
+    - --add-dir
+    - /agent/workspace
     - --permission-mode
     - bypassPermissions
     - --max-turns
@@ -421,6 +455,7 @@ managed-act:
     ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
     API_FORCE_IDLE_TIMEOUT: '0'
     API_TIMEOUT_MS: '960000'
+    CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1'
     CLAUDE_CODE_AUTO_COMPACT_WINDOW: ''
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
@@ -439,6 +474,10 @@ managed-resume:
     - stream-json
     - --verbose
     - --include-partial-messages
+    - --setting-sources
+    - user
+    - --add-dir
+    - /agent/workspace
     - --permission-mode
     - bypassPermissions
     - --max-turns
@@ -479,6 +518,7 @@ managed-resume:
     ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
     API_FORCE_IDLE_TIMEOUT: '0'
     API_TIMEOUT_MS: '960000'
+    CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1'
     CLAUDE_CODE_AUTO_COMPACT_WINDOW: ''
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
@@ -497,6 +537,10 @@ managed-instructions:
     - stream-json
     - --verbose
     - --include-partial-messages
+    - --setting-sources
+    - user
+    - --add-dir
+    - /agent/workspace
     - --permission-mode
     - bypassPermissions
     - --max-turns
@@ -538,6 +582,7 @@ managed-instructions:
     ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
     API_FORCE_IDLE_TIMEOUT: '0'
     API_TIMEOUT_MS: '960000'
+    CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1'
     CLAUDE_CODE_AUTO_COMPACT_WINDOW: ''
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
@@ -556,6 +601,10 @@ managed-dirs:
     - stream-json
     - --verbose
     - --include-partial-messages
+    - --setting-sources
+    - user
+    - --add-dir
+    - /agent/workspace
     - --permission-mode
     - bypassPermissions
     - --max-turns
@@ -598,6 +647,7 @@ managed-dirs:
     ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
     API_FORCE_IDLE_TIMEOUT: '0'
     API_TIMEOUT_MS: '960000'
+    CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1'
     CLAUDE_CODE_AUTO_COMPACT_WINDOW: ''
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
@@ -616,6 +666,10 @@ managed-mcp-headless-bridge:
     - stream-json
     - --verbose
     - --include-partial-messages
+    - --setting-sources
+    - user
+    - --add-dir
+    - /agent/workspace
     - --permission-mode
     - bypassPermissions
     - --max-turns
@@ -657,6 +711,7 @@ managed-mcp-headless-bridge:
     ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
     API_FORCE_IDLE_TIMEOUT: '0'
     API_TIMEOUT_MS: '960000'
+    CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1'
     CLAUDE_CODE_AUTO_COMPACT_WINDOW: ''
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
@@ -675,6 +730,10 @@ managed-mcp-bridge-only:
     - stream-json
     - --verbose
     - --include-partial-messages
+    - --setting-sources
+    - user
+    - --add-dir
+    - /agent/workspace
     - --permission-mode
     - bypassPermissions
     - --max-turns
@@ -716,6 +775,7 @@ managed-mcp-bridge-only:
     ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
     API_FORCE_IDLE_TIMEOUT: '0'
     API_TIMEOUT_MS: '960000'
+    CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1'
     CLAUDE_CODE_AUTO_COMPACT_WINDOW: ''
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
@@ -734,6 +794,10 @@ managed-vision:
     - stream-json
     - --verbose
     - --include-partial-messages
+    - --setting-sources
+    - user
+    - --add-dir
+    - /agent/workspace
     - --permission-mode
     - bypassPermissions
     - --max-turns
@@ -775,6 +839,7 @@ managed-vision:
     ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
     API_FORCE_IDLE_TIMEOUT: '0'
     API_TIMEOUT_MS: '960000'
+    CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1'
     CLAUDE_CODE_AUTO_COMPACT_WINDOW: ''
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
@@ -797,6 +862,10 @@ managed-vision-lane:
     - stream-json
     - --verbose
     - --include-partial-messages
+    - --setting-sources
+    - user
+    - --add-dir
+    - /agent/workspace
     - --permission-mode
     - bypassPermissions
     - --max-turns
@@ -838,6 +907,7 @@ managed-vision-lane:
     ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
     API_FORCE_IDLE_TIMEOUT: '0'
     API_TIMEOUT_MS: '960000'
+    CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1'
     CLAUDE_CODE_AUTO_COMPACT_WINDOW: ''
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
@@ -860,6 +930,10 @@ managed-steer:
     - stream-json
     - --verbose
     - --include-partial-messages
+    - --setting-sources
+    - user
+    - --add-dir
+    - /agent/workspace
     - --permission-mode
     - bypassPermissions
     - --max-turns
@@ -898,6 +972,7 @@ managed-steer:
     ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
     API_FORCE_IDLE_TIMEOUT: '0'
     API_TIMEOUT_MS: '960000'
+    CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1'
     CLAUDE_CODE_AUTO_COMPACT_WINDOW: ''
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
@@ -917,6 +992,10 @@ managed-kitchen-sink:
     - stream-json
     - --verbose
     - --include-partial-messages
+    - --setting-sources
+    - user
+    - --add-dir
+    - /agent/workspace
     - --permission-mode
     - bypassPermissions
     - --max-turns
@@ -974,6 +1053,7 @@ managed-kitchen-sink:
     ANTHROPIC_MODEL: claude-opus-4-6[1m]
     API_FORCE_IDLE_TIMEOUT: '0'
     API_TIMEOUT_MS: '960000'
+    CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1'
     CLAUDE_CODE_AUTO_COMPACT_WINDOW: ''
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CODE_SUBAGENT_MODEL: claude-opus-4-6
@@ -999,6 +1079,10 @@ byo-baseline:
     - stream-json
     - --verbose
     - --include-partial-messages
+    - --setting-sources
+    - user
+    - --add-dir
+    - /agent/workspace
     - --permission-mode
     - bypassPermissions
     - --max-turns
@@ -1032,6 +1116,7 @@ byo-baseline:
     - --disallowedTools
     - AskUserQuestion
   env:
+    CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1'
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
     GOLDEN_BYO_KEY: golden-byo-credential-secret
@@ -1049,6 +1134,10 @@ byo-model:
     - stream-json
     - --verbose
     - --include-partial-messages
+    - --setting-sources
+    - user
+    - --add-dir
+    - /agent/workspace
     - --permission-mode
     - bypassPermissions
     - --max-turns
@@ -1085,6 +1174,7 @@ byo-model:
     - AskUserQuestion
   env:
     ANTHROPIC_MODEL: claude-opus-4-6[1m]
+    CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1'
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
     GOLDEN_BYO_KEY: golden-byo-credential-secret
@@ -1102,6 +1192,10 @@ byo-model-default:
     - stream-json
     - --verbose
     - --include-partial-messages
+    - --setting-sources
+    - user
+    - --add-dir
+    - /agent/workspace
     - --permission-mode
     - bypassPermissions
     - --max-turns
@@ -1138,6 +1232,7 @@ byo-model-default:
     - AskUserQuestion
   env:
     ANTHROPIC_MODEL: default
+    CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1'
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
     GOLDEN_BYO_KEY: golden-byo-credential-secret
@@ -1155,6 +1250,10 @@ byo-kitchen-sink:
     - stream-json
     - --verbose
     - --include-partial-messages
+    - --setting-sources
+    - user
+    - --add-dir
+    - /agent/workspace
     - --permission-mode
     - bypassPermissions
     - --max-turns
@@ -1203,6 +1302,7 @@ byo-kitchen-sink:
     - AskUserQuestion
   env:
     ANTHROPIC_MODEL: claude-opus-4-6[1m]
+    CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1'
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
     GOLDEN_BYO_KEY: golden-byo-credential-secret

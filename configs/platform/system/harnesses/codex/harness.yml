@@ -52,6 +52,17 @@ exec:
         - 'approval_policy="never"'
         - '-c'
         - 'sandbox_mode="danger-full-access"'
+    # The working directory is an untrusted project: none of the workspace's
+    # own Codex configuration loads (no .codex/config.toml with its MCP
+    # servers, instructions files, model settings and hooks, and no project
+    # exec policies). Left without a trust level, `codex exec` marks a
+    # directory it can write trusted on its own (and records that in
+    # CODEX_HOME). The value is an inline table: `-c` splits a dotted key on
+    # every dot, so a quoted path cannot be a key segment. Untrusted, Codex
+    # also skips the repository's AGENTS.md, which the instructions slot
+    # below names for the agent to read. Skills still load. Observed on
+    # 0.160.0 against a local stand-in for the Responses API.
+    - args: ['-c', 'projects={${workdir.toml}={trust_level="untrusted"}}']
     # MANAGED: native web search is ungoverned (no audit / untrusted-source
     # wrapping / metering) AND defaults to "live" under a full-access
     # sandbox — force-disable it; web access routes through the capability
@@ -128,9 +139,13 @@ exec:
     # a Tale instructions update on stdin, ahead of the brief. The resume
     # slot states that need (`instructions: recorded`), which
     # `resumeKeepsRecordedInstructions` reads.
+    # The workspace-agents-md transform puts the note to read the
+    # repository's AGENTS.md ahead of the addendum (see the trust slot
+    # above), so the flag rides every turn.
     - instructions:
         flag: '-c'
         configKey: developer_instructions
+        transform: workspace-agents-md
     # MCP servers as `mcp_servers.<id>` config pairs. Secrets reach the
     # bridge via the `env_vars` whitelist — Codex forwards ONLY whitelisted
     # vars from its own process env to MCP stdio servers — so the session

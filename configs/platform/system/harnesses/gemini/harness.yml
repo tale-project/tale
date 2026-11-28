@@ -82,6 +82,21 @@ exec:
             - set:
                 privacy:
                   usageStatisticsEnabled: false
+            # The workspace's own .env files stay out of the CLI's
+            # environment. The pinned CLI reloads them once --skip-trust has
+            # marked the folder trusted, and takes every key not already
+            # set: a workspace .env could replace the core system prompt
+            # (GEMINI_SYSTEM_MD), run code in every child process
+            # (NODE_OPTIONS, BASH_ENV) or turn telemetry on to an address of
+            # its own. ignoreLocalEnv skips a `.env` in the working directory
+            # and above it (the session HOME's own is still read); a
+            # `.gemini/.env` there is read whatever the setting, so
+            # tale-gemini-run refuses to start in a workspace that carries
+            # one. Observed on 0.62.0 against a local stand-in for the GenAI
+            # API.
+            - set:
+                advanced:
+                  ignoreLocalEnv: true
             # The CLI must request the model id it was given. Every CLI
             # release before 0.61.0 rewrites ANY --model ending in "flash" to its own
             # gemini-3.5-flash on API-key auth (config/models.ts resolveModel:

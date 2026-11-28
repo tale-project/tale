@@ -714,6 +714,7 @@ def request_path(settings, workdir):
 base = {
     "security": {"auth": {"selectedType": "gemini-api-key"}},
     "privacy": {"usageStatisticsEnabled": False},
+    "advanced": {"ignoreLocalEnv": True},
     "model": {"maxSessionTurns": 200},
     "tools": {"exclude": ["google_web_search", "web_fetch"]},
     "experimental": {"dynamicModelConfiguration": True},
@@ -1692,14 +1693,16 @@ ThreadingHTTPServer(("127.0.0.1", int(sys.argv[1])), Handler).serve_forever()
             ].join('\n'),
           );
           // The next exec withdraws the links whose harnesses read the
-          // repository's copy; Hermes reads none, so it keeps its link.
+          // repository's copy; Hermes reads none, so it keeps its link, and
+          // Claude Code reads none either, so its link now names the
+          // repository's copy.
           await runnerdExec({
             execId: 'skills-withdraw',
             command: ['true'],
             cwd: '/agent/workspace',
           });
           for (const dir of SKILL_DIRS) {
-            const want = dir === '.hermes/skills' ? 'linked' : 'absent';
+            const want = dir === '.agents/skills' ? 'absent' : 'linked';
             const got = await linkState(dir);
             const verdict = `${dir}/${SKILL} is ${got} beside the repository's copy`;
             if (got === want) pass(verdict);

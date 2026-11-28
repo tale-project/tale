@@ -25,6 +25,14 @@ The prompt itself rides the CLI's stdin — Gemini CLI's native headless
 prompt source — never argv (process lists leak argv, and a leading-dash
 prompt would parse as a flag).
 
+The workspace's own environment files stay out of the CLI's environment.
+Once --skip-trust has marked the folder trusted, the pinned CLI reloads the
+first `.gemini/.env` or `.env` it finds from the working directory up, and
+takes every key not already set. The settings set `advanced.ignoreLocalEnv`,
+which skips a `.env` there; a `.gemini/.env` is read whatever that setting
+says, so the wrapper refuses to start in a working directory that has one in
+it or above it.
+
 The wrapper then becomes the CLI (exec, same pid) instead of waiting for it,
 so no Python process stays resident for the turn: the CLI's exit status and
 signals are the exec's own. The context file has to sit under ~/.gemini/,
@@ -85,6 +93,20 @@ def select_settings(settings: dict, env: dict) -> str:
             "Gemini settings do not match this sandbox image; update the runtime image"
         )
     return str(path)
+
+
+def workspace_env_file(workdir: str) -> str | None:
+    """The first `.gemini/.env` from the working directory up to the root,
+    the walk the CLI makes for a trusted folder; None when there is none."""
+    current = os.path.abspath(workdir)
+    while True:
+        candidate = os.path.join(current, ".gemini", ".env")
+        if os.path.lexists(candidate):
+            return candidate
+        parent = os.path.dirname(current)
+        if parent == current:
+            return None
+        current = parent
 
 
 def emit(event: dict) -> None:
@@ -203,6 +225,14 @@ def main() -> int:
     settings = payload.get("settings")
     if not isinstance(settings, dict):
         return fail("stdin settings must be an object")
+
+    env_file = workspace_env_file(args.workdir)
+    if env_file is not None:
+        return fail(
+            f"the workspace holds a Gemini CLI environment file ({env_file}); "
+            "Gemini CLI does not run with a workspace's own environment file, "
+            "remove or rename it"
+        )
 
     home = os.environ.get("HOME") or os.path.expanduser("~")
     gemini_dir = os.path.join(home, ".gemini")

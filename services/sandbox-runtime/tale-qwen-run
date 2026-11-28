@@ -28,6 +28,27 @@ fork's deltas (verified against @qwen-code/qwen-code 0.24.7):
 The prompt itself rides the child's stdin — the CLI's native headless prompt
 source — never argv (process lists leak argv, and a leading-dash prompt would
 parse as a flag).
+
+The folder trust that keeps yolo also merges the workspace's own
+.qwen/settings.json under the staged system settings, and the fork has no
+switch that keeps yolo and MCP while leaving that file out (an untrusted
+folder drops both). Some of what it can set the system settings cannot
+override: a model provider of the workspace's own routes the model's
+requests, with their key, wherever it names. So the wrapper refuses to start
+in a working directory with a .qwen/settings.json in it or above it, and on
+top of that keeps what a workspace's other files could do out of a turn
+(verified on 0.24.7):
+
+  - `disableAllHooks` and an empty `mcp.serverCommand` in the system
+    settings: no hook and no server command of the workspace's runs (the
+    platform stages no Qwen hooks of its own);
+  - `--allowed-mcp-server-names` naming the staged servers alone (none when
+    nothing is staged): no other MCP server starts, and no exclusion list
+    drops the platform's bridge;
+  - `--output-style default`: no output style rewrites the system prompt;
+  - QWEN_SYSTEM_MD and QWEN_WRITE_SYSTEM_MD set to 0, so a workspace .env
+    (which fills only variables not already set) cannot replace the system
+    prompt or write it out.
 """
 
 from __future__ import annotations
@@ -60,6 +81,20 @@ def fail(message: str, code: int = 1) -> int:
         }
     )
     return code
+
+
+def workspace_settings_file(workdir: str) -> str | None:
+    """The first `.qwen/settings.json` from the working directory up to the
+    root; None when there is none."""
+    current = os.path.abspath(workdir)
+    while True:
+        candidate = os.path.join(current, ".qwen", "settings.json")
+        if os.path.lexists(candidate):
+            return candidate
+        parent = os.path.dirname(current)
+        if parent == current:
+            return None
+        current = parent
 
 
 def read_stdin_payload() -> dict | None:
@@ -96,6 +131,14 @@ def main() -> int:
     if not isinstance(settings, dict):
         settings = {}
 
+    settings_file = workspace_settings_file(args.workdir)
+    if settings_file is not None:
+        return fail(
+            f"the workspace holds Qwen Code settings of its own ({settings_file}); "
+            "Qwen Code does not run with a workspace's own settings, remove or "
+            "rename the file"
+        )
+
     home = os.environ.get("HOME") or os.path.expanduser("~")
     qwen_dir = os.path.join(home, ".qwen")
     context_path = None
@@ -115,6 +158,13 @@ def main() -> int:
             if isinstance(settings["context"], dict):
                 settings["context"]["fileName"] = ["QWEN.md", context_name]
 
+        # The workspace's own hooks and model providers stay out (module
+        # doc): system settings win over the workspace's.
+        settings["disableAllHooks"] = True
+        mcp = settings.setdefault("mcp", {})
+        if isinstance(mcp, dict):
+            mcp["serverCommand"] = ""
+
         # Headless yolo must not depend on a trust prompt nobody can answer:
         # the fork reads `security.folderTrust.enabled` (a boolean) and, when
         # trust is on and the folder unknown, drops to interactive approvals.
@@ -131,6 +181,9 @@ def main() -> int:
 
         env = dict(os.environ)
         env["QWEN_CODE_SYSTEM_SETTINGS_PATH"] = settings_path
+        # Set, so a workspace .env cannot set them (module doc).
+        env["QWEN_SYSTEM_MD"] = "0"
+        env["QWEN_WRITE_SYSTEM_MD"] = "0"
         # The container is the safety boundary; the CLI's yolo notice on
         # stderr is noise in the run log.
         env.setdefault("QWEN_CODE_SUPPRESS_YOLO_WARNING", "1")
@@ -142,7 +195,14 @@ def main() -> int:
             "--include-partial-messages",
             "--approval-mode",
             "yolo",
+            "--output-style",
+            "default",
         ]
+        # Only the staged MCP servers start; an empty name allows none.
+        servers = settings.get("mcpServers")
+        names = sorted(servers) if isinstance(servers, dict) else []
+        for name in names or [""]:
+            cmd += ["--allowed-mcp-server-names", name]
         if args.model:
             cmd += ["--model", args.model]
         if args.resume:

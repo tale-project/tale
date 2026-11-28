@@ -39,6 +39,7 @@ const FAKE_QWEN = `#!/bin/sh
   python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))' | tr -d '\\n'
   printf ',"context":'
   python3 -c 'import json,os,sys; d=os.path.join(os.environ["HOME"],".qwen"); print(json.dumps({n: open(os.path.join(d,n)).read() for n in (os.listdir(d) if os.path.isdir(d) else [])}))' | tr -d '\\n'
+  printf ',"system_md":"%s","write_system_md":"%s"' "$QWEN_SYSTEM_MD" "$QWEN_WRITE_SYSTEM_MD"
   printf ',"yolo_warning":"%s"}\\n' "$QWEN_CODE_SUPPRESS_YOLO_WARNING"
 } > "$FAKE_SEEN"
 printf '%s\\n' '{"type":"system","subtype":"init","session_id":"fake-session","model":"m"}'
@@ -70,6 +71,8 @@ interface Seen {
   settings: Record<string, unknown>;
   prompt: string;
   context: Record<string, string>;
+  system_md: string;
+  write_system_md: string;
   yolo_warning: string;
 }
 
@@ -139,6 +142,11 @@ describe('tale-qwen-run', () => {
         '--include-partial-messages',
         '--approval-mode',
         'yolo',
+        '--output-style',
+        'default',
+        // No MCP server staged: none may start.
+        '--allowed-mcp-server-names',
+        '',
         '--model',
         'qwen3-coder',
         '--resume',
@@ -147,14 +155,19 @@ describe('tale-qwen-run', () => {
         '/agent/inputs',
       ]);
       expect(out.seen?.prompt).toBe('fix the flaky login test');
-      // The adapter's settings arrive verbatim, plus the headless trust pin.
+      // The adapter's settings arrive verbatim, plus the headless trust pin
+      // and what keeps the workspace's own hooks and server command out.
       expect(out.seen?.settings).toEqual({
         security: {
           auth: { selectedType: 'openai' },
           folderTrust: { enabled: false },
         },
         tools: { exclude: ['web_search', 'web_fetch'] },
+        disableAllHooks: true,
+        mcp: { serverCommand: '' },
       });
+      expect(out.seen?.system_md).toBe('0');
+      expect(out.seen?.write_system_md).toBe('0');
       expect(out.seen?.yolo_warning).toBe('1');
       // No system prompt: no context file, no context.fileName override.
       expect(out.seen?.context).toEqual({});
@@ -185,6 +198,50 @@ describe('tale-qwen-run', () => {
       });
       // The per-exec append is gone once the run ends.
       expect(readdirSync(join(root, 'home', '.qwen'))).toEqual([]);
+    },
+  );
+
+  pyTest('lets only the staged MCP servers start', () => {
+    const out = runWrapper({
+      prompt: 'hello',
+      settings: {
+        mcpServers: {
+          playwright: { command: 'tale-playwright-mcp' },
+          connectors: { httpUrl: 'https://platform.invalid/bridge/mcp' },
+        },
+      },
+    });
+
+    expect(out.code).toBe(0);
+    const argv = out.seen?.argv ?? [];
+    const allowed = argv.flatMap((arg, i) =>
+      arg === '--allowed-mcp-server-names' ? [argv[i + 1]] : [],
+    );
+    expect(allowed).toEqual(['connectors', 'playwright']);
+  });
+
+  pyTest.each([
+    ['the working directory', 'workspace'],
+    ['a directory above it', '.'],
+  ])(
+    "refuses Qwen Code settings of the workspace's own in %s",
+    (_where, dir) => {
+      mkdirSync(join(root, dir, '.qwen'), { recursive: true });
+      writeFileSync(join(root, dir, '.qwen/settings.json'), '{}');
+
+      const out = runWrapper({ prompt: 'hello', system_prompt: 'TALE' });
+
+      expect(out.code).toBe(1);
+      expect(out.seen).toBeNull();
+      expect(out.events.at(-1)).toMatchObject({
+        type: 'result',
+        is_error: true,
+      });
+      expect(String(out.events.at(-1)?.result)).toContain(
+        'Qwen Code settings of its own',
+      );
+      // Refused before anything was staged.
+      expect(existsSync(join(root, 'home', '.qwen'))).toBe(false);
     },
   );
 

@@ -435,6 +435,35 @@ conversations rather than a year. A task resumed after its transcript is gone
 restarts fresh on its preserved files. `daemon/src/managed-settings.test.ts`
 holds the period.
 
+### A workspace's own agent configuration
+
+The workspace holds content Tale does not control: a member's repository, one
+an agent cloned, files an earlier step wrote. Each agent CLI looks for its own
+configuration in the working directory and above it, and such files could run
+commands when a turn starts, send the turn's model key to another address,
+replace or remove Tale's bridge, or change the instructions. So every harness
+starts its CLI on the configuration the platform stages, and the workspace's
+guidance (its `AGENTS.md`, `CLAUDE.md` and skills, which the agent reads as
+text) still loads:
+
+| Harness | The workspace's own configuration | Still loaded |
+| ------- | --------------------------------- | ------------ |
+| Claude Code | `--setting-sources user`: no `.claude/settings.json` or `.claude/settings.local.json` (environment, hooks, helper commands, permission rules, output style, plugins), and no project skills, agents or commands; `.mcp.json` stays out through `--strict-mcp-config` | `CLAUDE.md` and `.claude/rules`, through `--add-dir` on the working directory with `CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1`; `.claude/skills`, through runnerd's links (see [Built-in skills](#built-in-skills)) |
+| Codex | `-c projects={"<workdir>"={trust_level="untrusted"}}`: no `.codex/config.toml` (MCP servers, instructions files, model settings, hooks) and no project exec policies; left without a trust level, `codex exec` would mark a directory it can write trusted on its own | `.agents/skills`; the repository's `AGENTS.md` is named in the instructions for the agent to read, since an untrusted project's docs are not loaded |
+| OpenCode | `OPENCODE_DISABLE_PROJECT_CONFIG=1`: no `opencode.json`/`opencode.jsonc` found up from the working directory (plugins, MCP servers, agents and their prompts, instructions) and none of its `.opencode` directories (plugins, tools, agents, commands) | the configuration in `OPENCODE_CONFIG_CONTENT`; skills; the repository's `AGENTS.md`, which the config's `instructions` names |
+| Gemini CLI | its settings come from the image's root-owned system file, read before `--skip-trust` marks the folder trusted, so a `.gemini/settings.json` does not apply; `advanced.ignoreLocalEnv` keeps a `.env` in the working directory and above it out of the CLI's environment, and the wrapper refuses to start where a `.gemini/.env` is (the CLI reads that file whatever the setting) | `GEMINI.md` and skills |
+| Qwen Code | the folder trust that keeps yolo also merges a `.qwen/settings.json` under the staged system settings, and some of what it sets (a model provider of its own) the system file cannot override, so `tale-qwen-run` refuses to start where one is in the working directory or above it; besides, hooks are off (`disableAllHooks`), no server command runs, only the staged MCP servers start (`--allowed-mcp-server-names`), no output style applies (`--output-style default`), and `QWEN_SYSTEM_MD`/`QWEN_WRITE_SYSTEM_MD` are set to 0 so a workspace `.env` cannot set them | `QWEN.md` and skills |
+
+The golden execs (`services/platform/lib/harnesses/fixtures/exec/`) hold the
+flags, `daemon/src/baked-skills.test.ts` the skill links, and
+`daemon/src/gemini-settings.test.ts` and `daemon/src/tale-qwen-run.test.ts` the
+wrappers' refusals; each was observed against the pinned CLI with a workspace
+that carries such files. Hermes reads no configuration of its own from the
+working directory (its config, plugins and hooks come from `HERMES_HOME`, and
+project plugins stay off), and OpenClaw ignores the credentials and runtime
+controls of a workspace `.env` and loads workspace plugins and hooks only when
+its config enables them, which Tale's does not.
+
 Hermes keeps SDK diagnostics on stderr so stdout remains NDJSON and disables
 the SDK's artificial delay between tool calls. Provider retry and backoff stay
 enabled. OpenClaw's wrapper treats a structured error as a failed execution
@@ -479,15 +508,18 @@ Dockerfile pins:
 | `.hermes/skills` | Hermes (`HERMES_HOME`) |
 
 A skill the workspace repository ships wins over the baked one of the same
-name. The harnesses cannot settle that on their own — Claude Code ranks user
-skills above project skills, Codex lists both copies and OpenCode keeps
-whichever finishes loading last — so while
-`/agent/workspace/.claude/skills/<name>/SKILL.md` exists runnerd withdraws the
-`<name>` link from `.claude/skills` under HOME, and likewise for
-`.agents/skills`. It reconciles at boot and again before every exec, so a
-repository cloned during one turn decides the next, and a withdrawn link comes
-back once the repository no longer ships the skill. With the repository copy in
-both directories:
+name. The harnesses cannot settle that on their own — Codex lists both copies
+and OpenCode keeps whichever finishes loading last — so while
+`/agent/workspace/.agents/skills/<name>/SKILL.md` exists runnerd withdraws the
+`<name>` link from `.agents/skills` under HOME. Claude Code reads no
+project-level skills (it starts on its user setting source alone, see
+[A workspace's own agent configuration](#a-workspaces-own-agent-configuration)),
+so runnerd links each skill of `/agent/workspace/.claude/skills` into
+`.claude/skills` under HOME instead, in place of a baked one of its name, and
+removes the link once the repository no longer ships the skill. It reconciles
+at boot and again before every exec, so a repository cloned during one turn
+decides the next, and a withdrawn link comes back once the repository no longer
+ships the skill. With the repository copy in both directories:
 
 | Harness | Lists |
 | ------- | ----- |

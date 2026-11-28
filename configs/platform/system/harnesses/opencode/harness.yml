@@ -52,6 +52,17 @@ exec:
   stdin:
     mode: none
   env:
+    # The workspace's own OpenCode configuration stays out of the turn: no
+    # opencode.json or opencode.jsonc found up from the working directory
+    # (plugins, MCP servers, agents and their prompts, instructions), and
+    # none of its .opencode directories (plugins, tools, agents, commands).
+    # The configuration this exec passes in OPENCODE_CONFIG_CONTENT still
+    # applies, and skills still load. OpenCode then looks for AGENTS.md in
+    # its own config directory rather than the project, so the instructions
+    # fragment below names the repository's. Observed on 1.18.34 against a
+    # local stand-in for the chat API.
+    base:
+      OPENCODE_DISABLE_PROJECT_CONFIG: '1'
     managed:
       TALE_GATEWAY_TOKEN: '${gateway.token}'
   # The instructions addendum: OpenCode has no --append-system-prompt flag;
@@ -112,9 +123,13 @@ exec:
               websearch: deny
             share: disabled
             autoupdate: false
+        # The staged addendum, then the repository's AGENTS.md: with the
+        # project configuration off (see env above) OpenCode no longer finds
+        # it on its own. A file that does not exist is skipped.
         - instructionsRef:
             path: instructions
             prefix: /agent/
+            also: ['${workdir}/AGENTS.md']
         # `environment`, not `env` — OpenCode's McpLocalConfig only knows
         # `environment` (additionalProperties: false), so an `env` key never
         # reaches the bridge process. The session key rides {env:…} like the

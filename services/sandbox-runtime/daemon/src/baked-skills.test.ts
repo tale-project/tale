@@ -104,12 +104,16 @@ describe('reconcileBakedSkills', () => {
   test('withdraws the links whose harnesses read the repository copy', () => {
     const paths = fixture([VAA, 'other-skill']);
     reconcileBakedSkills(paths);
-    repoShips(paths, '.claude/skills', VAA);
+    const claudeCopy = repoShips(paths, '.claude/skills', VAA);
     repoShips(paths, '.agents/skills', VAA);
 
     reconcileBakedSkills(paths);
 
-    expect(existsSync(join(paths.home, '.claude/skills', VAA))).toBe(false);
+    // Claude Code reads no project-level skills: its directory links the
+    // repository's copy in place of the baked one.
+    expect(readlinkSync(join(paths.home, '.claude/skills', VAA))).toBe(
+      claudeCopy,
+    );
     expect(existsSync(join(paths.home, '.agents/skills', VAA))).toBe(false);
     // Hermes reads no project-level skills, so it keeps the baked one.
     expect(linksBake(paths, '.hermes/skills', VAA)).toBe(true);
@@ -144,14 +148,51 @@ describe('reconcileBakedSkills', () => {
 
   test('links again once the repository no longer ships the skill', () => {
     const paths = fixture([VAA]);
-    const repoCopy = repoShips(paths, '.claude/skills', VAA);
+    const repoCopy = repoShips(paths, '.agents/skills', VAA);
+    const claudeCopy = repoShips(paths, '.claude/skills', VAA);
     reconcileBakedSkills(paths);
-    expect(existsSync(join(paths.home, '.claude/skills', VAA))).toBe(false);
+    expect(existsSync(join(paths.home, '.agents/skills', VAA))).toBe(false);
+    expect(readlinkSync(join(paths.home, '.claude/skills', VAA))).toBe(
+      claudeCopy,
+    );
 
     rmSync(repoCopy, { recursive: true });
+    rmSync(claudeCopy, { recursive: true });
     reconcileBakedSkills(paths);
 
+    expect(linksBake(paths, '.agents/skills', VAA)).toBe(true);
     expect(linksBake(paths, '.claude/skills', VAA)).toBe(true);
+  });
+
+  test("links the repository's own Claude Code skills, and drops them once gone", () => {
+    const paths = fixture([VAA]);
+    const repoSkill = repoShips(paths, '.claude/skills', 'repo-skill');
+    mkdirSync(join(paths.workspace, '.claude/skills', 'no-skill-md'), {
+      recursive: true,
+    });
+
+    reconcileBakedSkills(paths);
+
+    expect(readlinkSync(join(paths.home, '.claude/skills', 'repo-skill'))).toBe(
+      repoSkill,
+    );
+    expect(existsSync(join(paths.home, '.claude/skills', 'no-skill-md'))).toBe(
+      false,
+    );
+    // Only Claude Code's directory: the others read the repository's own.
+    expect(existsSync(join(paths.home, '.agents/skills', 'repo-skill'))).toBe(
+      false,
+    );
+    expect(linksBake(paths, '.claude/skills', VAA)).toBe(true);
+
+    rmSync(repoSkill, { recursive: true });
+    reconcileBakedSkills(paths);
+
+    expect(
+      lstatSync(join(paths.home, '.claude/skills', 'repo-skill'), {
+        throwIfNoEntry: false,
+      }),
+    ).toBeUndefined();
   });
 
   test("keeps someone's own skill of the same name, repository or not", () => {
