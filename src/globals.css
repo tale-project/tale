@@ -1,0 +1,26 @@
+@import '@tale/ui/globals.css';
+@import './landing.css';
+
+/* Full marketing sites opt into these palette aliases globally. Mixed docs
+   sites import landing.css and use .marketing-surface only on their front page. */
+@theme {
+  --color-fg-base: var(--color-site-ink);
+  --color-fg-muted: var(--color-site-muted);
+  --color-fg-subtle: var(--color-site-subtle);
+  --color-fg-inverse: var(--color-site-inverse);
+  --color-border-base: var(--color-site-line);
+  --color-border-strong: var(--color-site-line-strong);
+  --color-accent-base: var(--color-site-action);
+  --color-accent-fg: var(--color-site-action-fg);
+}
+
+.dark {
+  --color-fg-base: var(--color-site-ink);
+  --color-fg-muted: var(--color-site-muted);
+  --color-fg-subtle: var(--color-site-subtle);
+  --color-fg-inverse: var(--color-site-inverse);
+  --color-border-base: var(--color-site-line);
+  --color-border-strong: var(--color-site-line-strong);
+  --color-accent-base: var(--color-site-action);
+  --color-accent-fg: var(--color-site-action-fg);
+}
