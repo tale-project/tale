@@ -16,7 +16,41 @@ export interface SourceRequest {
 }
 type SourceMap = Record<string, string>;
 type SourceKind = 'runtime' | 'configuration';
-type SourceStage = 'init' | 'remote' | 'fetch' | 'checkout' | 'rev-parse';
+type SourceStage =
+  | 'init'
+  | 'remote'
+  | 'tags'
+  | 'fetch'
+  | 'checkout'
+  | 'rev-parse';
+/** Every Git step but the transfer is local or a short listing. */
+const GIT_STEP_SECONDS = 300;
+/** A shallow commit of the runtime is hundreds of MiB: a runner on a slow
+ * uplink needs longer than a local step to receive it. A stalled transfer
+ * still fails fast, by Git's own low-speed abort below. */
+const GIT_FETCH_SECONDS = 1800;
+const GIT_LOW_SPEED_BYTES_PER_SECOND = '1024';
+const GIT_LOW_SPEED_SECONDS = '120';
+/** Tag names Git may take as a refspec: no option, pattern or range. */
+const fetchableTag =
+  /^refs\/tags\/(?!-)(?!.*\.\.)(?!.*\/\/)[A-Za-z0-9._+-]+(?:\/[A-Za-z0-9._+-]+)*(?<![./])$/;
+const MAX_SOURCE_TAGS = 64;
+
+/** The tags of the remote whose commit is the pinned revision, from a
+ * `git ls-remote --tags` listing: an annotated tag by its peeled line, a
+ * lightweight one by its own. Every other tag stays on the server. */
+export function tagsAtRevision(listing: string, revision: string): string[] {
+  const tags = new Set<string>();
+  for (const line of listing.split('\n')) {
+    const [object, reference, ...rest] = line.trim().split('\t');
+    if (object !== revision || !reference || rest.length > 0) continue;
+    const name = reference.endsWith('^{}')
+      ? reference.slice(0, -'^{}'.length)
+      : reference;
+    if (fetchableTag.test(name)) tags.add(name);
+  }
+  return [...tags].sort().slice(0, MAX_SOURCE_TAGS);
+}
 const sourceKey = ({ repository, revision }: SourceRequest) =>
   `${repository}@${revision}`;
 
@@ -221,6 +255,7 @@ export async function withDeploymentSources<T>(
       args: string[],
       extraEnvironment?: Record<string, string>,
     ) => {
+      const network = stage === 'tags' || stage === 'fetch';
       let result;
       try {
         result = await run(
@@ -234,6 +269,14 @@ export async function withDeploymentSources<T>(
             'protocol.file.allow=never',
             '-c',
             'core.autocrlf=false',
+            ...(network
+              ? [
+                  '-c',
+                  `http.lowSpeedLimit=${GIT_LOW_SPEED_BYTES_PER_SECOND}`,
+                  '-c',
+                  `http.lowSpeedTime=${GIT_LOW_SPEED_SECONDS}`,
+                ]
+              : []),
             ...args,
           ],
           {
@@ -241,7 +284,7 @@ export async function withDeploymentSources<T>(
               ...gitEnvironment,
               ...extraEnvironment,
             },
-            timeout: 300,
+            timeout: stage === 'fetch' ? GIT_FETCH_SECONDS : GIT_STEP_SECONDS,
             maxOutputBytes: 1_048_576,
             silent: true,
           },
@@ -336,13 +379,32 @@ export async function withDeploymentSources<T>(
           'origin',
           remote,
         ]);
-        // Tags are required to resolve an older release image back to this
-        // exact commit; none of them is accepted as the requested source pin.
+        // The tags AT this commit resolve an older release image back to it;
+        // none of them is accepted as the requested source pin. Only those
+        // are fetched: `--tags` would bring every tagged commit's whole tree
+        // as well, twice the runtime's bytes, for tags nothing reads.
+        const tags = tagsAtRevision(
+          await execute(
+            directory,
+            kind,
+            'tags',
+            ['ls-remote', '--tags', 'origin'],
+            fetchEnvironment,
+          ),
+          revision,
+        );
         await execute(
           directory,
           kind,
           'fetch',
-          ['fetch', '--depth=1', '--tags', 'origin', revision],
+          [
+            'fetch',
+            '--depth=1',
+            '--no-tags',
+            'origin',
+            revision,
+            ...tags.map((tag) => `+${tag}:${tag}`),
+          ],
           fetchEnvironment,
         );
         await execute(directory, kind, 'checkout', [
