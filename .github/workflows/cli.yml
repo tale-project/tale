@@ -292,7 +292,9 @@ jobs:
           CROSS: ${{ matrix.cross }}
         run: |
           if [ "$CROSS" = true ]; then
-            bun install --frozen-lockfile --filter @tale/cli
+            # The raw device runtime the CLI embeds (scripts/generate-raw-runtime.ts)
+            # bundles the sandbox spawner and runnerd, so their dependencies too.
+            bun install --frozen-lockfile --filter @tale/cli --filter @tale/sandbox --filter @tale/sandbox-runtime-daemon
           else
             # Source tests/typecheck import platform modules outside the CLI's
             # dependency closure, so native legs retain the complete install.

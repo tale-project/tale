@@ -382,6 +382,15 @@ describe('CLI builds retain native execution coverage without duplicate host sui
     expect(install?.if).toBeUndefined();
     expect(install?.env?.CROSS).toBe('${{ matrix.cross }}');
     expect(install?.['working-directory']).toBe('tools/cli');
+    // A cross leg installs the CLI's closure and the workspaces the raw device
+    // runtime bundles (scripts/generate-raw-runtime.ts), whose imports the
+    // bundler resolves.
+    for (const workspace of [
+      '@tale/cli',
+      '@tale/sandbox',
+      '@tale/sandbox-runtime-daemon',
+    ])
+      expect(install?.run).toMatch(new RegExp(`--filter ${workspace}(\\s|$)`));
     expect(job.steps.indexOf(install!)).toBeLessThan(
       job.steps.findIndex((entry) => entry.name === 'Generate embedded files'),
     );
