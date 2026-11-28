@@ -29,6 +29,7 @@ import {
   parseStatus,
   versionsCompatible,
   type DeviceHello,
+  type DeviceLogin,
   type DevicePlatform,
   type DeviceResources,
   type DeviceSessionReport,
@@ -134,6 +135,8 @@ export interface DeviceSummary {
   resources: DeviceResources | null;
   platform: DevicePlatform | null;
   update: DeviceUpdateReport;
+  /** The harnesses the device holds its own sign-in for. */
+  logins: DeviceLogin[];
   /** New sessions the hub would place there now: its free slots, none while
    * it runs another release or sits out new creates (`placeCreate`). */
   freeSlots: number;
@@ -156,15 +159,37 @@ interface CreateRequirements {
   /** The harness its turns run (`claude-code`, …): a raw device that did not
    * find it is passed over. */
   harness?: string;
+  /** The harness whose sign-in on the device its turns run on (logins.ts):
+   * only a device holding one takes it, and never the server, which holds
+   * none. */
+  login?: string;
+  /** Devices whose sign-in for `login` reached its usage limit: passed over
+   * until the platform asks again. */
+  avoidDevices?: string[];
 }
+
+const HARNESS_SLUG = /^[a-z0-9][a-z0-9-]{0,47}$/;
 
 function readRequirements(value: unknown): CreateRequirements {
   if (value === null || typeof value !== 'object') return {};
   const harness: unknown = Reflect.get(value, 'harness');
-  return typeof harness === 'string' &&
-    /^[a-z0-9][a-z0-9-]{0,47}$/.test(harness)
-    ? { harness }
-    : {};
+  const login: unknown = Reflect.get(value, 'login');
+  const avoid: unknown = Reflect.get(value, 'avoidDevices');
+  const avoidDevices = Array.isArray(avoid)
+    ? avoid
+        .filter(
+          (id): id is string =>
+            typeof id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(id),
+        )
+        .slice(0, 64)
+    : [];
+  return {
+    ...(typeof harness === 'string' && HARNESS_SLUG.test(harness)
+      ? { harness }
+      : {}),
+    ...(typeof login === 'string' && HARNESS_SLUG.test(login) ? { login } : {}),
+    ...(avoidDevices.length > 0 ? { avoidDevices } : {}),
+  };
 }
 
 function readCreate(body: string): {
@@ -207,6 +232,16 @@ function currentPlatform(d: ConnectedDevice): DevicePlatform | null {
   return harnesses === undefined || platform.runtime !== 'raw'
     ? platform
     : { ...platform, harnesses };
+}
+
+/** The sign-ins the device reported last. */
+function currentLogins(d: ConnectedDevice): DeviceLogin[] {
+  return d.status?.logins ?? d.hello?.logins ?? [];
+}
+
+/** Whether a device holds a sign-in for a harness. */
+function holdsLogin(d: ConnectedDevice, harness: string): boolean {
+  return currentLogins(d).some((entry) => entry.harness === harness);
 }
 
 /** Whether a device can run a harness: a Docker device runs every one its
@@ -469,6 +504,7 @@ export class DeviceHub {
         },
         resources: d.status?.resources ?? null,
         platform: currentPlatform(d),
+        logins: currentLogins(d),
         update: d.status?.update ?? d.hello.update,
         freeSlots: this.placeableSlots(d),
       });
@@ -628,11 +664,15 @@ export class DeviceHub {
   ): Promise<Response | null> {
     if (create.placement !== 'device') return null;
     if (await this.opts.isLocalSession(create.sessionId)) return null;
+    const { login, avoidDevices } = create.requires;
     const eligible = (device: ConnectedDevice) =>
       this.devices.get(device.deviceId) === device &&
       device.organizationId === create.organizationId &&
       this.placeableSlots(device) > 0 &&
-      runsHarness(device, create.requires.harness);
+      runsHarness(device, create.requires.harness) &&
+      (login === undefined ||
+        (holdsLogin(device, login) &&
+          !(avoidDevices ?? []).includes(device.deviceId)));
     const candidates = [...this.devices.values()]
       .filter(eligible)
       .sort(
@@ -701,6 +741,18 @@ export class DeviceHub {
         await this.placements.delete(create.sessionId);
       }
       return res;
+    }
+    if (login !== undefined) {
+      // A turn on a device's sign-in cannot run on the server, which holds
+      // none: it waits for a device rather than falling back.
+      return jsonResponse(
+        {
+          error: 'device_login_unavailable',
+          message: `no connected device that holds a ${login} sign-in has room now`,
+        },
+        429,
+        { 'retry-after': '30' },
+      );
     }
     return null;
   }

@@ -283,3 +283,29 @@ only see their own instance. A device (instance `device`) on the same Docker
 daemon as a deployment never counts or reaps the deployment's sessions, and
 the reverse. Empty (the default) keeps the pre-existing unlabelled behaviour for a
 deployment's spawner.
+
+## Sign-ins
+
+A device can hold a harness's own sign-in, so the organization's runs on it work on that
+machine's subscription (`src/devices/logins.ts`). `tale sandbox login claude-code` stores the
+long-lived token `claude setup-token` prints in `<stateDir>/logins/claude-code.json`, readable by
+the device's account alone (root's on an isolated raw device, so no sandbox's account can read
+it); `tale sandbox logout` removes it, `tale sandbox logins` lists them. The token never leaves
+the machine:
+
+- The device reports which harnesses it holds a sign-in for, and since when, never the secret:
+  `logins` in its HELLO, and in a STATUS whenever they changed (they are read again for each).
+- A turn the platform serves on the organization's device sign-in (the provider credential
+  `device-login`) carries the sentinel `tale-device-login:<harness>` where the token goes. The
+  device swaps it for its own copy in the exec request as it passes through (`POST
+  /v1/sessions/:id/exec`), and only in the variable the harness reads its sign-in from
+  (`CLAUDE_CODE_OAUTH_TOKEN` for Claude Code). A sentinel anywhere else stays one, and on the
+  server, which holds no sign-in, the harness's authentication fails.
+- A create for such a turn names the sign-in (`requires: { login, avoidDevices }`): the hub
+  places it only on a device that holds that sign-in, and on none of `avoidDevices`, whose
+  sign-in is at its usage limit. With no such device it answers `429 device_login_unavailable`
+  rather than start the session on the server.
+
+The platform holds a sign-in that reached its usage limit until the limit resets, moves the run
+to another device's sign-in or waits for the reset (`TASK-R87` in
+`services/platform/backend/domains/tasks/spec.md`).
