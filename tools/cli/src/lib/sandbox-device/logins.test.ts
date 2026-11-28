@@ -18,7 +18,11 @@ afterEach(async () => {
 
 const TOKEN = `sk-ant-oat01-${'x'.repeat(40)}`;
 
-describe('device sign-ins', () => {
+// A sandbox device runs on Linux or macOS, and a sign-in is the owner's alone
+// by its POSIX modes.
+const describePosix = describe.skipIf(process.platform === 'win32');
+
+describePosix('device sign-ins', () => {
   test('are stored owner-only, in the shape the device reads', async () => {
     const home = await mkdtemp(join(tmpdir(), 'tale-cli-logins-'));
     dirs.push(home);
