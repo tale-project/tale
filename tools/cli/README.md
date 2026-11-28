@@ -198,9 +198,13 @@ Git acquisition failures identify the runtime or configuration source, the Git
 stage and its exit status when available. The fixed failure hint distinguishes
 disk space, name resolution, timeout and output-limit failures; `unknown` retains
 no unrecognized Git text. Hints narrow the investigation without proving a cause.
-Check the preparation runner at the reported stage before retrying. Each Git
-command has a five-minute deadline and a 1 MiB combined output limit; diagnostics
-omit repository URLs, local paths, credentials and raw Git output.
+Check the preparation runner at the reported stage before retrying. A source is
+fetched as one shallow commit plus only the tags that point at it (the `tags`
+stage lists them), never every tag's tree. The fetch has a 30-minute deadline for
+a runner on a slow uplink, and Git aborts a transfer that stays under 1 KiB/s for
+two minutes; every other Git command has a five-minute deadline. Each has a 1 MiB
+combined output limit; diagnostics omit repository URLs, local paths, credentials
+and raw Git output.
 
 ```bash
 tale deploy prepare --spec "$TALE_DEPLOY_SPEC" --output "$TALE_DEPLOY_BUNDLE" --json

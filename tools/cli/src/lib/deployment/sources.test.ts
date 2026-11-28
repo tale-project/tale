@@ -13,7 +13,11 @@ import { dirname, join } from 'node:path';
 
 import { operationalFailure } from '../../commands/operational-failure';
 import { CliError, ExitCode } from '../../utils/fail';
-import { TALE_REPOSITORY, withDeploymentSources } from './sources';
+import {
+  TALE_REPOSITORY,
+  tagsAtRevision,
+  withDeploymentSources,
+} from './sources';
 
 const roots: string[] = [];
 afterEach(() => {
@@ -91,7 +95,7 @@ for (const variant of ['LF', 'missing LF', 'CRLF', 'CRLF missing LF']) {
           run: async (command, args, options) => {
             expect(command).toBe('git');
             expect(options?.silent).toBe(true);
-            expect(options?.timeout).toBe(300);
+            expect(options?.timeout).toBe(args.includes('fetch') ? 1800 : 300);
             expect(options?.maxOutputBytes).toBe(1_048_576);
             expect(options?.env).not.toHaveProperty('TALE_SOURCE_SSH_KEY');
             expect(JSON.stringify(options?.env)).not.toContain(sourceKey);
@@ -180,7 +184,8 @@ async function sourceFailure({
       {
         run: async (_command, args) => {
           root = dirname(args[1]!);
-          if (!args.includes(stage)) return success(revision);
+          if (!args.includes(stage === 'tags' ? 'ls-remote' : stage))
+            return success(revision);
           failures++;
           if (thrown) throw thrown;
           return { success: false, stdout: '', stderr, exitCode };
@@ -225,7 +230,14 @@ test('source acquisition distinguishes disk and DNS failures without exposing st
 });
 
 for (const request of [runtime, client]) {
-  for (const stage of ['init', 'remote', 'fetch', 'checkout', 'rev-parse']) {
+  for (const stage of [
+    'init',
+    'remote',
+    'tags',
+    'fetch',
+    'checkout',
+    'rev-parse',
+  ]) {
     test(`source acquisition identifies ${request === runtime ? 'runtime' : 'configuration'} ${stage} failures`, async () => {
       const error = await sourceFailure({
         request,
@@ -312,7 +324,7 @@ test('a Forgejo configuration source is fetched over HTTPS with the token in git
       expect(args.at(-1)).toBe(
         isForgejo ? forgejo.repository : TALE_REPOSITORY,
       );
-    if (isForgejo && args.includes('fetch')) {
+    if (isForgejo && (args.includes('fetch') || args.includes('ls-remote'))) {
       tokenFetches++;
       expect(env).toMatchObject({
         GIT_CONFIG_COUNT: '3',
@@ -330,7 +342,8 @@ test('a Forgejo configuration source is fetched over HTTPS with the token in git
       expect(env).not.toHaveProperty('GIT_CONFIG_COUNT');
     }
   }
-  expect(tokenFetches).toBe(1);
+  // The tag listing and the fetch: both read the private repository.
+  expect(tokenFetches).toBe(2);
 });
 
 testPosix('git reads the token header for the allowed host only', () => {
@@ -488,7 +501,8 @@ test('a GitHub source keeps the SSH path and never receives the Forgejo token', 
     },
     async () => undefined,
   );
-  expect(sshFetches).toBe(1);
+  // The tag listing and the fetch, both over the client key.
+  expect(sshFetches).toBe(2);
 });
 
 test('a refused Forgejo read says the token cannot read, never the token, URL or server text', async () => {
@@ -546,4 +560,88 @@ test('a supplied Forgejo checkout needs no token and runs no fetch', async () =>
     },
   );
   expect(calls.map((args) => args.at(-2))).toEqual(['rev-parse']);
+});
+
+test('only the tags at the pinned revision are fetched, never every tag', async () => {
+  const other = 'c'.repeat(40);
+  const annotated = 'd'.repeat(40);
+  const listing = [
+    `${annotated}\trefs/tags/v0.5.74`,
+    `${revision}\trefs/tags/v0.5.74^{}`,
+    `${revision}\trefs/tags/marketing-ui-v0.5.74`,
+    `${other}\trefs/tags/v0.5.75`,
+    `${other}\trefs/tags/v0.5.75^{}`,
+  ].join('\n');
+  const fetches: string[][] = [];
+  const listings: string[][] = [];
+  await withDeploymentSources(
+    [runtime],
+    {
+      run: async (_command, args, options) => {
+        if (args.includes('ls-remote')) {
+          listings.push(args);
+          expect(options?.timeout).toBe(300);
+          return success(listing);
+        }
+        if (args.includes('fetch')) {
+          fetches.push(args);
+          expect(options?.timeout).toBe(1800);
+        }
+        return success(args.includes('rev-parse') ? revision : '');
+      },
+    },
+    async () => {},
+  );
+  expect(listings).toHaveLength(1);
+  expect(listings[0]!.slice(-3)).toEqual(['ls-remote', '--tags', 'origin']);
+  expect(fetches).toHaveLength(1);
+  const fetch = fetches[0]!;
+  expect(fetch).not.toContain('--tags');
+  expect(fetch.slice(fetch.indexOf('fetch'))).toEqual([
+    'fetch',
+    '--depth=1',
+    '--no-tags',
+    'origin',
+    revision,
+    '+refs/tags/marketing-ui-v0.5.74:refs/tags/marketing-ui-v0.5.74',
+    '+refs/tags/v0.5.74:refs/tags/v0.5.74',
+  ]);
+  // A stalled transfer aborts by Git's own low-speed limit, long before the
+  // transfer's deadline.
+  for (const args of [...listings, ...fetches]) {
+    expect(args).toContain('http.lowSpeedLimit=1024');
+    expect(args).toContain('http.lowSpeedTime=120');
+  }
+});
+
+test('a tag listing names no refspec Git would read as an option, pattern or range', () => {
+  const at = (reference: string) =>
+    tagsAtRevision(`${revision}\t${reference}`, revision);
+  expect(at('refs/tags/v0.5.74')).toEqual(['refs/tags/v0.5.74']);
+  expect(at('refs/tags/release/v1')).toEqual(['refs/tags/release/v1']);
+  for (const refused of [
+    'refs/tags/-x',
+    'refs/tags/a..b',
+    'refs/tags/a*',
+    'refs/tags/a:b',
+    'refs/tags/a b',
+    'refs/tags/a//b',
+    'refs/tags/a.',
+    'refs/tags/',
+    'refs/heads/main',
+    'HEAD',
+  ])
+    expect(at(refused)).toEqual([]);
+  // A line for another commit, or one with extra fields, names nothing.
+  expect(tagsAtRevision(`${'c'.repeat(40)}\trefs/tags/v1`, revision)).toEqual(
+    [],
+  );
+  expect(tagsAtRevision(`${revision}\trefs/tags/v1\textra`, revision)).toEqual(
+    [],
+  );
+  const many = Array.from(
+    { length: 100 },
+    (_, index) => `${revision}\trefs/tags/t${String(index).padStart(3, '0')}`,
+  ).join('\n');
+  expect(tagsAtRevision(many, revision)).toHaveLength(64);
 });
