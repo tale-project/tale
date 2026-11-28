@@ -2,7 +2,7 @@
  * fetches from them over HTTPS with `TALE_SOURCE_TOKEN`; GitHub sources keep
  * their SSH path. Extend this list deliberately: a host here receives the
  * source token. */
-export const FORGEJO_SOURCE_HOSTS: readonly string[] = ['git.tale.dev'];
+const FORGEJO_SOURCE_HOSTS: readonly string[] = ['git.tale.dev'];
 
 export type SourceRepository =
   | { forge: 'github'; owner: string; name: string }
