@@ -1,7 +1,11 @@
 import { randomBytes } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { chmod, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
+
+import type { SlotAccount } from './raw/accounts';
+import type { RawServiceKind } from './raw/service';
 
 /**
  * A sandbox device's configuration — what `tale sandbox connect` writes and
@@ -20,6 +24,28 @@ import { join, resolve } from 'node:path';
 export interface SandboxDeviceRelay {
   name: 'api' | 'gateway';
   url: string;
+}
+
+/** How the device runs its sessions: in Docker containers, or directly on
+ * this machine with no container (raw; services/sandbox/docs/raw.md). */
+export type SandboxDeviceRuntime = 'docker' | 'raw';
+
+/** A raw device's own settings. */
+export interface SandboxDeviceRaw {
+  /** `isolated`: each session runs as one of `slots` (the device runs as
+   * root); `shared`: every session runs as the account that connected it. */
+  isolation: 'isolated' | 'shared';
+  /** Where the sessions, their records and the runtime live. */
+  root: string;
+  slots: SlotAccount[];
+  /** Whether `connect` made the slot accounts (and `disconnect` removes
+   * them); false when the machine's manager made them (`--slot`). */
+  madeSlots: boolean;
+  /** Where the harnesses are installed, before the system's PATH. */
+  path: string[];
+  /** The `tale` binary the device runs from. */
+  binary: string;
+  service: RawServiceKind;
 }
 
 export interface SandboxDeviceConfig {
@@ -44,12 +70,41 @@ export interface SandboxDeviceConfig {
    * `serverUrl` (a development server the containers reach through
    * `host.docker.internal`). Ignored by the device's containers. */
   cliServerUrl?: string;
+  /** Absent: `docker`, as every device was before raw devices. */
+  runtime?: SandboxDeviceRuntime;
+  /** Present exactly when `runtime` is `raw`. */
+  raw?: SandboxDeviceRaw;
 }
 
-/** Where the device lives: `$TALE_SANDBOX_HOME`, else `~/.tale/sandbox`. */
+/** The device's runtime. */
+export function deviceRuntime(
+  config: SandboxDeviceConfig,
+): SandboxDeviceRuntime {
+  return config.runtime === 'raw' ? 'raw' : 'docker';
+}
+
+/** Where an isolated raw device lives unless `--root` said otherwise: a
+ * system directory, since it runs as root for every slot account. */
+export function defaultIsolatedRoot(
+  os: NodeJS.Platform = process.platform,
+): string {
+  return os === 'darwin'
+    ? '/usr/local/var/tale-sandbox'
+    : '/var/lib/tale-sandbox';
+}
+
+/** Where the device lives: `$TALE_SANDBOX_HOME`, else `~/.tale/sandbox` —
+ * or, for root where that holds no device, an isolated raw device's system
+ * directory when one is connected there. */
 export function sandboxDeviceHome(): string {
   const override = process.env.TALE_SANDBOX_HOME?.trim();
-  return resolve(override || join(homedir(), '.tale', 'sandbox'));
+  if (override) return resolve(override);
+  const own = resolve(join(homedir(), '.tale', 'sandbox'));
+  if (process.getuid?.() === 0 && !existsSync(join(own, 'device.json'))) {
+    const system = defaultIsolatedRoot();
+    if (existsSync(join(system, 'device.json'))) return system;
+  }
+  return own;
 }
 
 export function sandboxDeviceConfigPath(home = sandboxDeviceHome()): string {
@@ -104,8 +159,26 @@ export async function readSandboxDeviceConfig(
       `${path} is not a sandbox device config this CLI understands`,
     );
   }
+  if (parsed.runtime === 'raw' && !isRawSettings(parsed.raw)) {
+    throw new SandboxDeviceConfigError(
+      `${path} is a raw device's config without its raw settings`,
+    );
+  }
   // Checked field by field above; the rest is the image's to validate.
   return parsed as unknown as SandboxDeviceConfig;
+}
+
+function isRawSettings(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  return (
+    (value.isolation === 'isolated' || value.isolation === 'shared') &&
+    typeof value.root === 'string' &&
+    value.root.startsWith('/') &&
+    Array.isArray(value.slots) &&
+    Array.isArray(value.path) &&
+    typeof value.binary === 'string' &&
+    typeof value.service === 'string'
+  );
 }
 
 /** Write the config owner-only, atomically (a half-written secret file
@@ -114,8 +187,12 @@ export async function writeSandboxDeviceConfig(
   config: SandboxDeviceConfig,
   path = sandboxDeviceConfigPath(config.stateDir),
 ): Promise<void> {
-  await mkdir(config.stateDir, { recursive: true, mode: 0o700 });
-  await chmod(config.stateDir, 0o700);
+  // An isolated raw device's slot accounts traverse its directory to their
+  // sessions and its runtime; nobody else lists it, and the config itself
+  // stays the owner's alone (0600).
+  const mode = config.raw?.isolation === 'isolated' ? 0o711 : 0o700;
+  await mkdir(config.stateDir, { recursive: true, mode });
+  await chmod(config.stateDir, mode);
   const tmp = `${path}.${process.pid}.tmp`;
   await writeFile(tmp, `${JSON.stringify(config, null, 2)}\n`, {
     mode: 0o600,

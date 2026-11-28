@@ -1,4 +1,4 @@
-import { rm } from 'node:fs/promises';
+import { mkdir, rm } from 'node:fs/promises';
 import { hostname as osHostname } from 'node:os';
 
 import {
@@ -20,6 +20,7 @@ import {
   buildSandboxDeviceConfig,
   cliServerUrl,
   defaultMaxSessions,
+  deviceRuntime,
   isReleaseVersion,
   readSandboxDeviceConfig,
   sandboxDeviceConfigPath,
@@ -27,6 +28,21 @@ import {
   type SandboxDeviceConfig,
   writeSandboxDeviceConfig,
 } from '../sandbox-device/config';
+import {
+  assertCompiledCli,
+  finishRawConnect,
+  planRawDevice,
+  rawJoinPlatform,
+  rawLogs,
+  rawMaxSessions,
+  rawStatus,
+  removeRawDevice,
+  settleBinary,
+  settleSlots,
+  updateRawDevice,
+  type RawConnectOptions,
+} from '../sandbox-device/raw/device';
+import { realHost, type RawHost } from '../sandbox-device/raw/host';
 import {
   describeSandboxDevice,
   deviceWasRemoved,
@@ -76,6 +92,8 @@ export interface SandboxDeviceDeps extends StackDeps {
   json: () => boolean;
   /** Refuse when the workspace this runs in declares Incus (design D-35). */
   assertDockerWorkspace: () => Promise<void>;
+  /** The machine a raw device runs on (raw/host.ts). */
+  rawHost: RawHost;
 }
 
 const defaultSandboxDeviceDeps: SandboxDeviceDeps = {
@@ -97,6 +115,7 @@ const defaultSandboxDeviceDeps: SandboxDeviceDeps = {
   json: () => getOutputMode().json,
   assertDockerWorkspace: () =>
     assertDockerLoop(findProject(), 'a sandbox device'),
+  rawHost: realHost,
 };
 
 const CONNECT_TIMEOUT_MS = 120_000;
@@ -167,6 +186,10 @@ function serverFailure(err: unknown, what: string): CliError {
 export interface ConnectOptions {
   url: string;
   token: string;
+  /** `raw`: the sessions run directly on this machine, with no container
+   * (services/sandbox/docs/raw.md). */
+  runtime?: 'docker' | 'raw';
+  raw?: RawConnectOptions;
   name?: string;
   maxSessions?: number;
   autoUpdate: boolean;
@@ -199,6 +222,10 @@ export async function connectSandboxDevice(
       'That is not a device connect token (it starts with tsdj_).',
       'Copy the command from Settings → Sandboxes → Add device.',
     );
+  }
+  if (options.runtime === 'raw') {
+    await connectRawSandboxDevice(url, options, deps);
+    return;
   }
   // Before the one-time join token is spent.
   await deps.assertDockerWorkspace();
@@ -311,6 +338,18 @@ export async function connectSandboxDevice(
     });
   }
 
+  await waitForDevice(serverUrl, config, name, maxSessions, deps, 'docker');
+}
+
+/** Wait until the device the server let join has dialled its hub. */
+async function waitForDevice(
+  serverUrl: string,
+  config: SandboxDeviceConfig,
+  name: string,
+  maxSessions: number,
+  deps: SandboxDeviceDeps,
+  runtime: 'docker' | 'raw',
+): Promise<void> {
   logger.step('Waiting for the device to reach the server…');
   const deadline = Date.now() + CONNECT_TIMEOUT_MS;
   let self: SandboxDeviceSelf | null = null;
@@ -337,9 +376,95 @@ export async function connectSandboxDevice(
     return;
   }
   logger.success(
-    `"${name}" is connected${self.organizationName ? ` to ${self.organizationName}` : ''}. It runs up to ${maxSessions} sandbox${maxSessions === 1 ? '' : 'es'} at a time, keeps running after restarts and updates itself when Tale is updated.`,
+    `"${name}" is connected${self.organizationName ? ` to ${self.organizationName}` : ''}. It runs up to ${maxSessions} sandbox${maxSessions === 1 ? '' : 'es'} at a time${runtime === 'raw' ? ' directly on this machine' : ''}, keeps running after restarts${config.autoUpdate ? ' and updates itself when Tale is updated' : ''}.`,
   );
   logger.info('Check it any time: tale sandbox status');
+}
+
+/**
+ * `connect --runtime raw`: a device whose sessions run directly on this
+ * machine. Settles everything that can fail before it spends the join token
+ * (isolation, directory, slot accounts, the binary), joins, writes the
+ * config and starts the device's service — or, with `--no-service`, leaves
+ * running `tale sandbox device run` to whoever manages the machine.
+ */
+async function connectRawSandboxDevice(
+  url: URL,
+  options: ConnectOptions,
+  deps: SandboxDeviceDeps,
+): Promise<void> {
+  const host = deps.rawHost;
+  if (host.os() !== 'linux' && host.os() !== 'darwin') {
+    throw preconditionError(
+      `Sandbox devices run on Linux and macOS; this machine runs ${host.os()}.`,
+    );
+  }
+  assertCompiledCli();
+  const rawOptions: RawConnectOptions = options.raw ?? { service: true };
+  const plan = planRawDevice(rawOptions, host, deps.home());
+  const existing = await readSandboxDeviceConfig(
+    sandboxDeviceConfigPath(plan.root),
+  );
+  if (existing !== null) {
+    throw preconditionError(
+      `This machine is already connected as "${existing.name}" to ${cliServerUrl(existing)}.`,
+      ['tale sandbox status', 'tale sandbox disconnect   # then connect again'],
+    );
+  }
+  const requested = rawMaxSessions(
+    options.maxSessions,
+    plan,
+    rawOptions.slots?.length ?? null,
+  );
+  await mkdir(plan.root, {
+    recursive: true,
+    mode: plan.isolation === 'isolated' ? 0o711 : 0o700,
+  });
+  const slots = await settleSlots(rawOptions, plan, requested, host);
+  const maxSessions =
+    plan.isolation === 'isolated'
+      ? Math.min(requested, slots.slots.length)
+      : requested;
+  const binary = await settleBinary(rawOptions, plan.root, host);
+  const name = deviceNameFrom(options.name ?? deps.hostname());
+  const serverUrl = url.toString().replace(/\/+$/, '');
+  logger.step(
+    `Connecting this machine to ${serverUrl} as "${name}" — its sandboxes run directly on it (${plan.isolation})…`,
+  );
+  let joined;
+  try {
+    joined = await joinSandboxDevice(
+      serverUrl,
+      {
+        token: options.token,
+        name,
+        maxSessions,
+        platform: rawJoinPlatform(plan, host),
+      },
+      deps.fetch,
+    );
+  } catch (err) {
+    throw serverFailure(err, 'Could not connect this machine');
+  }
+  const config = await finishRawConnect(
+    joined,
+    plan,
+    { ...slots, binary },
+    {
+      maxSessions,
+      autoUpdate: options.autoUpdate,
+      cliServerUrl: serverUrl,
+      hostname: deps.hostname(),
+    },
+    host,
+  );
+  if (plan.service === 'none') {
+    logger.success(
+      `"${name}" joined. Run its service with: ${binary} sandbox device run --config ${sandboxDeviceConfigPath(plan.root)}`,
+    );
+    return;
+  }
+  await waitForDevice(serverUrl, config, name, maxSessions, deps, 'raw');
 }
 
 export interface SandboxDeviceStatusReport {
@@ -363,6 +488,10 @@ export interface SandboxDeviceStatusReport {
     targetVersion: string | null;
     error: string | null;
   } | null;
+  /** `raw`: the device runs its sandboxes on this machine. */
+  runtime?: 'docker' | 'raw';
+  isolation?: 'isolated' | 'shared' | null;
+  service?: { kind: string; running: boolean | null };
 }
 
 function containerLabel(
@@ -391,6 +520,9 @@ export async function sandboxDeviceStatus(
       );
     }
     return report;
+  }
+  if (deviceRuntime(config) === 'raw') {
+    return await rawSandboxDeviceStatus(config, deps);
   }
   const [stack, appliedVersion, update] = await Promise.all([
     readStackState(deps),
@@ -471,18 +603,146 @@ export async function sandboxDeviceStatus(
   return report;
 }
 
+/** `tale sandbox status` of a raw device: its service and sessions here,
+ * and the server's view. */
+async function rawSandboxDeviceStatus(
+  config: SandboxDeviceConfig,
+  deps: SandboxDeviceDeps,
+): Promise<SandboxDeviceStatusReport> {
+  const local = await rawStatus(config, deps.rawHost);
+  let self: SandboxDeviceSelf | null = null;
+  let serverReachable = true;
+  let removed = false;
+  try {
+    self = await describeSandboxDevice(
+      cliServerUrl(config),
+      config.deviceSecret,
+      deps.fetch,
+    );
+  } catch (err) {
+    if (deviceWasRemoved(err)) removed = true;
+    else {
+      serverReachable = false;
+      logger.debug(
+        `server status unavailable: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+  const raw = config.raw;
+  const report: SandboxDeviceStatusReport = {
+    connected: self?.connected === true,
+    configured: true,
+    name: config.name,
+    server: cliServerUrl(config),
+    organization: self?.organizationName ?? null,
+    serverReachable,
+    removedFromOrganization: removed,
+    appliedVersion: null,
+    serverVersion: self?.serverVersion ?? null,
+    runningSandboxes: local.sessions,
+    maxSessions: config.maxSessions,
+    update: local.update,
+    runtime: 'raw',
+    isolation: raw?.isolation ?? null,
+    service: {
+      kind: local.service,
+      running: local.running,
+    },
+  };
+  if (deps.json()) {
+    emitJson('sandbox status', report);
+    return report;
+  }
+  logger.header(`Sandbox device "${config.name}"`);
+  logger.table([
+    ['Server', report.server ?? ''],
+    ['Organization', report.organization ?? '—'],
+    [
+      'Connection',
+      removed
+        ? 'removed from its organization'
+        : !serverReachable
+          ? 'server unreachable'
+          : report.connected
+            ? 'connected'
+            : 'not connected',
+    ],
+    [
+      'Runs sandboxes',
+      raw?.isolation === 'isolated'
+        ? `on this machine, each as its own account (${raw.slots.length} slots)`
+        : 'on this machine, as this account',
+    ],
+    ['Directory', raw?.root ?? config.stateDir],
+    ['Server release', report.serverVersion ?? '—'],
+    ['Sandboxes running', `${local.sessions} of up to ${config.maxSessions}`],
+    [
+      'Service',
+      local.service === 'none'
+        ? 'run by whoever manages this machine'
+        : local.running === true
+          ? 'running'
+          : local.running === false
+            ? 'not running'
+            : 'unknown',
+    ],
+  ]);
+  if (local.update?.state === 'failed') {
+    logger.warn(
+      `The last automatic update (to ${local.update.targetVersion ?? '?'}) failed: ${local.update.error ?? 'unknown error'}. Run: ${raw?.binary ?? 'tale'} sandbox update`,
+    );
+  }
+  if (removed) {
+    logger.warn(
+      'The organization removed this device. Run tale sandbox disconnect to clean up this machine.',
+    );
+  }
+  return report;
+}
+
 export async function updateSandboxDevice(
-  options: { imageTag?: string },
+  options: {
+    imageTag?: string;
+    /** A raw device: the release to move to (the device names its hub's). */
+    to?: string;
+    /** The device itself asked (raw): record the outcome for it. */
+    fromDevice?: boolean;
+    /** The device's config, where it is not in the device home. */
+    configPath?: string;
+  },
   deps: SandboxDeviceDeps = defaultSandboxDeviceDeps,
 ): Promise<void> {
-  await deps.assertDockerWorkspace();
-  const path = sandboxDeviceConfigPath(deps.home());
+  const path = options.configPath ?? sandboxDeviceConfigPath(deps.home());
   const config = await readSandboxDeviceConfig(path);
   if (config === null) {
     throw preconditionError('This machine is not connected to Tale.', [
       'tale sandbox connect <site> --token <token>',
     ]);
   }
+  if (deviceRuntime(config) === 'raw') {
+    let version = options.to;
+    if (version === undefined) {
+      try {
+        version = (
+          await describeSandboxDevice(
+            cliServerUrl(config),
+            config.deviceSecret,
+            deps.fetch,
+          )
+        ).serverVersion;
+      } catch (err) {
+        throw serverFailure(err, 'Could not ask the server for its release');
+      }
+    }
+    await updateRawDevice(
+      config,
+      version,
+      { fromDevice: options.fromDevice === true },
+      deps.rawHost,
+    );
+    return;
+  }
+  await deps.assertDockerWorkspace();
   let self: SandboxDeviceSelf | null = null;
   try {
     self = await describeSandboxDevice(
@@ -547,9 +807,10 @@ export async function disconnectSandboxDevice(
       return;
     }
   }
+  const raw = deviceRuntime(config) === 'raw';
   // Nothing changes unless the device's containers can go too: they restart
   // with Docker, and without their config they would be stranded.
-  if (!(await dockerReachable(deps))) {
+  if (!raw && !(await dockerReachable(deps))) {
     throw preconditionError(
       'Docker is not running, so the sandbox device cannot be stopped. Nothing changed.',
       ['Start Docker, then run `tale sandbox disconnect` again.'],
@@ -570,6 +831,16 @@ export async function disconnectSandboxDevice(
         `Could not reach the server (${err instanceof Error ? err.message : String(err)}). An admin can remove "${config.name}" in Settings → Sandboxes → Devices.`,
       );
     }
+  }
+  if (raw) {
+    await removeRawDevice(config, { keepData: options.keepData }, deps.rawHost);
+    logger.success('Stopped the sandbox device and every sandbox it ran.');
+    logger.info(
+      options.keepData
+        ? `Workspaces kept in ${config.raw?.root ?? config.stateDir}/sessions.`
+        : `Removed ${config.raw?.root ?? config.stateDir}.`,
+    );
+    return;
   }
   const { containers } = await removeDeviceStack(
     config,
@@ -598,7 +869,10 @@ export async function sandboxDeviceLogs(
   if (config === null) {
     throw preconditionError('This machine is not connected to Tale.');
   }
-  const code = await showDeviceLogs(options, deps);
+  const code =
+    deviceRuntime(config) === 'raw'
+      ? await rawLogs(config, options)
+      : await showDeviceLogs(options, deps);
   if (code !== 0) {
     throw preconditionError(
       'The device container is not there.',

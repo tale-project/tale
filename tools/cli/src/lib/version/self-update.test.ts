@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { type ReleaseInfo, selectRelease } from './self-update';
+import { listedChecksum, type ReleaseInfo, selectRelease } from './self-update';
 
 const ASSET = 'tale_linux';
 
@@ -96,5 +96,14 @@ describe('selectRelease', () => {
       '0.3.10',
     );
     expect(best?.version).toBe('0.3.11');
+  });
+});
+
+describe('listedChecksum', () => {
+  test('reads the SHA-256 a release lists for one binary', () => {
+    const sums = `${'a'.repeat(64)}  tale_linux\n${'b'.repeat(64)} *tale_macos\n`;
+    expect(listedChecksum(sums, 'tale_linux')).toBe('a'.repeat(64));
+    expect(listedChecksum(sums, 'tale_macos')).toBe('b'.repeat(64));
+    expect(listedChecksum(sums, 'tale_windows.exe')).toBeNull();
   });
 });

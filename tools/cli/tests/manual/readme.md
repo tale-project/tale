@@ -39,6 +39,7 @@ prefix may shadow another.
 | Suite | Prefix | What it is | Resets | Rough cost |
 |---|---|---|---|---|
 | [incus-runtime](suites/incus-runtime.md) | `INC-` | a deployment on Incus instead of Docker Compose, on real hosts: bootstrap, certificates, reboot, migration between two hosts, `status` and `logs`, stopping before maintenance | a fresh host, where a group says so | per group |
+| [raw-devices](suites/raw-devices.md) | `RAW-` | a machine connected as a sandbox device that runs its sandboxes directly on itself: isolated on Linux, shared on macOS, slot accounts, cleanup, restart and update | `tale sandbox disconnect` between groups | 60 min |
 
 ## How a round runs
 
@@ -72,6 +73,7 @@ Change-scoped, by area:
 | What changed | Run |
 |---|---|
 | the Incus runtime: bootstrap, deploy, certificates, status, logs, stop and start, snapshots, migration | [incus-runtime](suites/incus-runtime.md) · [`automation.md`](reference/automation.md) first |
+| a raw sandbox device: connect, isolation, cleanup, restart, update | [raw-devices](suites/raw-devices.md) · [`automation.md`](reference/automation.md) first |
 
 ## How a box works
 

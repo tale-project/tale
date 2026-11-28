@@ -12,6 +12,7 @@ import {
   sandboxDeviceConfigPath,
   writeSandboxDeviceConfig,
 } from '../sandbox-device/config';
+import type { RawHost } from '../sandbox-device/raw/host';
 import {
   connectSandboxDevice,
   deviceNameFrom,
@@ -22,6 +23,20 @@ import {
 } from './sandbox-device';
 
 const dirs: string[] = [];
+
+/** A machine nobody may change: a Docker device's flows never ask it. */
+function fakeRawHost(): RawHost {
+  return {
+    run: () => Promise.reject(new Error('a Docker device ran a host program')),
+    isRoot: () => false,
+    uid: () => 1000,
+    os: () => 'linux',
+    home: () => '/home/tester',
+    user: () => 'tester',
+    execPath: () => '/usr/local/bin/tale',
+  };
+}
+
 afterEach(async () => {
   for (const d of dirs.splice(0)) await rm(d, { recursive: true, force: true });
 });
@@ -126,6 +141,7 @@ async function makeDeps(
     assumeYes: () => false,
     json: () => false,
     assertDockerWorkspace: async () => {},
+    rawHost: fakeRawHost(),
     ...overrides,
   };
   return { deps, home, rec };

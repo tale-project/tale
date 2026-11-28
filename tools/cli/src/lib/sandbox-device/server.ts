@@ -105,6 +105,9 @@ export async function joinSandboxDevice(
       cpus: number | null;
       memoryBytes: number | null;
       dockerVersion: string | null;
+      /** A raw device says so at its join; a Docker device names none. */
+      runtime?: 'docker' | 'raw';
+      isolation?: 'isolated' | 'shared';
     };
   },
   fetchImpl: FetchLike = fetch,

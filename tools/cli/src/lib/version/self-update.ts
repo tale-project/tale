@@ -428,6 +428,52 @@ async function downloadBinary(
   }
 }
 
+/** The release's checksum file for its binaries. */
+const CHECKSUMS_ASSET = 'tale_checksums.txt';
+
+/** The SHA-256 a checksum file (`<hex>  <name>` lines) lists for `asset`. */
+export function listedChecksum(
+  checksums: string,
+  asset: string,
+): string | null {
+  for (const line of checksums.split('\n')) {
+    const match = /^([0-9a-f]{64})\s+\*?(\S+)\s*$/.exec(line.trim());
+    if (match !== null && match[2] === asset) return match[1] ?? null;
+  }
+  return null;
+}
+
+/** Refuse a downloaded binary whose SHA-256 is not the one its release
+ * lists. */
+async function verifyChecksum(
+  tag: string,
+  asset: string,
+  binaryPath: string,
+): Promise<void> {
+  const url = `https://github.com/${GITHUB_REPO}/releases/download/${tag}/${CHECKSUMS_ASSET}`;
+  const response = await fetch(url, {
+    headers: getAuthHeaders(),
+    signal: AbortSignal.timeout(60_000),
+  });
+  if (!response.ok) {
+    throw new Error(
+      `Failed to download ${CHECKSUMS_ASSET} of ${tag}: server returned ${response.status}.`,
+    );
+  }
+  const expected = listedChecksum(await response.text(), asset);
+  if (expected === null) {
+    throw new Error(`${CHECKSUMS_ASSET} of ${tag} lists no ${asset}.`);
+  }
+  const hasher = new Bun.CryptoHasher('sha256');
+  hasher.update(await Bun.file(binaryPath).arrayBuffer());
+  const actual = hasher.digest('hex');
+  if (actual !== expected) {
+    throw new Error(
+      `The downloaded ${asset} is not the one ${tag} lists (sha256 ${actual}, expected ${expected}).`,
+    );
+  }
+}
+
 async function verifyBinary(binaryPath: string, expectedVersion: string) {
   const result = Bun.spawnSync([binaryPath, '--version'], {
     stdout: 'pipe',
@@ -572,6 +618,12 @@ function replaceBinaryWindows(tmpPath: string, installPath: string): string {
  */
 export async function installBinary(
   release: ReleaseInfo,
+  options: {
+    /** Refuse a binary the release's `tale_checksums.txt` does not list with
+     * this SHA-256, before it is ever run (`--version`): what a raw sandbox
+     * device's own update asks, since it may run as root. */
+    requireChecksum?: boolean;
+  } = {},
 ): Promise<InstallHandle> {
   const asset = getAssetName();
   const installPath = getBinaryPath();
@@ -579,6 +631,9 @@ export async function installBinary(
 
   try {
     await downloadBinary(release.tag, asset, tmpPath);
+    if (options.requireChecksum === true) {
+      await verifyChecksum(release.tag, asset, tmpPath);
+    }
     await verifyBinary(tmpPath, release.version);
   } catch (err) {
     await unlink(tmpPath).catch((e: unknown) => {

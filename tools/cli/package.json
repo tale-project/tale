@@ -3,7 +3,7 @@
   "version": "1.0.0-dev",
   "type": "module",
   "scripts": {
-    "generate": "bun run scripts/generate-embedded.ts",
+    "generate": "bun run scripts/generate-embedded.ts && bun run scripts/generate-raw-runtime.ts",
     "setup": "bun run generate",
     "build": "bun run generate && bun run build:backend-local && bun run build:linux && bun run build:mac && bun run check:bundle",
     "build:backend-local": "bun build --bundle --target=bun --outfile=dist/tale.mjs src/index.ts",
