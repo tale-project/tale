@@ -389,7 +389,7 @@ export async function claimAgentWorker(
 
 /** How often a run on a device's sign-in looks again for a device with
  * room while none has. */
-export const DEVICE_LOGIN_RECHECK_MS = 60_000;
+const DEVICE_LOGIN_RECHECK_MS = 60_000;
 
 /** When the provider's default pasted subscription token (`subscription-key`)
  * comes back from its usage limit, epoch ms; null when it is not held. */

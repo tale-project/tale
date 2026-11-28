@@ -104,20 +104,6 @@ export async function readUsageLimitHolds(
   return new Map(rows.map((row) => [row.deviceId, row]));
 }
 
-/** Every hold of the organization that still stands, for the device list. */
-export async function listUsageLimitHolds(
-  sql: Sql | TransactionSql,
-  args: { organizationId: string; now?: number },
-): Promise<Array<UsageLimitHold & { credentialId: string }>> {
-  const now = args.now ?? Date.now();
-  return await sql<Array<UsageLimitHold & { credentialId: string }>>`
-    SELECT credential_id AS "credentialId", device_id AS "deviceId",
-           held_until_ms::float8 AS "heldUntilMs", reset_known AS "resetKnown"
-    FROM app.usage_limit_holds
-    WHERE org_id = ${args.organizationId} AND held_until_ms > ${now}
-  `;
-}
-
 /**
  * Which sign-in a run's usage limit holds (TASK-R87): the provider's default
  * credential the run served on — a device's own sign-in (`device-login`), on
