@@ -55,11 +55,21 @@ const WRAPPERS = [
 type Wrapper = (typeof WRAPPERS)[number];
 
 // Records what the exec's process sees (Pi's: the config dir the wrapper
-// staged, and its mcp.json), then waits to be signalled (as the same process:
-// no fork for a group signal to race) or exits with the status it is given.
+// staged, its mcp.json, its argv and the file its system-prompt append
+// names), then waits to be signalled (as the same process: no fork for a
+// group signal to race) or exits with the status it is given.
 const FAKE_CLI = `#!/bin/sh
 echo "$$" > "$FAKE_RECORD.pid"
 pwd > "$FAKE_RECORD.cwd"
+printf '%s\\n' "$@" > "$FAKE_RECORD.argv"
+prev=""
+for arg in "$@"; do
+  if [ "$prev" = "--append-system-prompt" ]; then
+    printf '%s' "$arg" > "$FAKE_RECORD.appendpath"
+    if [ -f "$arg" ]; then cp "$arg" "$FAKE_RECORD.append"; fi
+  fi
+  prev="$arg"
+done
 cat > "$FAKE_RECORD.stdin"
 if [ -n "$PI_CODING_AGENT_DIR" ]; then
   ls "$PI_CODING_AGENT_DIR" > "$FAKE_RECORD.agentdir"
@@ -158,7 +168,15 @@ async function startedCli(run: string): Promise<void> {
 
 function record(
   run: string,
-  what: 'pid' | 'cwd' | 'stdin' | 'agentdir' | 'mcp',
+  what:
+    | 'pid'
+    | 'cwd'
+    | 'stdin'
+    | 'agentdir'
+    | 'mcp'
+    | 'argv'
+    | 'appendpath'
+    | 'append',
 ): string {
   return readFileSync(join(root, 'records', `${run}.${what}`), 'utf8');
 }
@@ -304,6 +322,92 @@ describe('tale-pi-run stages the MCP servers Pi reads', () => {
       });
       expect((await run.exited).code).toBe(0);
       expect(record('a', 'agentdir').split('\n')).not.toContain('mcp.json');
+    },
+    20_000,
+  );
+});
+
+describe("tale-pi-run hands Pi the platform's instructions", () => {
+  const pi = WRAPPERS[1];
+  const INSTRUCTIONS = '# Tale\n\nWrite every file to /agent/output/t-1/.';
+
+  pyTest(
+    'as a file the command line names, outside the config dir Pi searches',
+    async () => {
+      installCli(pi);
+      const run = start(pi, 'a', {
+        body: JSON.stringify({ prompt: 'p', system_prompt: INSTRUCTIONS }),
+      });
+      expect((await run.exited).code).toBe(0);
+      const argv = record('a', 'argv').split('\n');
+      const at = argv.indexOf('--append-system-prompt');
+      expect(at).toBeGreaterThan(-1);
+      const path = record('a', 'appendpath');
+      expect(argv[at + 1]).toBe(path);
+      // The text rides a file, never argv.
+      expect(argv.some((arg) => arg.includes('/agent/output/t-1/'))).toBe(
+        false,
+      );
+      expect(record('a', 'append')).toBe(INSTRUCTIONS);
+      // Nothing of ours for Pi to discover in its config dir.
+      expect(record('a', 'agentdir').split('\n')).not.toContain(
+        'APPEND_SYSTEM.md',
+      );
+    },
+    20_000,
+  );
+
+  pyTest(
+    'on a resumed turn too, where it is the current exec’s',
+    async () => {
+      installCli(pi);
+      const child = spawn(
+        PYTHON ?? 'python3',
+        [
+          wrapperPath(pi),
+          '--workdir',
+          join(root, 'workspace'),
+          '--resume',
+          'conv-1',
+        ],
+        {
+          stdio: ['pipe', 'ignore', 'ignore'],
+          env: {
+            ...process.env,
+            PATH: `${join(root, 'cli')}:/usr/bin:/bin`,
+            HOME: join(root, 'home'),
+            TMPDIR: join(root, 'tmp'),
+            FAKE_RECORD: join(root, 'records', 'r'),
+            FAKE_WAIT: '',
+            FAKE_EXIT: '0',
+          },
+        },
+      );
+      child.stdin?.end(
+        JSON.stringify({ prompt: 'go on', system_prompt: 'second' }),
+      );
+      expect(
+        await new Promise<number | null>((done) =>
+          child.on('close', (code) => done(code)),
+        ),
+      ).toBe(0);
+      const argv = record('r', 'argv').split('\n');
+      expect(argv).toContain('--session');
+      expect(argv[argv.indexOf('--session') + 1]).toBe('conv-1');
+      expect(record('r', 'append')).toBe('second');
+    },
+    20_000,
+  );
+
+  pyTest(
+    'not at all when the turn carries none',
+    async () => {
+      installCli(pi);
+      const run = start(pi, 'a', { body: JSON.stringify({ prompt: 'p' }) });
+      expect((await run.exited).code).toBe(0);
+      expect(record('a', 'argv').split('\n')).not.toContain(
+        '--append-system-prompt',
+      );
     },
     20_000,
   );

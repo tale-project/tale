@@ -15,7 +15,9 @@ import { capture, projectRoot } from './exec';
 // reads the tool's answer in the next request) and the platform's tools route
 // the bridge relays that call to, which checks the session key. A model that
 // never saw the tool, a bridge that never started or a call that never reached
-// the platform each fail the probe.
+// the platform each fail the probe. Every request must also carry the exec's
+// own instructions in its system prompt, though the workspace holds a
+// .pi/APPEND_SYSTEM.md of its own.
 const PROBE = String.raw`
 import http.server, json, os, signal, subprocess, sys, threading, time
 
@@ -63,6 +65,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def chat(self, body):
         requests.append(body)
         assert len(requests) <= 2, 'unexpected model request'
+        system = '\n'.join(
+            message['content'] if isinstance(message.get('content'), str) else json.dumps(message.get('content'))
+            for message in body.get('messages', []) if message.get('role') in ('system', 'developer'))
+        assert 'PI_TALE_INSTRUCTIONS_OK' in system, "the exec's instructions are not in the system prompt"
+        assert 'WORKSPACE_APPEND_TEXT' not in system, "the workspace's APPEND_SYSTEM.md reached the system prompt"
         usage = dict(prompt_tokens=11, completion_tokens=7, total_tokens=18)
         if len(requests) == 1:
             names = [tool.get('function', {}).get('name', '') for tool in body.get('tools', [])]
@@ -103,7 +110,9 @@ local = lambda value: value.replace('http://127.0.0.1:0', origin)
 env = dict(PATH=os.environ['PATH'], HOME='/agent/.runtime/home', NO_PROXY='127.0.0.1',
            **{key: local(value) for key, value in spec['env'].items()})
 os.makedirs(env['HOME'], exist_ok=True)
-os.makedirs(spec['cwd'], exist_ok=True)
+os.makedirs(os.path.join(spec['cwd'], '.pi'), exist_ok=True)
+with open(os.path.join(spec['cwd'], '.pi', 'APPEND_SYSTEM.md'), 'w') as handle:
+    handle.write('WORKSPACE_APPEND_TEXT')
 proc = subprocess.Popen([local(arg) for arg in spec['argv']], cwd=spec['cwd'], env=env,
                         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                         text=True, start_new_session=True)
@@ -126,7 +135,8 @@ finally:
 
 /** Offline image proof: Pi, through the shipped exec builder, wrapper and
  * stream parser, calls a workspace tool over the platform bridge and reads its
- * answer, bounded even if the CLI, the bridge or the server stalls. */
+ * answer, with the exec's own instructions in every request whatever the
+ * workspace holds, bounded even if the CLI, the bridge or the server stalls. */
 export async function checkPiBridgeRoundTrip(image: string): Promise<void> {
   const fact = harnessDefinitionSchema.parse(
     parseYaml(
@@ -150,6 +160,7 @@ export async function checkPiBridgeRoundTrip(image: string): Promise<void> {
     },
     workdir: '/agent/workspace',
     posture: 'act',
+    instructions: 'Probe instructions: PI_TALE_INSTRUCTIONS_OK',
     mcp: { bridgeUrl: 'http://127.0.0.1:0/api/connectors' },
   });
   const result = await capture([

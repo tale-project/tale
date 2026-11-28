@@ -489,7 +489,11 @@ place Gemini reads a global context file from), and Pi's config directory
 under `$TMPDIR`. The next wrapper to start removes every one whose pid no
 longer runs, and the entrypoint empties `$TMPDIR` at every container start. A
 wrapper cancelled before its CLI starts removes what it staged itself. The
-Qwen, Hermes and OpenClaw wrappers run their CLI as a child and wait for it.
+Pi wrapper hands Pi the platform's instructions as a file it stages beside
+that config directory and names on Pi's command line
+(`--append-system-prompt`), so the text stays off argv and Pi reads no other
+append file. The Qwen, Hermes and OpenClaw wrappers run their CLI as a child
+and wait for it.
 
 ### Built-in skills
 
