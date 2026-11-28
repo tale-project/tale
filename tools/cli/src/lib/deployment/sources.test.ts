@@ -6,6 +6,7 @@ import {
   readFileSync,
   rmSync,
   statSync,
+  writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -264,3 +265,285 @@ for (const [message, hint] of [
     expect(JSON.stringify(error.info)).not.toContain(message);
   });
 }
+
+const forgejo = {
+  repository: 'https://git.tale.dev/north-labs/desk',
+  revision,
+};
+const sourceToken = 'synthetic-forgejo-token-marker';
+
+test('a Forgejo configuration source is fetched over HTTPS with the token in git environment config alone', async () => {
+  const sourceKey = 'unused-ssh-source-key-marker';
+  const calls: { args: string[]; env: Record<string, string | undefined> }[] =
+    [];
+  await withDeploymentSources(
+    [runtime, forgejo],
+    {
+      sourceKey,
+      sourceToken,
+      fetchImpl: () => {
+        throw new Error('a Forgejo source must not request GitHub metadata');
+      },
+      run: async (_command, args, options) => {
+        calls.push({ args, env: { ...options?.env } });
+        return success(args.includes('rev-parse') ? revision : '');
+      },
+    },
+    async (source) => {
+      expect(existsSync(source(forgejo))).toBe(true);
+    },
+  );
+  const basic = Buffer.from(`tale-source:${sourceToken}`).toString('base64');
+  let tokenFetches = 0;
+  for (const { args, env } of calls) {
+    expect(args.join(' ')).not.toContain(sourceToken);
+    expect(args.join(' ')).not.toContain(basic);
+    expect(env).not.toHaveProperty('TALE_SOURCE_TOKEN');
+    expect(env).not.toHaveProperty('GIT_SSH_COMMAND');
+    expect(JSON.stringify(env)).not.toContain(sourceToken);
+    expect(JSON.stringify(env)).not.toContain(sourceKey);
+    const directory = args[1] ?? '';
+    const isForgejo = calls.some(
+      (call) =>
+        call.args[1] === directory && call.args.includes(forgejo.repository),
+    );
+    if (args.includes('remote'))
+      // The remote is the canonical HTTPS URL: no userinfo, no token.
+      expect(args.at(-1)).toBe(
+        isForgejo ? forgejo.repository : TALE_REPOSITORY,
+      );
+    if (isForgejo && args.includes('fetch')) {
+      tokenFetches++;
+      expect(env).toMatchObject({
+        GIT_CONFIG_COUNT: '3',
+        GIT_CONFIG_KEY_0: 'http.https://git.tale.dev/.extraHeader',
+        GIT_CONFIG_VALUE_0: `Authorization: Basic ${basic}`,
+        GIT_CONFIG_KEY_1: 'credential.helper',
+        GIT_CONFIG_VALUE_1: '',
+        GIT_CONFIG_KEY_2: 'http.followRedirects',
+        GIT_CONFIG_VALUE_2: 'false',
+        GIT_TERMINAL_PROMPT: '0',
+      });
+    } else {
+      // The runtime and every non-fetch step never see the header.
+      expect(JSON.stringify(env)).not.toContain(basic);
+      expect(env).not.toHaveProperty('GIT_CONFIG_COUNT');
+    }
+  }
+  expect(tokenFetches).toBe(1);
+});
+
+testPosix('git reads the token header for the allowed host only', () => {
+  // Drive the real Git config parser with the environment prepare builds.
+  const captured: Record<string, string | undefined>[] = [];
+  return withDeploymentSources(
+    [forgejo],
+    {
+      sourceToken,
+      run: async (_command, args, options) => {
+        if (args.includes('fetch')) captured.push({ ...options?.env });
+        return success(args.includes('rev-parse') ? revision : '');
+      },
+    },
+    async () => {
+      const env = captured[0];
+      expect(env).toBeDefined();
+      const read = (url: string) => {
+        try {
+          return execFileSync(
+            'git',
+            ['config', '--get-urlmatch', 'http.extraHeader', url],
+            { env: env as NodeJS.ProcessEnv, encoding: 'utf8', stdio: 'pipe' },
+          ).trim();
+        } catch (error) {
+          // `--get-urlmatch` exits 1 when no value matches.
+          if ((error as { status?: number }).status === 1) return '';
+          throw error;
+        }
+      };
+      const basic = Buffer.from(`tale-source:${sourceToken}`).toString(
+        'base64',
+      );
+      expect(read(forgejo.repository)).toBe(`Authorization: Basic ${basic}`);
+      expect(read('https://github.com/north-labs/desk')).toBe('');
+      expect(read('https://git.tale.dev.example/north-labs/desk')).toBe('');
+      expect(read('http://git.tale.dev/north-labs/desk')).toBe('');
+    },
+  );
+});
+
+test('a Forgejo source without TALE_SOURCE_TOKEN fails before any Git step', async () => {
+  let gitRuns = 0;
+  const run = async () => {
+    gitRuns++;
+    return success(revision);
+  };
+  for (const token of [undefined, '']) {
+    await expect(
+      withDeploymentSources(
+        [runtime, forgejo],
+        { sourceToken: token, run },
+        async () => {
+          throw new Error('must not reach the source consumer');
+        },
+      ),
+    ).rejects.toThrow(
+      'A configuration source on an allowed Forgejo host needs TALE_SOURCE_TOKEN in the prepare environment.',
+    );
+  }
+  expect(gitRuns).toBe(0);
+});
+
+test('a token that could break the header is refused without echoing it', async () => {
+  for (const token of [`${sourceToken}\n`, `${sourceToken} x`, `a\r\nX: y`]) {
+    let gitRuns = 0;
+    const error = await withDeploymentSources(
+      [forgejo],
+      {
+        sourceToken: token,
+        run: async () => {
+          gitRuns++;
+          return success(revision);
+        },
+      },
+      async () => undefined,
+    ).then(
+      () => undefined,
+      (failure: unknown) => failure,
+    );
+    expect(error).toBeInstanceOf(CliError);
+    if (!(error instanceof CliError)) throw error;
+    expect(error.message).toBe(
+      'TALE_SOURCE_TOKEN must be one line of printable characters.',
+    );
+    expect(JSON.stringify(error.info)).not.toContain(sourceToken);
+    expect(gitRuns).toBe(0);
+  }
+});
+
+test('only GitHub and the allowed Forgejo hosts over canonical HTTPS are sources', async () => {
+  for (const repository of [
+    'https://gitlab.com/north-labs/desk',
+    'https://git.tale.dev.example/north-labs/desk',
+    'https://evil.example/git.tale.dev/desk',
+    'http://git.tale.dev/north-labs/desk',
+    'https://git.tale.dev:443/north-labs/desk',
+    'https://git.tale.dev:8443/north-labs/desk',
+    'https://user@git.tale.dev/north-labs/desk',
+    `https://${sourceToken}@git.tale.dev/north-labs/desk`,
+    'https://git.tale.dev/north-labs/desk.git',
+    'https://git.tale.dev/north-labs/desk?token=private',
+    'https://git.tale.dev/north-labs/desk#main',
+    'https://git.tale.dev/north-labs/desk/',
+    'https://git.tale.dev/north-labs/../desk',
+    'https://GIT.TALE.DEV/north-labs/desk',
+    'ssh://git@git.tale.dev/north-labs/desk',
+  ]) {
+    let gitRuns = 0;
+    await expect(
+      withDeploymentSources(
+        [{ repository, revision }],
+        {
+          sourceToken,
+          run: async () => {
+            gitRuns++;
+            return success(revision);
+          },
+        },
+        async () => undefined,
+      ),
+    ).rejects.toThrow(
+      'Deployment source must be a canonical GitHub repository URL or one on an allowed Forgejo host.',
+    );
+    expect(gitRuns).toBe(0);
+  }
+});
+
+test('a GitHub source keeps the SSH path and never receives the Forgejo token', async () => {
+  const original = syntheticKey();
+  const expectedPublicKey = publicKey(original.file);
+  let sshFetches = 0;
+  await withDeploymentSources(
+    [client, forgejo],
+    {
+      sourceKey: original.contents,
+      sourceToken,
+      fetchImpl: async () =>
+        Response.json({
+          ssh_keys: [expectedPublicKey.trim().split(' ').slice(0, 2).join(' ')],
+        }),
+      run: async (_command, args, options) => {
+        expect(args.join(' ')).not.toContain(sourceToken);
+        if (args.includes('remote') && args.at(-1)?.startsWith('git@'))
+          expect(args.at(-1)).toBe('git@github.com:north-labs/desk.git');
+        if (options?.env?.GIT_SSH_COMMAND) {
+          sshFetches++;
+          expect(options.env).not.toHaveProperty('GIT_CONFIG_COUNT');
+          expect(JSON.stringify(options.env)).not.toContain(
+            Buffer.from(`tale-source:${sourceToken}`).toString('base64'),
+          );
+        }
+        return success(args.includes('rev-parse') ? revision : '');
+      },
+    },
+    async () => undefined,
+  );
+  expect(sshFetches).toBe(1);
+});
+
+test('a refused Forgejo read says the token cannot read, never the token, URL or server text', async () => {
+  for (const stderr of [
+    `remote: Unauthorized\nfatal: Authentication failed for '${forgejo.repository}/' ${sourceToken}`,
+    `fatal: unable to access '${forgejo.repository}/': The requested URL returned error: 403`,
+    "fatal: could not read Username for 'https://git.tale.dev': terminal prompts disabled",
+  ]) {
+    const error = await withDeploymentSources(
+      [forgejo],
+      {
+        sourceToken,
+        run: async (_command, args) =>
+          args.includes('fetch')
+            ? { success: false, stdout: '', stderr, exitCode: 128 }
+            : success(revision),
+      },
+      async () => undefined,
+    ).then(
+      () => undefined,
+      (failure: unknown) => failure,
+    );
+    expect(error).toBeInstanceOf(CliError);
+    if (!(error instanceof CliError)) throw error;
+    expect(error.info.code).toBe(ExitCode.ExternalDep);
+    expect(error.message).toBe(
+      'Git could not acquire the pinned configuration deployment source during fetch (exit 128; failure hint: authentication). The source token cannot read the repository.',
+    );
+    const rendered = JSON.stringify(error.info);
+    for (const privateValue of [sourceToken, 'git.tale.dev', 'north-labs'])
+      expect(rendered).not.toContain(privateValue);
+  }
+});
+
+test('a supplied Forgejo checkout needs no token and runs no fetch', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'tale-forgejo-supplied-'));
+  roots.push(root);
+  const sourcesFile = join(root, 'sources.json');
+  writeFileSync(
+    sourcesFile,
+    JSON.stringify({ [`${forgejo.repository}@${revision}`]: root }),
+  );
+  const calls: string[][] = [];
+  await withDeploymentSources(
+    [forgejo],
+    {
+      sourcesFile,
+      run: async (_command, args) => {
+        calls.push(args);
+        return success(revision);
+      },
+    },
+    async (source) => {
+      expect(source(forgejo)).toBe(root);
+    },
+  );
+  expect(calls.map((args) => args.at(-2))).toEqual(['rev-parse']);
+});

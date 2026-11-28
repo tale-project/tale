@@ -101,6 +101,7 @@ export async function prepareDeployment(
     {
       sourcesFile: options.sourcesFile,
       sourceKey: process.env.TALE_SOURCE_SSH_KEY,
+      sourceToken: process.env.TALE_SOURCE_TOKEN,
     },
     async (source) => {
       // Configurations first: they validate in seconds with this CLI's own
