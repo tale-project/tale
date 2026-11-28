@@ -693,12 +693,13 @@ describe('a video through the outbound proxies [VID-R7]', () => {
   });
 });
 
-describe("a video's captions when its page offers no format (#5507)", () => {
-  // A stand-in yt-dlp on VIDEO_INGEST_BIN_DIR that answers a caption run as
-  // the real one does for a page with no format to download: it ends on
-  // yt-dlp's own error unless the run passes --ignore-no-formats-error, and
-  // then writes the captions into its HOME (the job dir), where it also keeps
-  // the run's argv.
+describe('a video whose page offers no format (#5507)', () => {
+  // A stand-in yt-dlp on VIDEO_INGEST_BIN_DIR that answers a metadata run and
+  // a caption run as the real one does for a page with no format to
+  // download: each ends on yt-dlp's own error unless it passes
+  // --ignore-no-formats-error. With the flag, a metadata run describes the
+  // video, its English captions listed, and a caption run writes the
+  // captions into its HOME (the job dir), where it also keeps the run's argv.
   const root = mkdtempSync(join(tmpdir(), 'tale-ytdlp-no-formats-'));
   const bin = join(root, 'bin');
   mkdirSync(bin);
@@ -710,7 +711,10 @@ describe("a video's captions when its page offers no format (#5507)", () => {
       'printf "%s\\n" "$@" > "$HOME/args"',
       'for arg in "$@"; do',
       '  if [ "$arg" = --ignore-no-formats-error ]; then',
-      `    printf 'WEBVTT\\n\\n00:00:00.000 --> 00:00:01.000\\nNever gonna give you up\\n' > "$HOME/x.en.vtt"`,
+      '    case " $* " in',
+      `      *" -J "*) echo '{"id": "x", "title": "x", "subtitles": {"en": [{"ext": "vtt"}]}}' ;;`,
+      `      *) printf 'WEBVTT\\n\\n00:00:00.000 --> 00:00:01.000\\nNever gonna give you up\\n' > "$HOME/x.en.vtt" ;;`,
+      '    esac',
       '    exit 0',
       '  fi',
       'done',
@@ -754,6 +758,21 @@ describe("a video's captions when its page offers no format (#5507)", () => {
     const argv = readFileSync(join(jobDir, 'args'), 'utf8').split('\n');
     expect(argv).toContain('--ignore-no-formats-error');
     expect(argv).toContain('--skip-download');
+  });
+
+  it('describes the video, its captions listed, with no format to download', async () => {
+    process.env.VIDEO_INGEST_BIN_DIR = bin;
+    delete process.env.OUTBOUND_PROXY_URLS;
+    delete process.env.VIDEO_INGEST_PROXY_URL;
+    resetOutboundProxiesForTests();
+    const jobDir = mkdtempSync(join(root, 'job-'));
+
+    await expect(
+      ytdlpJson('https://www.youtube.com/watch?v=x', jobDir, 10_000),
+    ).resolves.toMatchObject({ id: 'x', subtitles: { en: [{ ext: 'vtt' }] } });
+    const argv = readFileSync(join(jobDir, 'args'), 'utf8').split('\n');
+    expect(argv).toContain('-J');
+    expect(argv).toContain('--ignore-no-formats-error');
   });
 });
 
